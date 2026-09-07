@@ -1,79 +1,61 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Kaitiaki Camera AI</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ3P2J4g0hQf7YJ5qY8YJY8YJY8YJY8=" crossorigin="" />
-  <style>
-    :root{--green:#0d6658;--dark:#17201e;--bg:#f4f6f5;--card:#fff;--muted:#69736f;--danger:#d84f38;--warn:#e59a24;--ok:#219653}
-    *{box-sizing:border-box}html,body{margin:0;height:100%;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--dark)}
-    header{height:70px;background:#202321;color:#fff;display:flex;align-items:center;padding:0 18px;gap:12px;position:relative;z-index:1000}
-    .logo{width:42px;height:42px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:24px}.brand{font-size:21px;font-weight:700;letter-spacing:.2px}.menu{margin-left:auto;font-size:30px}
-    .app{height:calc(100% - 70px);display:flex;flex-direction:column}.topbar{padding:12px;display:flex;gap:10px;flex-wrap:wrap;background:var(--bg);z-index:900}.pill{background:#fff;border-radius:24px;padding:11px 15px;font-weight:700;box-shadow:0 2px 8px #0001}.pill span{font-weight:400;color:var(--muted)}
-    #map{flex:1;min-height:360px;background:#dfe8e5}.leaflet-control-attribution{font-size:9px}
-    .panel{background:#fff;border-top:1px solid #ddd;padding:14px 14px calc(14px + env(safe-area-inset-bottom));max-height:42%;overflow:auto}.row{display:flex;justify-content:space-between;align-items:center;gap:10px}.title{font-size:19px;font-weight:700}.sub{font-size:13px;color:var(--muted);margin-top:3px}.btn{border:0;border-radius:12px;background:var(--green);color:#fff;padding:11px 14px;font-weight:700}.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.card{background:#f7f9f8;border-radius:14px;padding:12px;border:1px solid #e1e6e4}.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700}.dot{width:9px;height:9px;border-radius:50%;background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--danger)}.metric{font-size:24px;font-weight:800;margin-top:6px}.small{font-size:12px;color:var(--muted)}
-    .leaflet-popup-content-wrapper{border-radius:14px}.popup h3{margin:0 0 6px}.popup p{margin:4px 0;font-size:13px}.ai{font-weight:700;color:var(--danger)}
-    @media(min-width:800px){.panel{max-height:32%}.cards{grid-template-columns:repeat(4,minmax(0,1fr))}}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d6658">
+<title>Kaitiaki Camera AI</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--green:#0d6658;--green2:#14806e;--dark:#17201e;--bg:#f3f6f5;--card:#fff;--muted:#69736f;--orange:#e59a24;--red:#d84f38;--line:#dfe6e3}
+*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--dark)}
+body{overflow:hidden}.app{height:100dvh;display:flex;flex-direction:column}
+header{height:62px;flex:0 0 62px;background:var(--green);color:#fff;display:flex;align-items:center;padding:0 15px;gap:11px;box-shadow:0 2px 8px #0002;z-index:1000}
+.logo{width:40px;height:40px;border-radius:12px;background:#fff;color:var(--green);display:grid;place-items:center;font-size:22px}.brand{font-size:19px;font-weight:800}.menu{margin-left:auto;font-size:27px}
+.top{background:var(--bg);padding:10px 12px 8px;z-index:900}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{background:#fff;border:1px solid var(--line);border-radius:13px;padding:8px 9px}.stat b{display:block;font-size:21px}.stat span{font-size:11px;color:var(--muted)}
+#map{flex:1;min-height:0;background:#dce8e4}.leaflet-control-attribution{font-size:9px}.leaflet-popup-content-wrapper{border-radius:13px}.leaflet-popup-content{margin:13px}.popup h3{margin:0 0 6px}.popup p{margin:4px 0;font-size:13px}.status{font-weight:700}.online{color:var(--green2)}.offline{color:var(--red)}
+.camera-pin{width:34px;height:34px;border-radius:50%;background:#fff;border:3px solid var(--green);display:grid;place-items:center;box-shadow:0 2px 8px #0004;font-size:17px}.camera-pin.alert{border-color:var(--red)}
+.actions{position:absolute;right:13px;bottom:160px;z-index:800;display:flex;flex-direction:column;gap:9px}.fab{width:50px;height:50px;border:0;border-radius:16px;background:#fff;box-shadow:0 3px 12px #0003;font-size:23px}.fab.primary{background:var(--green);color:#fff}
+.bottom{background:#fff;border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom));z-index:900;max-height:43%;overflow:auto}.bottom-head{display:flex;justify-content:space-between;align-items:center;gap:10px}.title{font-size:18px;font-weight:800}.sub{font-size:12px;color:var(--muted);margin-top:2px}.btn{border:0;border-radius:11px;background:var(--green);color:#fff;padding:10px 13px;font-weight:800}.queue{display:flex;gap:9px;overflow-x:auto;margin-top:10px;padding-bottom:2px}.card{min-width:205px;background:#f7f9f8;border:1px solid var(--line);border-radius:14px;padding:11px}.card-top{display:flex;justify-content:space-between;gap:8px}.tag{font-size:10px;font-weight:800;padding:4px 7px;border-radius:8px;background:#e7f1ee;color:var(--green)}.tag.alert{background:#fae8e3;color:var(--red)}.card h3{font-size:15px;margin:8px 0 4px}.card p{font-size:12px;color:var(--muted);margin:3px 0}.review{margin-top:9px;width:100%;background:var(--dark)}
+.empty{padding:15px;text-align:center;color:var(--muted);font-size:13px;background:#f7f9f8;border-radius:13px;margin-top:10px}
+.modal{position:fixed;inset:0;background:#0008;z-index:2000;display:none;align-items:flex-end}.modal.show{display:flex}.sheet{width:100%;background:#fff;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:78vh;overflow:auto}.sheet h2{margin:0 0 6px}.sheet p{color:var(--muted);font-size:13px}.close{float:right;border:0;background:#eee;border-radius:50%;width:35px;height:35px;font-size:20px}.drop{border:2px dashed #b9c9c4;border-radius:15px;padding:25px 12px;text-align:center;margin:14px 0}.drop input{display:none}.drop label{display:inline-block;background:var(--green);color:#fff;padding:11px 15px;border-radius:11px;font-weight:800}.preview{width:100%;max-height:280px;object-fit:contain;border-radius:12px;display:none;margin-top:10px}
+@media(min-width:800px){header{padding-left:22px}.top{padding:12px 20px}.bottom{padding-left:20px;padding-right:20px}.actions{bottom:190px}.queue{display:grid;grid-template-columns:repeat(4,1fr);overflow:visible}.card{min-width:0}}
+</style>
 </head>
 <body>
-<header><div class="logo">📷</div><div class="brand">Kaitiaki Camera AI</div><div class="menu">☰</div></header>
 <div class="app">
-  <div class="topbar">
-    <div class="pill"><strong id="cameraCount">0</strong> cameras</div>
-    <div class="pill"><strong id="onlineCount">0</strong> online</div>
-    <div class="pill"><strong id="detectionCount">0</strong> AI detections</div>
-    <button class="btn" id="locateBtn">My location</button>
-  </div>
-  <div id="map"></div>
-  <section class="panel">
-    <div class="row"><div><div class="title">Camera monitoring</div><div class="sub">AI camera network for Kaitiakitanga — cameras, detections and site health in one place.</div></div><button class="btn" id="addBtn">+ Camera</button></div>
-    <div class="cards">
-      <div class="card"><div class="status"><i class="dot"></i> Network</div><div class="metric" id="networkMetric">Ready</div><div class="small">Camera data layer</div></div>
-      <div class="card"><div class="status"><i class="dot"></i> Online</div><div class="metric" id="onlineMetric">0</div><div class="small">connected cameras</div></div>
-      <div class="card"><div class="status"><i class="dot warn"></i> Review</div><div class="metric" id="reviewMetric">0</div><div class="small">detections to check</div></div>
-      <div class="card"><div class="status"><i class="dot bad"></i> Alerts</div><div class="metric" id="alertMetric">0</div><div class="small">high-priority detections</div></div>
-    </div>
-  </section>
+<header><div class="logo">📷</div><div class="brand">Kaitiaki Camera AI</div><div class="menu">☰</div></header>
+<div class="top"><div class="stats"><div class="stat"><b id="cameraCount">0</b><span>CAMERAS</span></div><div class="stat"><b id="onlineCount">0</b><span>ONLINE</span></div><div class="stat"><b id="reviewCount">0</b><span>TO REVIEW</span></div></div></div>
+<div id="map"></div>
+<div class="actions"><button class="fab" id="locate" title="My location">⌖</button><button class="fab primary" id="add" title="Add camera">＋</button></div>
+<section class="bottom">
+<div class="bottom-head"><div><div class="title">AI detection review</div><div class="sub">Pull up a card, check the image and record the result.</div></div><button class="btn" id="reviewBtn">Review</button></div>
+<div class="queue" id="queue"></div>
+</section>
 </div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<div class="modal" id="modal"><div class="sheet"><button class="close" id="close">×</button><h2>Add / test a camera image</h2><p>This is the starting point for the camera workflow. No fake AI result is shown — the classification model can be connected next.</p><div class="drop"><input id="file" type="file" accept="image/*" capture="environment"><label for="file">Take photo / choose image</label><img id="preview" class="preview"></div><button class="btn" id="save" style="width:100%">Add to review queue</button></div></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  const map = L.map('map', {zoomControl:true}).setView([-37.958,177.001], 12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© OpenStreetMap contributors'}).addTo(map);
-
-  // Demo records only — replace these with the real camera feed/API later.
-  const cameras = [
-    {id:'CAM-001',lat:-37.958,lon:177.001,status:'Online',detections:3,ai:'Possum'},
-    {id:'CAM-002',lat:-37.965,lon:177.014,status:'Online',detections:1,ai:'None'},
-    {id:'CAM-003',lat:-37.949,lon:176.988,status:'Offline',detections:0,ai:'None'}
-  ];
-  const markers=[];
-  cameras.forEach(c=>{
-    const m=L.marker([c.lat,c.lon]).addTo(map);
-    m.bindPopup(`<div class="popup"><h3>${c.id}</h3><p>Status: <b>${c.status}</b></p><p>AI detections: <b>${c.detections}</b></p><p>Latest classification: <span class="ai">${c.ai}</span></p></div>`);
-    markers.push(m);
-  });
-
-  const online=cameras.filter(c=>c.status==='Online').length;
-  const detections=cameras.reduce((n,c)=>n+c.detections,0);
-  const alerts=cameras.filter(c=>c.ai!=='None').length;
-  document.getElementById('cameraCount').textContent=cameras.length;
-  document.getElementById('onlineCount').textContent=online;
-  document.getElementById('detectionCount').textContent=detections;
-  document.getElementById('onlineMetric').textContent=online;
-  document.getElementById('reviewMetric').textContent=detections;
-  document.getElementById('alertMetric').textContent=alerts;
-
-  document.getElementById('locateBtn').onclick=()=>{
-    if(!navigator.geolocation){alert('Location is not available on this device.');return;}
-    navigator.geolocation.getCurrentPosition(p=>{
-      const ll=[p.coords.latitude,p.coords.longitude];
-      L.circleMarker(ll,{radius:9}).addTo(map).bindPopup('Your location').openPopup();
-      map.setView(ll,16);
-    },()=>alert('Could not get your location. Check browser location permission.'));
-  };
-  document.getElementById('addBtn').onclick=()=>alert('Next step: add a real camera with its name, GPS position, connection status and AI feed.');
+// Camera-only prototype. Trap.NZ data is deliberately NOT loaded here.
+const cameras=[
+ {id:'CAM-001',name:'Tauwhare Pā',lat:-37.9624,lon:177.0060,status:'Online',review:2,alert:true},
+ {id:'CAM-002',name:'Western Boundary',lat:-37.9562,lon:176.9940,status:'Online',review:1,alert:false},
+ {id:'CAM-003',name:'Eastern 1',lat:-37.9680,lon:177.0160,status:'Offline',review:0,alert:false},
+ {id:'CAM-004',name:'Southern Boundary',lat:-37.9730,lon:177.0030,status:'Online',review:1,alert:true}
+];
+const map=L.map('map',{zoomControl:false}).setView([-37.962,177.006],13);
+L.control.zoom({position:'topright'}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
+function icon(c){return L.divIcon({className:'',html:`<div class="camera-pin ${c.alert?'alert':''}">📷</div>`,iconSize:[34,34],iconAnchor:[17,17]})}
+cameras.forEach(c=>{L.marker([c.lat,c.lon],{icon:icon(c)}).addTo(map).bindPopup(`<div class="popup"><h3>${c.name}</h3><p>Camera: <b>${c.id}</b></p><p>Status: <span class="status ${c.status==='Online'?'online':'offline'}">${c.status}</span></p><p>Images waiting: <b>${c.review}</b></p><button class="btn" onclick="openModal()">Add image</button></div>`)})
+const online=cameras.filter(c=>c.status==='Online').length;const review=cameras.reduce((n,c)=>n+c.review,0);
+document.getElementById('cameraCount').textContent=cameras.length;document.getElementById('onlineCount').textContent=online;document.getElementById('reviewCount').textContent=review;
+function renderQueue(){const q=document.getElementById('queue');q.innerHTML='';const items=[{cam:'CAM-001',site:'Tauwhare Pā',result:'Needs review',kind:'alert'},{cam:'CAM-001',site:'Tauwhare Pā',result:'AI result pending',kind:''},{cam:'CAM-002',site:'Western Boundary',result:'Needs review',kind:''},{cam:'CAM-004',site:'Southern Boundary',result:'Needs review',kind:'alert'}];items.forEach(x=>{q.insertAdjacentHTML('beforeend',`<article class="card"><div class="card-top"><b>${x.cam}</b><span class="tag ${x.kind}">${x.result}</span></div><h3>${x.site}</h3><p>Image captured from camera network</p><p>Classification: <b>Not yet classified</b></p><button class="btn review">Open card</button></article>`)})}
+renderQueue();
+const modal=document.getElementById('modal');function openModal(){modal.classList.add('show')}window.openModal=openModal;document.getElementById('add').onclick=openModal;document.getElementById('reviewBtn').onclick=()=>document.querySelector('.card .review')?.click();document.getElementById('close').onclick=()=>modal.classList.remove('show');modal.onclick=e=>{if(e.target===modal)modal.classList.remove('show')};
+document.getElementById('file').onchange=e=>{const f=e.target.files[0];if(!f)return;const img=document.getElementById('preview');img.src=URL.createObjectURL(f);img.style.display='block'};
+document.getElementById('save').onclick=()=>{alert('Image added to the local review prototype. Next we connect the real camera feed and AI classifier.');modal.classList.remove('show')};
+document.getElementById('locate').onclick=()=>{if(!navigator.geolocation){alert('Location is not available.');return}navigator.geolocation.getCurrentPosition(p=>map.setView([p.coords.latitude,p.coords.longitude],16),()=>alert('Location permission was not available.'))};
 </script>
 </body>
 </html>
