@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Kaitiaki Camera AI</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ3P2J4g0hQf7YJ5qY8YJY8YJY8YJY8=" crossorigin="" />
+  <style>
+    :root{--green:#0d6658;--dark:#17201e;--bg:#f4f6f5;--card:#fff;--muted:#69736f;--danger:#d84f38;--warn:#e59a24;--ok:#219653}
+    *{box-sizing:border-box}html,body{margin:0;height:100%;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--dark)}
+    header{height:70px;background:#202321;color:#fff;display:flex;align-items:center;padding:0 18px;gap:12px;position:relative;z-index:1000}
+    .logo{width:42px;height:42px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:24px}.brand{font-size:21px;font-weight:700;letter-spacing:.2px}.menu{margin-left:auto;font-size:30px}
+    .app{height:calc(100% - 70px);display:flex;flex-direction:column}.topbar{padding:12px;display:flex;gap:10px;flex-wrap:wrap;background:var(--bg);z-index:900}.pill{background:#fff;border-radius:24px;padding:11px 15px;font-weight:700;box-shadow:0 2px 8px #0001}.pill span{font-weight:400;color:var(--muted)}
+    #map{flex:1;min-height:360px;background:#dfe8e5}.leaflet-control-attribution{font-size:9px}
+    .panel{background:#fff;border-top:1px solid #ddd;padding:14px 14px calc(14px + env(safe-area-inset-bottom));max-height:42%;overflow:auto}.row{display:flex;justify-content:space-between;align-items:center;gap:10px}.title{font-size:19px;font-weight:700}.sub{font-size:13px;color:var(--muted);margin-top:3px}.btn{border:0;border-radius:12px;background:var(--green);color:#fff;padding:11px 14px;font-weight:700}.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.card{background:#f7f9f8;border-radius:14px;padding:12px;border:1px solid #e1e6e4}.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700}.dot{width:9px;height:9px;border-radius:50%;background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--danger)}.metric{font-size:24px;font-weight:800;margin-top:6px}.small{font-size:12px;color:var(--muted)}
+    .leaflet-popup-content-wrapper{border-radius:14px}.popup h3{margin:0 0 6px}.popup p{margin:4px 0;font-size:13px}.ai{font-weight:700;color:var(--danger)}
+    @media(min-width:800px){.panel{max-height:32%}.cards{grid-template-columns:repeat(4,minmax(0,1fr))}}
+  </style>
+</head>
+<body>
+<header><div class="logo">📷</div><div class="brand">Kaitiaki Camera AI</div><div class="menu">☰</div></header>
+<div class="app">
+  <div class="topbar">
+    <div class="pill"><strong id="cameraCount">0</strong> cameras</div>
+    <div class="pill"><strong id="onlineCount">0</strong> online</div>
+    <div class="pill"><strong id="detectionCount">0</strong> AI detections</div>
+    <button class="btn" id="locateBtn">My location</button>
+  </div>
+  <div id="map"></div>
+  <section class="panel">
+    <div class="row"><div><div class="title">Camera monitoring</div><div class="sub">AI camera network for Kaitiakitanga — cameras, detections and site health in one place.</div></div><button class="btn" id="addBtn">+ Camera</button></div>
+    <div class="cards">
+      <div class="card"><div class="status"><i class="dot"></i> Network</div><div class="metric" id="networkMetric">Ready</div><div class="small">Camera data layer</div></div>
+      <div class="card"><div class="status"><i class="dot"></i> Online</div><div class="metric" id="onlineMetric">0</div><div class="small">connected cameras</div></div>
+      <div class="card"><div class="status"><i class="dot warn"></i> Review</div><div class="metric" id="reviewMetric">0</div><div class="small">detections to check</div></div>
+      <div class="card"><div class="status"><i class="dot bad"></i> Alerts</div><div class="metric" id="alertMetric">0</div><div class="small">high-priority detections</div></div>
+    </div>
+  </section>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+  const map = L.map('map', {zoomControl:true}).setView([-37.958,177.001], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© OpenStreetMap contributors'}).addTo(map);
+
+  // Demo records only — replace these with the real camera feed/API later.
+  const cameras = [
+    {id:'CAM-001',lat:-37.958,lon:177.001,status:'Online',detections:3,ai:'Possum'},
+    {id:'CAM-002',lat:-37.965,lon:177.014,status:'Online',detections:1,ai:'None'},
+    {id:'CAM-003',lat:-37.949,lon:176.988,status:'Offline',detections:0,ai:'None'}
+  ];
+  const markers=[];
+  cameras.forEach(c=>{
+    const m=L.marker([c.lat,c.lon]).addTo(map);
+    m.bindPopup(`<div class="popup"><h3>${c.id}</h3><p>Status: <b>${c.status}</b></p><p>AI detections: <b>${c.detections}</b></p><p>Latest classification: <span class="ai">${c.ai}</span></p></div>`);
+    markers.push(m);
+  });
+
+  const online=cameras.filter(c=>c.status==='Online').length;
+  const detections=cameras.reduce((n,c)=>n+c.detections,0);
+  const alerts=cameras.filter(c=>c.ai!=='None').length;
+  document.getElementById('cameraCount').textContent=cameras.length;
+  document.getElementById('onlineCount').textContent=online;
+  document.getElementById('detectionCount').textContent=detections;
+  document.getElementById('onlineMetric').textContent=online;
+  document.getElementById('reviewMetric').textContent=detections;
+  document.getElementById('alertMetric').textContent=alerts;
+
+  document.getElementById('locateBtn').onclick=()=>{
+    if(!navigator.geolocation){alert('Location is not available on this device.');return;}
+    navigator.geolocation.getCurrentPosition(p=>{
+      const ll=[p.coords.latitude,p.coords.longitude];
+      L.circleMarker(ll,{radius:9}).addTo(map).bindPopup('Your location').openPopup();
+      map.setView(ll,16);
+    },()=>alert('Could not get your location. Check browser location permission.'));
+  };
+  document.getElementById('addBtn').onclick=()=>alert('Next step: add a real camera with its name, GPS position, connection status and AI feed.');
+</script>
+</body>
+</html>
