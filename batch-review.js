@@ -1,45 +1,63 @@
 // Phase 2 batch collection/review enhancement.
-// Adds a clear multi-image gallery workflow without rebuilding the existing app.
+// Keeps the existing app and Phase 1 workflow intact.
+// Adds reliable multi-image selection and aggressively compacts local image data
+// so the existing observation/review storage continues to work on phones.
 (function(){
+  'use strict';
+  const IMAGE_KEY='kaitiaki-camera-images-v2';
+  const CAMERA_KEY='kaitiaki-camera-cameras-v2';
+
   function ready(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fn); else fn(); }
+  function loadImages(){try{const x=JSON.parse(localStorage.getItem(IMAGE_KEY)||'[]');return Array.isArray(x)?x:[]}catch{return []}}
+  function saveImages(v){localStorage.setItem(IMAGE_KEY,JSON.stringify(v))}
+
+  function compressDataUrl(src,maxSide,quality){
+    return new Promise((resolve,reject)=>{
+      if(!src || !src.startsWith('data:image/')) return resolve(src);
+      const img=new Image();
+      img.onload=()=>{
+        try{
+          const scale=Math.min(1,maxSide/Math.max(img.naturalWidth||1,img.naturalHeight||1));
+          const w=Math.max(1,Math.round((img.naturalWidth||1)*scale));
+          const h=Math.max(1,Math.round((img.naturalHeight||1)*scale));
+          const c=document.createElement('canvas'); c.width=w; c.height=h;
+          c.getContext('2d').drawImage(img,0,0,w,h);
+          resolve(c.toDataURL('image/jpeg',quality));
+        }catch(e){reject(e)}
+      };
+      img.onerror=()=>reject(new Error('Could not compress stored image'));
+      img.src=src;
+    });
+  }
+
+  async function compactStoredImages(){
+    const images=loadImages();
+    if(!images.length) return;
+    let changed=false;
+    for(const item of images){
+      if(!item.src || !item.src.startsWith('data:image/')) continue;
+      try{
+        const compact=await compressDataUrl(item.src,600,.32);
+        if(compact.length < item.src.length*.9){ item.src=compact; changed=true; }
+      }catch{}
+    }
+    if(changed){
+      try{saveImages(images)}catch{}
+    }
+  }
+
   ready(function(){
     const input=document.getElementById('fileInput');
     const saveBtn=document.getElementById('saveImage');
     if(!input||!saveBtn) return;
-    input.setAttribute('accept','image/*');
+
+    // The original Phase 1 picker now supports gallery multi-select.
+    input.type='file';
+    input.accept='image/*';
+    input.multiple=true;
+
     const drop=input.closest('.drop');
     if(!drop) return;
-
-    let batchInput=document.getElementById('batchFileInput');
-    if(!batchInput){
-      batchInput=document.createElement('input');
-      batchInput.id='batchFileInput';
-      batchInput.type='file';
-      batchInput.accept='image/*';
-      batchInput.multiple=true;
-      batchInput.style.display='none';
-      drop.appendChild(batchInput);
-    }
-
-    let batchButton=document.getElementById('batchChooseBtn');
-    if(!batchButton){
-      batchButton=document.createElement('button');
-      batchButton.type='button';
-      batchButton.id='batchChooseBtn';
-      batchButton.className='btn secondary';
-      batchButton.style.cssText='margin-top:10px;width:100%';
-      batchButton.textContent='🖼️ Choose multiple images from gallery';
-      drop.appendChild(batchButton);
-    }
-
-    let msg=drop.querySelector('.batch-help');
-    if(!msg){
-      msg=document.createElement('div');
-      msg.className='batch-help';
-      msg.style.cssText='margin-top:8px;font-size:12px;color:#69736f;font-weight:700;text-align:center;line-height:1.4';
-      msg.textContent='Use the gallery button to select several images at once. Take photo remains one image at a time.';
-      drop.appendChild(msg);
-    }
 
     let batch=[];
     let previewList=document.getElementById('batchPreviewList');
@@ -50,22 +68,14 @@
       drop.appendChild(previewList);
     }
 
-    batchButton.addEventListener('click',()=>batchInput.click());
-
-    batchInput.addEventListener('change',function(){
-      batch=Array.from(batchInput.files||[]);
-      render();
-      saveBtn.textContent=batch.length?('Save '+batch.length+' images to collection'):'Save image to collection';
-    });
-
-    // Also take over the original Take photo / choose images control.
-    // This makes multi-select work from the main button as well as the dedicated gallery button.
-    input.addEventListener('change',function(){
-      batch=Array.from(input.files||[]);
-      batchInput.value='';
-      render();
-      saveBtn.textContent=batch.length?('Save '+batch.length+' images to collection'):'Save image to collection';
-    });
+    let msg=drop.querySelector('.batch-help');
+    if(!msg){
+      msg=document.createElement('div');
+      msg.className='batch-help';
+      msg.style.cssText='margin-top:8px;font-size:12px;color:#69736f;font-weight:700;text-align:center;line-height:1.4';
+      msg.textContent='From the gallery you can select several images at once. Taking a new photo remains one photo at a time.';
+      drop.appendChild(msg);
+    }
 
     function render(){
       previewList.innerHTML='';
@@ -75,28 +85,34 @@
         img.alt=file.name;
         img.title=file.name;
         img.style.cssText='width:100%;height:75px;object-fit:cover;border-radius:8px;background:#dfe6e3';
+        img.onload=()=>URL.revokeObjectURL(img.src);
         previewList.appendChild(img);
       });
-      if(batch.length>30){
-        const n=document.createElement('div');
-        n.textContent='+'+(batch.length-30)+' more';
-        n.style.cssText='grid-column:1/-1;font-size:11px;color:#69736f;padding:4px';
-        previewList.appendChild(n);
+      const count=document.getElementById('batchCount');
+      if(count){
+        count.style.display=batch.length?'block':'none';
+        count.textContent=batch.length===1?'1 image selected':`${batch.length} images selected`;
       }
+      saveBtn.textContent=batch.length>1?`Save ${batch.length} images to collection`:'Save image to collection';
     }
 
-    async function compress(file,maxSide,quality){
+    input.addEventListener('change',function(){
+      batch=Array.from(input.files||[]).filter(f=>f.type.startsWith('image/'));
+      render();
+    });
+
+    async function compressFile(file,maxSide,quality){
       return new Promise((resolve,reject)=>{
         const url=URL.createObjectURL(file),img=new Image();
-        img.onload=function(){
+        img.onload=()=>{
           try{
-            const scale=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight));
-            const w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale));
-            const c=document.createElement('canvas'); c.width=w;c.height=h;
+            const scale=Math.min(1,maxSide/Math.max(img.naturalWidth||1,img.naturalHeight||1));
+            const w=Math.max(1,Math.round((img.naturalWidth||1)*scale));
+            const h=Math.max(1,Math.round((img.naturalHeight||1)*scale));
+            const c=document.createElement('canvas');c.width=w;c.height=h;
             c.getContext('2d').drawImage(img,0,0,w,h);
             const out=c.toDataURL('image/jpeg',quality);
-            URL.revokeObjectURL(url);
-            resolve(out);
+            URL.revokeObjectURL(url);resolve(out);
           }catch(e){URL.revokeObjectURL(url);reject(e)}
         };
         img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Could not read image'))};
@@ -105,64 +121,81 @@
     }
 
     async function makeCompact(file){
-      try{return await compress(file,900,.50)}
-      catch{return await compress(file,700,.40)}
+      try{return await compressFile(file,700,.36)}
+      catch{return await compressFile(file,500,.24)}
     }
 
     async function saveBatch(){
-      if(!batch.length){ alert('Choose one or more images first.'); return; }
-      const cameras=JSON.parse(localStorage.getItem('kaitiaki-camera-cameras-v2')||'[]');
-      const cameraId=document.getElementById('captureCamera')?.value || cameras[0]?.id || '';
+      if(!batch.length){alert('Choose one or more images first.');return}
+      const cameras=JSON.parse(localStorage.getItem(CAMERA_KEY)||'[]');
+      const cameraId=document.getElementById('captureCamera')?.value||cameras[0]?.id||'';
       const note=document.getElementById('captureNote')?.value.trim()||'';
-      let images=[];
-      try{images=JSON.parse(localStorage.getItem('kaitiaki-camera-images-v2')||'[]')}catch{}
+
       saveBtn.disabled=true;
-      const filesToSave=[...batch];
-      let done=0;
       try{
-        for(const file of filesToSave){
-          const src=await makeCompact(file);
-          const record={id:'IMG-'+Date.now()+'-'+Math.random().toString(36).slice(2,8),cameraId,src,note,created:new Date().toISOString(),result:null,originalFileName:file.name};
+        // Existing Phase 1 images may have been stored at much larger sizes.
+        // Compact them before adding more so review observations still have room to save.
+        await compactStoredImages();
+
+        let images=loadImages();
+        const files=[...batch];
+        let done=0;
+        for(const file of files){
+          let src=await makeCompact(file);
+          let record={
+            id:'IMG-'+Date.now()+'-'+Math.random().toString(36).slice(2,8),
+            cameraId,
+            src,
+            note,
+            created:new Date().toISOString(),
+            result:null,
+            originalFileName:file.name
+          };
           images.unshift(record);
           try{
-            localStorage.setItem('kaitiaki-camera-images-v2',JSON.stringify(images));
+            saveImages(images);
           }catch(e){
-            try{
-              record.src=await compress(file,600,.35);
-              localStorage.setItem('kaitiaki-camera-images-v2',JSON.stringify(images));
-            }catch(e2){
+            // One more aggressive compaction pass before giving up.
+            for(const old of images){
+              if(old.src&&old.src.startsWith('data:image/')){
+                try{old.src=await compressDataUrl(old.src,400,.20)}catch{}
+              }
+            }
+            try{saveImages(images)}catch(e2){
               images.shift();
-              throw new Error('Storage is full after saving '+done+' of '+filesToSave.length+' images.');
+              throw new Error(`Storage is full. ${done} of ${files.length} images were saved. The existing images are safe.`);
             }
           }
           done++;
-          saveBtn.textContent='Saving '+done+' of '+filesToSave.length+'...';
+          saveBtn.textContent=`Saving ${done} of ${files.length}...`;
         }
-        batch=[];
-        batchInput.value='';
-        input.value='';
-        previewList.innerHTML='';
-        const p=document.getElementById('preview');if(p)p.style.display='none';
-        const n=document.getElementById('captureNote');if(n)n.value='';
+
+        batch=[];input.value='';previewList.innerHTML='';
+        const noteEl=document.getElementById('captureNote');if(noteEl)noteEl.value='';
+        const count=document.getElementById('batchCount');if(count){count.style.display='none';count.textContent='';}
         saveBtn.textContent='Save image to collection';
-        if(typeof window.refresh==='function') window.refresh();
-        if(typeof window.showView==='function') window.showView('inbox');
+        if(typeof window.refresh==='function')window.refresh();
+        if(typeof window.showView==='function')window.showView('inbox');
         else document.querySelector('[data-go="inbox"]')?.click();
       }catch(e){
         alert(e.message||'Some images could not be saved.');
-        if(typeof window.refresh==='function') window.refresh();
+        if(typeof window.refresh==='function')window.refresh();
       }finally{
         saveBtn.disabled=false;
-        if(!batch.length) saveBtn.textContent='Save image to collection';
+        if(!batch.length)saveBtn.textContent='Save image to collection';
       }
     }
 
-    // Capture phase stops the original Phase 1 save handler when batch mode is being used.
+    // Capture the save click before the original Phase 1 handler only when this
+    // Phase 2 collector has a selected image. This keeps the original workflow intact.
     saveBtn.addEventListener('click',function(e){
-      if(!batch.length) return;
+      if(!batch.length)return;
       e.preventDefault();
       e.stopImmediatePropagation();
       saveBatch();
     },true);
+
+    // Compact the existing collection shortly after load.
+    setTimeout(()=>compactStoredImages(),500);
   });
 })();
