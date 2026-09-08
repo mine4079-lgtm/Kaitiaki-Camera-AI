@@ -1,6 +1,6 @@
-const CACHE_NAME = 'kaitiaki-camera-v5';
+const CACHE_NAME = 'kaitiaki-camera-v6';
 const IMAGE_CACHE = 'kaitiaki-camera-images-v1';
-const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./offline-fix.js','./ai-prep.js'];
+const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./offline-fix.js'];
 
 async function patchHtml(response){
   const type=response.headers.get('content-type')||'';
@@ -9,7 +9,6 @@ async function patchHtml(response){
     const text=await response.text();
     let patched=text;
     if(!patched.includes('offline-fix.js')) patched=patched.replace('</body>','<script src="./offline-fix.js"></script>\n</body>');
-    if(!patched.includes('ai-prep.js')) patched=patched.replace('</body>','<script src="./ai-prep.js"></script>\n</body>');
     const headers=new Headers(response.headers); headers.set('content-type','text/html; charset=utf-8');
     return new Response(patched,{status:response.status,statusText:response.statusText,headers});
   }catch{return response;}
