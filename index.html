@@ -38,7 +38,7 @@ main{width:100%;max-width:1050px;margin:auto;padding:18px 14px 105px}.view{displ
 <div class="card" data-go="inbox"><div class="quick-icon">🖼️</div><b>Image inbox</b><span>See images waiting to be processed.</span></div>
 <div class="card" data-go="review"><div class="quick-icon">🔎</div><b>Review data</b><span>Classify one image at a time and save the observation.</span></div>
 </div>
-<div class="section-head"><h2>Collection summary</h2></div>
+<div class="section-head"><h2>Collection summary</h2><button class="btn secondary" id="exportCsvHome">Export CSV</button></div>
 <div class="card"><div class="summary-grid"><div class="summary-box"><b id="totalImages">0</b><span>TOTAL IMAGES</span></div><div class="summary-box"><b id="reviewedImages">0</b><span>REVIEWED</span></div><div class="summary-box"><b id="animalImages">0</b><span>ANIMAL OBSERVATIONS</span></div><div class="summary-box"><b id="emptyImages">0</b><span>EMPTY / NO ANIMAL</span></div></div></div>
 <div class="section-head"><h2>Camera status</h2><button class="btn secondary" data-go="cameras">All cameras</button></div><div class="card" id="homeCameras"></div>
 </section>
@@ -47,7 +47,7 @@ main{width:100%;max-width:1050px;margin:auto;padding:18px 14px 105px}.view{displ
 
 <section id="capture" class="view"><div class="eyebrow">Field collection</div><h1 class="page-title">Collect image</h1><div class="sub">Take a photo on the phone or choose an image already on the device.</div><div class="card"><div class="drop"><input id="fileInput" type="file" accept="image/*" capture="environment"><label class="btn" for="fileInput">📷 Take photo / choose image</label><img id="preview" class="preview"></div><div class="field"><label for="captureCamera">Camera</label><select id="captureCamera"></select></div><div class="field"><label for="captureNote">Field note</label><textarea id="captureNote" placeholder="Optional note about the image or site"></textarea></div><button class="btn" id="saveImage" style="width:100%">Save image to collection</button></div></section>
 
-<section id="inbox" class="view"><div class="eyebrow">Image collection</div><h1 class="page-title">Image inbox</h1><div class="sub">Unreviewed images waiting for data collection / classification.</div><div id="inboxList"></div></section>
+<section id="inbox" class="view"><div class="section-head"><div><div class="eyebrow">Image collection</div><h1 class="page-title">Image inbox</h1><div class="sub">Unreviewed images waiting for data collection / classification.</div></div><button class="btn secondary" id="exportCsvInbox">Export CSV</button></div><div id="inboxList"></div></section>
 
 <section id="review" class="view"><div class="eyebrow">Data collection</div><h1 class="page-title">Review image</h1><div class="sub">Record what the image shows. AI can be connected later as an assistive layer.</div><div id="reviewArea"></div></section>
 </main>
@@ -95,11 +95,17 @@ function openCameraModal(){document.getElementById('cameraModal').classList.add(
 function closeCameraModal(){document.getElementById('cameraModal').classList.remove('show')}
 let selectedFile=null;
 function openCapture(){showView('capture');setTimeout(()=>document.getElementById('fileInput')?.click(),120)}
-
+function csvCell(value){const s=String(value??'');return '"'+s.replace(/"/g,'""')+'"'}
+function exportCSV(){
+const headers=['Image ID','Camera ID','Camera Name','Site','Date','Time','Observation','Review Note','Reviewed At'];
+const rows=images.map(x=>{const c=cameraById(x.cameraId)||{};const d=x.created?new Date(x.created):null;return [x.id,c.id||x.cameraId||'',c.name||'',c.site||'',d&& !isNaN(d)?d.toLocaleDateString('en-NZ'):'',d&& !isNaN(d)?d.toLocaleTimeString('en-NZ'):'',x.result||'',x.reviewNote||'',x.reviewedAt?new Date(x.reviewedAt).toLocaleString('en-NZ'):'' ]});
+const csv='\ufeff'+[headers,...rows].map(row=>row.map(csvCell).join(',')).join('\r\n');
+const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`kaitiaki-camera-data-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 document.addEventListener('click',e=>{const go=e.target.closest('[data-go]');if(go){const id=go.dataset.go;if(id==='capture')openCapture();else showView(id)}});
 document.getElementById('addCameraBtn').onclick=openCameraModal;document.querySelector('[data-close-camera]').onclick=closeCameraModal;document.getElementById('cameraModal').addEventListener('click',e=>{if(e.target.id==='cameraModal')closeCameraModal()});
 document.getElementById('saveCamera').onclick=()=>{const id=document.getElementById('newCameraId').value.trim().toUpperCase(),name=document.getElementById('newCameraName').value.trim(),site=document.getElementById('newCameraSite').value.trim(),status=document.getElementById('newCameraStatus').value;if(!id||!name||!site){alert('Enter camera ID, camera name and site.');return}if(cameras.some(c=>c.id===id)){alert('That camera ID already exists.');return}cameras.push({id,name,site,status});save(CAMERA_KEY,cameras);document.getElementById('newCameraId').value='';document.getElementById('newCameraName').value='';document.getElementById('newCameraSite').value='';closeCameraModal();refresh()};
-
+document.getElementById('exportCsvHome').onclick=exportCSV;document.getElementById('exportCsvInbox').onclick=exportCSV;
 document.getElementById('fileInput').addEventListener('change',e=>{selectedFile=e.target.files?.[0]||null;const p=document.getElementById('preview');if(!selectedFile){p.style.display='none';return}p.src=URL.createObjectURL(selectedFile);p.style.display='block'});
 document.getElementById('saveImage').onclick=()=>{if(!selectedFile){alert('Take a photo or choose an image first.');return}const reader=new FileReader();reader.onload=()=>{images.unshift({id:'IMG-'+Date.now(),cameraId:document.getElementById('captureCamera').value,src:reader.result,note:document.getElementById('captureNote').value.trim(),created:new Date().toISOString(),result:null});save(IMAGE_KEY,images);selectedFile=null;document.getElementById('fileInput').value='';document.getElementById('preview').style.display='none';document.getElementById('captureNote').value='';refresh();showView('inbox')};reader.readAsDataURL(selectedFile)};
 refresh();
