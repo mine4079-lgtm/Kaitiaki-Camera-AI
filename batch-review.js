@@ -58,13 +58,13 @@
       saveBtn.textContent=batch.length?('Save '+batch.length+' images to collection'):'Save image to collection';
     });
 
+    // Also take over the original Take photo / choose images control.
+    // This makes multi-select work from the main button as well as the dedicated gallery button.
     input.addEventListener('change',function(){
-      if(input.files?.length){
-        batch=[];
-        batchInput.value='';
-        previewList.innerHTML='';
-        saveBtn.textContent='Save image to collection';
-      }
+      batch=Array.from(input.files||[]);
+      batchInput.value='';
+      render();
+      saveBtn.textContent=batch.length?('Save '+batch.length+' images to collection'):'Save image to collection';
     });
 
     function render(){
@@ -104,25 +104,39 @@
       });
     }
 
+    async function makeCompact(file){
+      try{return await compress(file,900,.50)}
+      catch{return await compress(file,700,.40)}
+    }
+
     async function saveBatch(){
-      if(!batch.length){ alert('Choose one or more images from the gallery first.'); return; }
+      if(!batch.length){ alert('Choose one or more images first.'); return; }
       const cameras=JSON.parse(localStorage.getItem('kaitiaki-camera-cameras-v2')||'[]');
       const cameraId=document.getElementById('captureCamera')?.value || cameras[0]?.id || '';
       const note=document.getElementById('captureNote')?.value.trim()||'';
       let images=[];
       try{images=JSON.parse(localStorage.getItem('kaitiaki-camera-images-v2')||'[]')}catch{}
-      const original=images.slice();
       saveBtn.disabled=true;
+      const filesToSave=[...batch];
       let done=0;
       try{
-        for(const file of batch){
-          let src;
-          try{src=await compress(file,1600,.72)}catch{src=await compress(file,1000,.55)}
-          images.unshift({id:'IMG-'+Date.now()+'-'+done,cameraId,src,note,created:new Date().toISOString(),result:null,originalFileName:file.name});
+        for(const file of filesToSave){
+          const src=await makeCompact(file);
+          const record={id:'IMG-'+Date.now()+'-'+Math.random().toString(36).slice(2,8),cameraId,src,note,created:new Date().toISOString(),result:null,originalFileName:file.name};
+          images.unshift(record);
+          try{
+            localStorage.setItem('kaitiaki-camera-images-v2',JSON.stringify(images));
+          }catch(e){
+            try{
+              record.src=await compress(file,600,.35);
+              localStorage.setItem('kaitiaki-camera-images-v2',JSON.stringify(images));
+            }catch(e2){
+              images.shift();
+              throw new Error('Storage is full after saving '+done+' of '+filesToSave.length+' images.');
+            }
+          }
           done++;
-          saveBtn.textContent='Saving '+done+' of '+batch.length+'...';
-          try{localStorage.setItem('kaitiaki-camera-images-v2',JSON.stringify(images))}
-          catch(e){images=original.slice();throw new Error('Storage is full. Saved '+(done-1)+' images before storage filled.');}
+          saveBtn.textContent='Saving '+done+' of '+filesToSave.length+'...';
         }
         batch=[];
         batchInput.value='';
@@ -143,6 +157,7 @@
       }
     }
 
+    // Capture phase stops the original Phase 1 save handler when batch mode is being used.
     saveBtn.addEventListener('click',function(e){
       if(!batch.length) return;
       e.preventDefault();
