@@ -1,0 +1,37 @@
+name: Fix gallery image picker
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove forced camera capture
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text()
+          old = '<input id="fileInput" type="file" accept="image/*" capture="environment">'
+          new = '<input id="fileInput" type="file" accept="image/*">'
+          if old not in s:
+              raise SystemExit('Expected file input was not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit app fix and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Fix choosing existing gallery images'
+          git push
+          rm .github/workflows/fix-gallery-picker.yml
+          git add .github/workflows/fix-gallery-picker.yml
+          git commit -m 'Remove temporary gallery picker workflow'
+          git push
