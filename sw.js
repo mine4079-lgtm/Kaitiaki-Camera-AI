@@ -1,7 +1,9 @@
-const CACHE_NAME = 'kaitiaki-camera-v1';
+const CACHE_NAME = 'kaitiaki-camera-v2';
 const APP_SHELL = [
   './',
-  './index.html'
+  './index.html',
+  './manifest.webmanifest',
+  './sw.js'
 ];
 
 self.addEventListener('install', event => {
@@ -29,6 +31,10 @@ self.addEventListener('fetch', event => {
         caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
         return response;
       })
-      .catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html')))
+      .catch(() => caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        if (event.request.mode === 'navigate') return caches.match('./index.html');
+        return new Response('', {status: 504, statusText: 'Offline'});
+      }))
   );
 });
