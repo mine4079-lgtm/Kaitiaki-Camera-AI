@@ -1,0 +1,43 @@
+name: Fix image saving
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.head_commit.message != 'Fix mobile image saving'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch image saving
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          old = "document.getElementById('saveImage').onclick=()=>{if(!selectedFile){alert('Take a photo or choose an image first.');return}const reader=new FileReader();reader.onload=()=>{images.unshift({id:'IMG-'+Date.now(),cameraId:document.getElementById('captureCamera').value,src:reader.result,note:document.getElementById('captureNote').value.trim(),created:new Date().toISOString(),result:null});save(IMAGE_KEY,images);selectedFile=null;document.getElementById('fileInput').value='';document.getElementById('preview').style.display='none';document.getElementById('captureNote').value='';refresh();showView('inbox')};reader.readAsDataURL(selectedFile)};"
+          new = r'''function imageDataUrl(file,maxSide=1600,quality=0.72){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{try{const scale=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight)),w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale)),canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;canvas.getContext('2d').drawImage(img,0,0,w,h);const out=canvas.toDataURL('image/jpeg',quality);URL.revokeObjectURL(url);resolve(out)}catch(e){URL.revokeObjectURL(url);reject(e)}};img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Could not read image'))};img.src=url})}
+
+document.getElementById('saveImage').onclick=async()=>{if(!selectedFile){alert('Take a photo or choose an image first.');return}const btn=document.getElementById('saveImage');btn.disabled=true;btn.textContent='Saving image...';try{const record={id:'IMG-'+Date.now(),cameraId:document.getElementById('captureCamera').value,src:await imageDataUrl(selectedFile),note:document.getElementById('captureNote').value.trim(),created:new Date().toISOString(),result:null};images.unshift(record);try{save(IMAGE_KEY,images)}catch(e){images.shift();if(e&&e.name==='QuotaExceededError'){record.src=await imageDataUrl(selectedFile,1000,0.55);images.unshift(record);try{save(IMAGE_KEY,images)}catch(e2){images.shift();throw e2}}else{throw e}}selectedFile=null;document.getElementById('fileInput').value='';document.getElementById('preview').style.display='none';document.getElementById('captureNote').value='';refresh();showView('inbox')}catch(e){alert('The image could not be saved on this device. Please try the photo again.');console.error(e)}finally{btn.disabled=false;btn.textContent='Save image to collection'}};'''
+          if old not in s:
+              raise SystemExit('Expected save-image code was not found; no changes made.')
+          p.write_text(s.replace(old,new), encoding='utf-8')
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Fix mobile image saving'
+          git push
+      - name: Remove temporary workflow
+        if: success()
+        shell: bash
+        run: |
+          git rm .github/workflows/fix-image-saving.yml
+          git commit -m 'Remove temporary image fix workflow'
+          git push
