@@ -1,6 +1,6 @@
-const CACHE_NAME = 'kaitiaki-camera-v10';
+const CACHE_NAME = 'kaitiaki-camera-v11';
 const IMAGE_CACHE = 'kaitiaki-camera-images-v1';
-const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./offline-fix.js','./batch-review.js'];
+const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./offline-fix.js','./batch-review.js','./phase2-fix.js'];
 
 async function patchHtml(response){
   const type=response.headers.get('content-type')||'';
@@ -10,6 +10,7 @@ async function patchHtml(response){
     let patched=text;
     if(!patched.includes('offline-fix.js')) patched=patched.replace('</body>','<script src="./offline-fix.js?v=1"></script>\n</body>');
     if(!patched.includes('batch-review.js')) patched=patched.replace('</body>','<script src="./batch-review.js?v=3"></script>\n</body>');
+    if(!patched.includes('phase2-fix.js')) patched=patched.replace('</body>','<script src="./phase2-fix.js?v=1"></script>\n</body>');
     const headers=new Headers(response.headers); headers.set('content-type','text/html; charset=utf-8');
     return new Response(patched,{status:response.status,statusText:response.statusText,headers});
   }catch{return response;}
