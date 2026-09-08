@@ -19,7 +19,7 @@
     if(!file){alert('Take a photo or choose an image first.');return}
     btn.disabled=true;btn.textContent='Saving image...';
     try{
-      const images=read();
+      images=read();
       const record={id:'IMG-'+Date.now(),cameraId:document.getElementById('captureCamera').value,src:await compress(file,800,.48),note:document.getElementById('captureNote').value.trim(),created:new Date().toISOString(),result:null};
       images.unshift(record);
       try{write(images)}catch(e){
@@ -30,6 +30,7 @@
       input.value='';
       document.getElementById('preview').style.display='none';
       document.getElementById('captureNote').value='';
+      selectedFile=null;
       if(typeof refresh==='function') refresh();
       if(typeof showView==='function') showView('inbox');
     }catch(e){console.error(e);alert('The image could not be saved on this device. Please try the photo again.');}
