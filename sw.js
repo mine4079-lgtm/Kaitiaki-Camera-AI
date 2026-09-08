@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kaitiaki-camera-v8';
+const CACHE_NAME = 'kaitiaki-camera-v9';
 const IMAGE_CACHE = 'kaitiaki-camera-images-v1';
 const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./offline-fix.js','./batch-review.js'];
 
