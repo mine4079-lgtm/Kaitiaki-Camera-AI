@@ -4,14 +4,18 @@
 (function(){
   'use strict';
   const KEY='kaitiaki-camera-bulk-training-v1';
+  const DB='kaitiaki-camera-bulk-training-db-v1';
+  const STORE='records';
   const labels=['Possum','Rat','Stoat','Cat','Bird','Empty / No animal','Other','Unclear'];
   const BATCH=250;
-  let queue=[];
-  let page=0;
+  let queue=[]; let page=0; let cachedData=[];
 
   const esc=s=>String(s??'').replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[m]));
-  const read=()=>{try{return JSON.parse(localStorage.getItem(KEY))||[]}catch{return[]}};
-  const write=v=>localStorage.setItem(KEY,JSON.stringify(v));
+  const oldRead=()=>{try{const x=JSON.parse(localStorage.getItem(KEY));return Array.isArray(x)?x:[]}catch{return[]}};
+
+  function openDb(){return new Promise((resolve,reject)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(STORE))r.result.createObjectStore(STORE,{keyPath:'id'})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
+  async function loadData(){try{const db=await openDb();const rows=await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).getAll();r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error)});if(rows.length){cachedData=rows;return}const old=oldRead();if(old.length){await putRecords(old);cachedData=old}}catch(e){console.warn('Training database unavailable; using existing browser storage.',e);cachedData=oldRead()}}
+  async function putRecords(records){const db=await openDb();return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite'),s=tx.objectStore(STORE);records.forEach(x=>s.put(x));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}
 
   function proposedLabel(path){
     const parts=String(path||'').replace(/\\/g,'/').split('/').filter(Boolean).slice(0,-1);
@@ -38,9 +42,8 @@
   function render(){
     const grid=document.getElementById('bulkTrainingGrid'),status=document.getElementById('bulkTrainingStatus'),btn=document.getElementById('bulkVerifyVisible'),all=document.getElementById('bulkVerifyProposed'),next=document.getElementById('bulkNextBatch'),counts=document.getElementById('bulkTrainingCounts');
     if(!grid)return;
-    const data=read();
     const start=page*BATCH,end=Math.min(start+BATCH,queue.length),visible=queue.slice(start,end);
-    status.textContent=`${queue.length.toLocaleString()} images loaded · ${data.length.toLocaleString()} verified bulk training records`;
+    status.textContent=`${queue.length.toLocaleString()} images loaded · ${cachedData.length.toLocaleString()} verified bulk training records`;
     btn.disabled=!visible.length; all.disabled=!queue.length; next.disabled=end>=queue.length;
     const summary={};queue.forEach(x=>{const l=x.proposedLabel||'Needs classification';summary[l]=(summary[l]||0)+1});
     counts.innerHTML=Object.entries(summary).map(([k,v])=>`<b>${v.toLocaleString()}</b> ${esc(k)}`).join(' · ');
@@ -53,28 +56,29 @@
     page=0;render();
   }
 
-  function addRecords(items){
-    const data=read(),now=new Date().toISOString();let added=0;
-    items.forEach(({x,label})=>{if(!x||!label)return;data.push({id:'BULK-'+Date.now()+'-'+Math.random().toString(36).slice(2,10),source:'hard-drive-bulk-import',originalFileName:x.name,sourcePath:x.path,label,verifiedAt:now});added++});
-    if(added){try{write(data)}catch{alert('Training dataset storage is full. No original files were changed.');return 0}}
-    return added;
+  async function addRecords(items){
+    if(!items.length)return 0;
+    const now=new Date().toISOString();
+    const records=items.map(({x,label})=>({id:'BULK-'+Date.now()+'-'+Math.random().toString(36).slice(2,10),source:'hard-drive-bulk-import',originalFileName:x.name,sourcePath:x.path,label,verifiedAt:now}));
+    try{await putRecords(records);cachedData=cachedData.concat(records);return records.length}catch(e){console.error(e);alert('Training dataset storage could not accept this batch. No original files were changed.');return 0}
   }
 
-  function verifyVisible(){
+  async function verifyVisible(){
     const items=[];document.querySelectorAll('.bulk-verify:checked').forEach(cb=>{const i=Number(cb.dataset.i),label=document.querySelector(`.bulk-label[data-i="${i}"]`)?.value,x=queue[i];if(x&&label)items.push({x,label});});
-    const added=addRecords(items);if(added)alert(`${added} image${added===1?'':'s'} added to the separate training dataset.`);render();
+    const added=await addRecords(items);if(added)alert(`${added} image${added===1?'':'s'} added to the separate training dataset.`);render();
   }
 
-  function verifyAllProposed(){
+  async function verifyAllProposed(){
     const items=queue.filter(x=>x.proposedLabel).map(x=>({x,label:x.proposedLabel}));
     if(!items.length){alert('No folder-based classifications were found. Choose a classified folder or classify the images manually.');return}
     const ok=confirm(`Verify ${items.length.toLocaleString()} images using their folder-based proposed classifications?\n\nThis is a human confirmation step. The original hard-drive files will not be changed.`);
     if(!ok)return;
-    const added=addRecords(items);if(added)alert(`${added.toLocaleString()} verified training records added.`);render();
+    const added=await addRecords(items);if(added)alert(`${added.toLocaleString()} verified training records added.`);render();
   }
 
-  function boot(){
+  async function boot(){
     makePanel();
+    await loadData();render();
     document.getElementById('bulkTrainingFiles')?.addEventListener('change',e=>importFiles(e.target.files));
     document.getElementById('bulkVerifyVisible')?.addEventListener('click',verifyVisible);
     document.getElementById('bulkVerifyProposed')?.addEventListener('click',verifyAllProposed);
