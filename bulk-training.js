@@ -5,7 +5,7 @@
   'use strict';
   const KEY='kaitiaki-camera-bulk-training-v1',DB='kaitiaki-camera-bulk-training-db-v1',STORE='records';
   const labels=['Possum','Rat','Stoat','Cat','Bird','Empty / No animal','Other','Unclear'],BATCH=250;
-  const IMAGE_EXTENSIONS=/\\.(jpe?g|png|gif|webp|bmp|avif)$/i;
+  const IMAGE_EXTENSIONS=/\.(jpe?g|png|gif|webp|bmp|avif|jfif|tif|tiff)$/i;
   let queue=[],page=0,cachedData=[];
   const esc=s=>String(s??'').replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[m]));
   const oldRead=()=>{try{const x=JSON.parse(localStorage.getItem(KEY));return Array.isArray(x)?x:[]}catch{return[]}};
