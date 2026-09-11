@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kaitiaki-camera-v41';
+const CACHE_NAME = 'kaitiaki-camera-v42';
 const IMAGE_CACHE = 'kaitiaki-camera-images-v1';
 const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./runtime-fix.js','./bulk-training-ai-v2.js'];
 
@@ -8,7 +8,7 @@ async function patchHtml(response){
   try{
     const text=await response.text();
     let patched=text.replace(/<script[^>]+src=["'][^"']*(?:offline-fix|batch-review|phase2-fix|runtime-fix|bulk-training)\.js[^>]*><\/script>\s*/gi,'');
-    patched=patched.replace('</body>','<script src="./runtime-fix.js?v=3"></script>\n<script src="./ai-trainer-v13.js?v=1"></script>\n</body>');
+    patched=patched.replace('</body>','<script src="./runtime-fix.js?v=3"></script>\n<script src="./ai-trainer-v13.js?v=2"></script>\n</body>');
     const headers=new Headers(response.headers);headers.set('content-type','text/html; charset=utf-8');
     return new Response(patched,{status:response.status,statusText:response.statusText,headers});
   }catch{return response;}
