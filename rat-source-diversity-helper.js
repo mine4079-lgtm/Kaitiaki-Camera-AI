@@ -1,45 +1,42 @@
-// Kaitiaki Camera AI — external Rat source-diversity helper
-// Loaded only when referenced by the trainer. Safe to keep standalone until integrated.
+// Kaitiaki Camera AI — source-diverse Rat split helper
 (function(){
   'use strict';
 
-  function sourceName(root, existing){
-    const base=(root?.name||'External Rat').trim()||'External Rat';
-    const used=new Set((existing||[]).map(s=>s.name));
-    if(!used.has(base))return base;
-    let i=2;
-    while(used.has(base+' '+i))i++;
-    return base+' '+i;
+  function groupKey(entry){
+    const parts=String(entry?.path||'').replace(/\\/g,'/').split('/').filter(Boolean);
+    return parts.length>2?parts[1]:(parts[0]||'External Rat');
   }
 
-  function addSource(dataset, root, entries, skippedBenchmark){
-    const sources=Array.isArray(dataset?.sources)?dataset.sources.slice():[];
-    const name=sourceName(root,sources);
-    sources.push({
-      id:'rat-source-'+Date.now()+'-'+Math.random().toString(36).slice(2,8),
-      name,
-      root,
-      entries:(entries||[]).map(e=>({...e,source:'external-rat',sourceName:name})),
-      skippedBenchmark:skippedBenchmark||0,
-      addedAt:new Date().toISOString()
-    });
-    return {sources,builtAt:new Date().toISOString()};
+  function prepare(){
+    const ds=window.kaitiakiExternalRatDataset;
+    if(!ds?.entries?.length)return null;
+    const groups={};
+    ds.entries.forEach(e=>(groups[groupKey(e)]??=[]).push(e));
+    const usable=Object.entries(groups).filter(([,rows])=>rows.length>=20);
+    if(usable.length<2)return null;
+    usable.sort((a,b)=>a[1].length-b[1].length||a[0].localeCompare(b[0]));
+    const [holdName,holdRows]=usable[0];
+    const holdSet=new Set(holdRows);
+    const training=ds.entries.filter(e=>!holdSet.has(e));
+    window.kaitiakiRatSourceHoldout={name:holdName,entries:holdRows,total:holdRows.length,preparedAt:new Date().toISOString()};
+    window.kaitiakiExternalRatDataset={...ds,entries:training,sourceHoldoutName:holdName,sourceHoldoutImages:holdRows.length};
+    return {holdName,holdRows,training};
   }
 
-  function flatten(dataset){
-    return (dataset?.sources||[]).flatMap(s=>(s.entries||[]));
+  function show(result){
+    let el=document.getElementById('ratSourceDiversityStatus');
+    const counts=document.getElementById('bulkTrainingCounts');
+    if(!el&&counts){el=document.createElement('div');el.id='ratSourceDiversityStatus';el.className='muted';el.style.margin='6px 0';counts.insertAdjacentElement('afterend',el)}
+    if(!el)return;
+    el.textContent=result?'Source-diverse Rat split ready · held out entire folder group: '+result.holdName+' ('+result.holdRows.length.toLocaleString()+' images) · '+result.training.length.toLocaleString()+' external Rat images remain available for training':'Source-diverse Rat split: needs at least 2 Rat subfolders with 20+ images each.';
   }
 
-  function counts(dataset){
-    return (dataset?.sources||[]).map(s=>({name:s.name,count:(s.entries||[]).length}));
+  function boot(){
+    const train=document.getElementById('trainAiModel');
+    if(train)train.addEventListener('click',()=>show(prepare()),true);
+    show(null);
   }
 
-  function chooseHeldOutSource(dataset){
-    const sources=(dataset?.sources||[]).filter(s=>(s.entries||[]).length>=5);
-    if(sources.length<2)return null;
-    // Deterministic: hold out the smallest source, tie-break by source name.
-    return sources.slice().sort((a,b)=>((a.entries?.length||0)-(b.entries?.length||0))||String(a.name).localeCompare(String(b.name)))[0];
-  }
-
-  window.KaitiakiRatSourceDiversity={addSource,flatten,counts,chooseHeldOutSource};
+  window.KaitiakiRatSourceSplit={prepare};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
