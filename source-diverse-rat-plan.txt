@@ -1,0 +1,13 @@
+Kaitiaki Camera AI next improvement plan
+
+Goal: improve true Rat generalisation without training on the untouched benchmark image.
+
+Planned change:
+- Allow multiple separately named external Rat source folders.
+- Keep each source identity through sampling.
+- Hold out an entire external Rat source when two or more sources are present.
+- Train on the remaining external Rat sources only.
+- Report source-held-out Rat accuracy/safe rate/false-Possum count.
+- Keep the existing benchmark excluded and keep current safety thresholds unchanged.
+
+This file is only a planning note and is not loaded by the app.
