@@ -1,6 +1,6 @@
-const CACHE_NAME = 'kaitiaki-camera-v48';
+const CACHE_NAME = 'kaitiaki-camera-v49';
 const IMAGE_CACHE = 'kaitiaki-camera-images-v1';
-const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./runtime-fix.js','./ai-trainer-v13.js?v=9'];
+const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./runtime-fix.js','./ai-trainer-v13.js?v=10'];
 
 async function patchHtml(response){
   const type=response.headers.get('content-type')||'';
@@ -8,7 +8,8 @@ async function patchHtml(response){
   try{
     const text=await response.text();
     let patched=text.replace(/<script[^>]+src=["'][^"']*(?:offline-fix|batch-review|phase2-fix|runtime-fix|bulk-training)\.js[^>]*><\/script>\s*/gi,'');
-    patched=patched.replace('</body>','<script src="./runtime-fix.js?v=3"></script>\n<script src="./ai-trainer-v13.js?v=9"></script>\n</body>');
+    const backgroundTrainingFix=`<script>(function(){if(window.__kaitiakiBackgroundTrainingFix)return;window.__kaitiakiBackgroundTrainingFix=true;const nativeRAF=window.requestAnimationFrame&&window.requestAnimationFrame.bind(window);if(!nativeRAF)return;window.requestAnimationFrame=function(cb){if(document.visibilityState==='hidden')return setTimeout(function(){cb(performance.now())},0);return nativeRAF(cb)}})();</script>`;
+    patched=patched.replace('</body>',backgroundTrainingFix+'\n<script src="./runtime-fix.js?v=3"></script>\n<script src="./ai-trainer-v13.js?v=10"></script>\n</body>');
     const headers=new Headers(response.headers);headers.set('content-type','text/html; charset=utf-8');
     return new Response(patched,{status:response.status,statusText:response.statusText,headers});
   }catch{return response;}
