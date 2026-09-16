@@ -1,6 +1,6 @@
-const CACHE_NAME = 'kaitiaki-camera-v50';
+const CACHE_NAME = 'kaitiaki-camera-v51';
 const IMAGE_CACHE = 'kaitiaki-camera-images-v1';
-const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./runtime-fix.js','./ai-trainer-v13.js?v=10','./training-v2.html','./ai-v2-field-classifier.js?v=5'];
+const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./runtime-fix.js','./ai-trainer-v13.js?v=10','./training-v2.html','./ai-v2-field-classifier.js?v=7'];
 
 async function patchHtml(response, requestUrl=''){
   const type=response.headers.get('content-type')||'';
@@ -8,7 +8,6 @@ async function patchHtml(response, requestUrl=''){
   try{
     const text=await response.text();
     const pathname=(()=>{try{return new URL(requestUrl,self.location.origin).pathname}catch{return ''}})();
-    // AI v2 is a separate field-classifier workflow. Never inject the v1 trainer/runtime into it.
     if(pathname.endsWith('/training-v2.html') || pathname.endsWith('training-v2.html')){
       const headers=new Headers(response.headers);headers.set('content-type','text/html; charset=utf-8');
       return new Response(text,{status:response.status,statusText:response.statusText,headers});
