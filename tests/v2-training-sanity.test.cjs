@@ -3,7 +3,7 @@ const root=path.join(__dirname,'..');
 const trainer=fs.readFileSync(path.join(root,'ai-v2-field-classifier.js'),'utf8');
 const page=fs.readFileSync(path.join(root,'training-v2.html'),'utf8');
 const worker=fs.readFileSync(path.join(root,'sw.js'),'utf8');
-const tensorsSource=trainer.replace('window.KaitiakiFieldAIv2={_wrapTrainingError:wrapTrainingError,VERSION,','window.KaitiakiFieldAIv2={_tensors:tensors,_features:features,_accuracy:accuracy,_imageDataError:imageDataError,_fitCallbacks:fitCallbacks,_wrapTrainingError:wrapTrainingError,VERSION,');
+const tensorsSource=trainer.replace('window.KaitiakiFieldAIv2={_wrapTrainingError:wrapTrainingError,_collectFolderImages:collectFolderImages,_excludedTargetClass:excludedTargetClass,VERSION,','window.KaitiakiFieldAIv2={_tensors:tensors,_features:features,_accuracy:accuracy,_imageDataError:imageDataError,_fitCallbacks:fitCallbacks,_wrapTrainingError:wrapTrainingError,_collectFolderImages:collectFolderImages,_excludedTargetClass:excludedTargetClass,VERSION,');
 class MockCustomCallback{constructor(hooks){Object.assign(this,hooks)}setParams(params){this.params=params}}
 const tf={
   tidy:fn=>fn(),
@@ -42,7 +42,8 @@ const pageVersion=page.match(/ai-v2-field-classifier\.js\?v=(\d+)/)?.[1];
 const cacheVersion=worker.match(/ai-v2-field-classifier\.js\?v=(\d+)/)?.[1];
 assert.ok(pageVersion,'V2 page should pin a classifier version');
 assert.equal(cacheVersion,pageVersion,'service worker must precache the V2 page’s classifier version');
-assert.match(worker,/kaitiaki-camera-v54/,'service worker cache should be invalidated for this release');
+assert.match(worker,/kaitiaki-camera-v55/,'service worker cache should be invalidated for this release');
+assert.match(page,/ai-v2-field-classifier\.js\?v=11/,'V2 classifier asset version should be bumped');
 assert.match(trainer,/new tf\.CustomCallback\(\{onEpochBegin/,'custom progress hooks must use the TFJS 4.22 callback wrapper');
 assert.match(trainer,/onBatchEnd:async/,'training should report progress during model.fit batches');
 assert.match(trainer,/throw wrapTrainingError\(e,stage\)/,'training errors should be wrapped without mutating the original error');
@@ -51,10 +52,29 @@ assert.match(page,/visibilityState==='hidden'.*setTimeout/,'V2 should keep Tenso
 assert.match(page,/SKIPPED UNREADABLE/,'Field Test Results should report skipped unreadable images');
 assert.match(trainer,/fieldTestSkippedImages:field\.skipped/,'field test skipped-image count should be saved in model metadata');
 assert.ok(trainer.indexOf('await model.save(MODEL_KEY)')<trainer.indexOf("accuracy(model,testEntries"),'the trained model must be saved before protected field evaluation');
+assert.equal(sandbox.window.KaitiakiFieldAIv2.VERSION,8,'asset updates must retain compatibility with the current trained model metadata');
+assert.match(page,/excludedImages/,'V2 source table must show excluded target-image counts');
 for(const [,script] of page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi))if(script.trim())new Function(script);
 console.log('PASS: V2 tensor shapes/disposal, cache version parity, background fit scheduling, progress, staged errors, and field-test reporting');
 (async()=>{
   const api=sandbox.window.KaitiakiFieldAIv2;
+  const file=name=>({kind:'file',name});
+  const folder=(name,children)=>({kind:'directory',name,async *entries(){for(const [childName,child] of Object.entries(children))yield[childName,child]}});
+  const mixed=folder('Browning archive',{
+    Possum:folder('Possum',{'possum_1.jpg':file('possum_1.jpg')}),
+    Rat:folder('Rat',{'rat_1.jpg':file('rat_1.jpg')}),
+    'Mice - Mus musculus':folder('Mice - Mus musculus',{'mice_1.jpg':file('mice_1.jpg')}),
+    Stoat:folder('Stoat',{'stoat_1.jpg':file('stoat_1.jpg')}),
+    'Deer - Cervidae':folder('Deer - Cervidae',{'deer_1.jpg':file('deer_1.jpg')}),
+    Tahr:folder('Tahr',{'tahr_1.jpg':file('tahr_1.jpg')}),
+    'Native non-target':folder('Native non-target',{'native_1.jpg':file('native_1.jpg')}),
+    'ratchet_camera.jpg':file('ratchet_camera.jpg')
+  });
+  const imported=await api._collectFolderImages(mixed,'Other','mixed-source');
+  assert.deepEqual(JSON.parse(JSON.stringify(imported.entries.map(x=>x.path).sort())),['Browning archive/Deer - Cervidae/deer_1.jpg','Browning archive/Native non-target/native_1.jpg','Browning archive/Tahr/tahr_1.jpg','Browning archive/ratchet_camera.jpg'].sort(),'Other import should contain only non-target branches, while unrelated filenames remain included');
+  assert.equal(imported.excludedImages,4,'all images in target-species folders should be counted as excluded');
+  assert.equal(imported.excludedFolders,4,'all four target-species folders should be counted as excluded');
+  assert.equal(api._excludedTargetClass('Browning archive/Deer - Cervidae'),'','non-target folder components should not be classified as a target');
   const broken={name:'broken.jpg',path:'Possum/broken.jpg',label:'Possum'};
   const recoverable=api._imageDataError(new Error('The source image could not be decoded.'),broken,'Image decode');
   const possum={name:'good-possum.jpg',label:'Possum'},stoat={name:'good-stoat.jpg',label:'Stoat'};
