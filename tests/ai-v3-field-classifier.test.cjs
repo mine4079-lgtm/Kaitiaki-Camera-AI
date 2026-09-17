@@ -1,6 +1,12 @@
 'use strict';
-const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const source=fs.readFileSync(require('node:path').join(__dirname,'..','ai-v3-field-classifier.js'),'utf8');
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const source=fs.readFileSync(path.join(__dirname,'..','ai-v3-field-classifier.js'),'utf8');
 test('V3 has isolated model and folder database keys',()=>{assert.match(source,/field-v3-five-class/);assert.match(source,/v3-db-five-class/);assert.doesNotMatch(source,/KaitiakiFieldAIv2\s*=/)});
-test('V3 uses partial MobileNet fine tuning and low learning rate',()=>{assert.match(source,/base\.layers\.length-20/);assert.match(source,/adam\(\.00008\)/)});
+test('V3 selects a frozen feature head when MobileNet model internals are missing',()=>{assert.match(source,/Array\.isArray\(base\.layers\).*base\.inputs&&base\.outputs/);assert.match(source,/mode='frozen-feature-head'/);assert.match(source,/tensors\(tfTrain,false\)/);assert.match(source,/sparseCategoricalCrossentropy/);assert.match(source,/architectureMode/)});
 test('V3 protects camera groups and uses balanced class sampling',()=>{assert.match(source,/buildFieldSplit\(state\.entries\)/);assert.match(source,/function balanced\(/);assert.match(source,/fieldTestGroups/)});
+test('Frozen feature tensors retain integer labels for the five-class head',()=>{
+ const sandbox={window:{},indexedDB:{open(){throw Error('unexpected IndexedDB access')}},Date,Math,Map,Set,Object,Array,String,Number,Float32Array,Error};vm.runInNewContext(source,sandbox);const api=sandbox.window.KaitiakiFieldAIv3;api.state.mobileNet={infer(){return{rank:2,dataSync(){return new Float32Array([1,2,3])}}}};
+ let observed=null;sandbox.tf={tidy:fn=>fn(),tensor2d:(data,shape)=>({data,shape}),tensor1d:(data,dtype)=>{observed={data:[...data],dtype};return{}}};sandbox.tf.oneHot=()=>{throw Error('fallback must use integer labels')};
+ const data={xs:[new Float32Array([1,2,3]),new Float32Array([4,5,6])],ys:[0,4]};const fn=source.slice(source.indexOf('function tensors('),source.indexOf('function emptyConfusion'));const tensors=vm.runInNewContext('('+fn.trim()+')',sandbox);
+ const result=tensors(data,false);assert.equal(result.x.shape.join('x'),'2x3');assert.deepEqual(observed,{data:[0,4],dtype:'int32'});assert.equal(data.xs.length,0);
+});
