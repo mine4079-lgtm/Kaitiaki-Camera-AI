@@ -42,7 +42,7 @@ const pageVersion=page.match(/ai-v2-field-classifier\.js\?v=(\d+)/)?.[1];
 const cacheVersion=worker.match(/ai-v2-field-classifier\.js\?v=(\d+)/)?.[1];
 assert.ok(pageVersion,'V2 page should pin a classifier version');
 assert.equal(cacheVersion,pageVersion,'service worker must precache the V2 page’s classifier version');
-assert.match(worker,/kaitiaki-camera-v55/,'service worker cache should be invalidated for this release');
+assert.match(worker,/kaitiaki-camera-v59/,'service worker cache should be invalidated for this release');
 assert.match(page,/ai-v2-field-classifier\.js\?v=11/,'V2 classifier asset version should be bumped');
 assert.match(trainer,/new tf\.CustomCallback\(\{onEpochBegin/,'custom progress hooks must use the TFJS 4.22 callback wrapper');
 assert.match(trainer,/onBatchEnd:async/,'training should report progress during model.fit batches');

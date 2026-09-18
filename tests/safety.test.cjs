@@ -1,6 +1,6 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync(path.join(__dirname,'../ai-trainer-v13.js'),'utf8');
-const sandbox={window:{},document:{readyState:'loading',addEventListener(){}},console};
+const sandbox={window:{},document:{readyState:'loading',addEventListener(){}},console,setTimeout(){}};
 vm.createContext(sandbox);
 vm.runInContext(source.replace('  if(document.readyState','  globalThis.api={assessPrediction,makePrototypeGuard};\n  if(document.readyState'),sandbox);
 const {assessPrediction,makePrototypeGuard}=sandbox.api;
