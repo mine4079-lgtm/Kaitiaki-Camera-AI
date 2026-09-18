@@ -1,7 +1,7 @@
 // Kaitiaki Camera AI v4 — field-camera classifier
 // Field-first model. v1 model/data remain untouched.
 (function(){'use strict';
-const VERSION=3,CLASSES=['Possum','Rat','Stoat','Mouse','Pig','Deer','Kereru','Tui','Kiwi','Weka','Other'],REQUIRED_CLASSES=['Possum','Rat','Stoat','Mouse','Deer','Weka','Other'],OPTIONAL_CLASSES=['Kereru','Pig','Tui','Kiwi'],PESTS=['Possum','Rat','Stoat','Mouse','Pig','Deer','Kereru','Tui','Kiwi','Weka'],THRESHOLD_KEY='kaitiaki-camera-ai-v4-thresholds',DEFAULT_THRESHOLDS=Object.fromEntries(PESTS.map(c=>[c,.55])),MODEL_KEY='indexeddb://kaitiaki-camera-ai-field-v4-eleven-class',CHECKPOINT_KEY='indexeddb://kaitiaki-camera-ai-field-v4-checkpoint',META_KEY='kaitiaki-camera-ai-field-v4-eleven-class-meta';
+const VERSION=4,CLASSES=['Possum','Rat','Stoat','Mouse','Pig','Deer','Kereru','Tui','Kiwi','Weka','Other'],REQUIRED_CLASSES=['Possum','Rat','Stoat','Mouse','Deer','Weka','Other'],OPTIONAL_CLASSES=['Kereru','Pig','Tui','Kiwi'],PESTS=['Possum','Rat','Stoat','Mouse','Pig','Deer','Kereru','Tui','Kiwi','Weka'],THRESHOLD_KEY='kaitiaki-camera-ai-v4-thresholds',DEFAULT_THRESHOLDS=Object.fromEntries(PESTS.map(c=>[c,.55])),MODEL_KEY='indexeddb://kaitiaki-camera-ai-field-v4-eleven-class',CHECKPOINT_KEY='indexeddb://kaitiaki-camera-ai-field-v4-checkpoint',META_KEY='kaitiaki-camera-ai-field-v4-eleven-class-meta';
 const DB_NAME='kaitiaki-camera-ai-v4-db-eleven-class',DB_VERSION=1,SOURCE_STORE='sources',ASSIGN_STORE='groupAssignments';
 const IMAGE_EXTENSIONS=/\.(jpe?g|png|gif|webp|bmp|avif|jfif|tif|tiff)$/i,BATCH=48;
 const TRAIN_CAP=Object.fromEntries(CLASSES.map(c=>[c,180])),VAL_CAP=Object.fromEntries(CLASSES.map(c=>[c,40])),TEST_CAP=Object.fromEntries(CLASSES.map(c=>[c,120]));
