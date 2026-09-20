@@ -1,6 +1,6 @@
-const CACHE_NAME = 'kaitiaki-camera-v77';
+const CACHE_NAME = 'kaitiaki-camera-v78';
 const IMAGE_CACHE = 'kaitiaki-camera-images-v1';
-const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./runtime-fix.js','./ai-trainer-v13.js?v=10','./training-v2.html','./ai-v2-field-classifier.js?v=11','./training-v3.html','./ai-v3-field-classifier.js?v=6','./training-v4.html','./ai-v4-field-classifier.js?v=17','./field-review.html','./field-review.js?v=1'];
+const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./runtime-fix.js','./ai-trainer-v13.js?v=10','./training-v2.html','./ai-v2-field-classifier.js?v=11','./training-v3.html','./ai-v3-field-classifier.js?v=6','./training-v4.html','./ai-v4-field-classifier.js?v=17','./field-review.html','./field-review.js?v=1','./dataset-audit.html','./dataset-audit.js?v=1'];
 
 async function patchHtml(response, requestUrl=''){
   const type=response.headers.get('content-type')||'';
@@ -8,7 +8,7 @@ async function patchHtml(response, requestUrl=''){
   try{
     const text=await response.text();
     const pathname=(()=>{try{return new URL(requestUrl,self.location.origin).pathname}catch{return ''}})();
-    if(pathname.endsWith('/training-v2.html') || pathname.endsWith('training-v2.html') || pathname.endsWith('/training-v4.html') || pathname.endsWith('training-v4.html') || pathname.endsWith('/field-review.html') || pathname.endsWith('field-review.html')){
+    if(pathname.endsWith('/training-v2.html') || pathname.endsWith('training-v2.html') || pathname.endsWith('/training-v4.html') || pathname.endsWith('training-v4.html') || pathname.endsWith('/field-review.html') || pathname.endsWith('field-review.html') || pathname.endsWith('/dataset-audit.html') || pathname.endsWith('dataset-audit.html')){
       const headers=new Headers(response.headers);headers.set('content-type','text/html; charset=utf-8');
       return new Response(text,{status:response.status,statusText:response.statusText,headers});
     }
