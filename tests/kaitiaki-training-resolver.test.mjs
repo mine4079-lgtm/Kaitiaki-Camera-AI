@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { normalizeRelativePath, resolveTrainingImages, makeBalancedCandidate } from '../kaitiaki-training-resolver.js';
+assert.equal(normalizeRelativePath(' ./Cam\\A.JPG '), 'cam/a.jpg');
+const file = name => ({ kind: 'file', name });
+const folder = (name, children) => ({ kind: 'directory', name, async *values() { yield* children; } });
+const root = folder('root', [folder('cam', [file('a.jpg'), file('b.jpg'), file('r.jpg')])]);
+const rows = [{ relative_path: 'cam\\a.jpg', confirmed_label: 'Possum' }, { relative_path: './cam/b.jpg', confirmed_label: 'Rat' }];
+const held = [{ relative_path: 'cam/held.jpg', confirmed_label: 'Possum' }];
+const result = await resolveTrainingImages({ directoryHandle: root, trainingRows: rows, holdoutRows: held });
+assert.equal(result.resolved.length, 2); assert.equal(result.missing.length, 0); assert.equal(result.scannedFiles, 3);
+await assert.rejects(() => resolveTrainingImages({ directoryHandle: root, trainingRows: rows, holdoutRows: [{ relative_path: 'CAM/A.JPG' }] }), /collision/);
+const balanced = makeBalancedCandidate({ resolved: [...result.resolved, { row: { relative_path: 'cam/r.jpg', label: 'Possum' }, key: 'cam/r.jpg', file: file('r.jpg') }] });
+assert.equal(balanced.targetPerClass, 1); assert.equal(balanced.selected.length, 2);
+console.log('PASS: resolver normalizes paths, rejects holdout collisions, reports missing files, and balances conservatively');
