@@ -1,6 +1,6 @@
-const CACHE_NAME = 'kaitiaki-camera-v80';
+const CACHE_NAME = 'kaitiaki-camera-v81';
 const IMAGE_CACHE = 'kaitiaki-camera-images-v1';
-const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./runtime-fix.js','./ai-trainer-v13.js?v=10','./training-v2.html','./ai-v2-field-classifier.js?v=11','./training-v3.html','./ai-v3-field-classifier.js?v=6','./training-v4.html','./ai-v4-field-classifier.js?v=17','./field-review.html','./field-review.js?v=1','./dataset-audit.html','./dataset-audit.js?v=3'];
+const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./runtime-fix.js','./ai-trainer-v13.js?v=10','./training-v2.html','./ai-v2-field-classifier.js?v=11','./training-v3.html','./ai-v3-field-classifier.js?v=6','./training-v4.html','./ai-v4-field-classifier.js?v=17','./field-review.html','./field-review.js?v=1','./dataset-audit.html','./dataset-audit.js?v=4'];
 
 async function patchHtml(response, requestUrl=''){
   const type=response.headers.get('content-type')||'';
