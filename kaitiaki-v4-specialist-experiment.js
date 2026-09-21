@@ -82,4 +82,32 @@ export async function runSpecialistExperiment({resolved,holdoutResolved=[],onPro
   localStorage.setItem('kaitiaki-v4-prw-specialist-experiment-v1-meta',JSON.stringify(meta));
   return meta;
 }
+/* Re-evaluate an EXISTING saved specialist without retraining. Only three human-confirmed
+   species are scored; other classes are excluded explicitly. Original V4 suggestions
+   are shown as descriptive comparison, not V4 auto-accept decisions. */
+export async function compareSavedSpecialist({holdoutResolved=[],onProgress}={}){
+  if(!holdoutResolved.length)throw Error('Reconnect the HDD and supply your held-out evaluation CSV first.');
+  const items=holdoutResolved.map(x=>({...x,label:String(x.row?.confirmed_label||x.row?.label||'').trim()}));
+  const included=items.filter(x=>CLASSES.includes(x.label));
+  if(!included.length)throw Error('No human-confirmed Possum, Rat or Weka examples found in held-out CSV.');
+  const net=await loadLibs();
+  let model;
+  try{model=await tf.loadLayersModel(MODEL_KEY)}
+  catch{throw Error('No saved specialist experiment found in this Edge browser. Do not clear site data.')}
+  const result=await evaluate(net,model,included,onProgress,'saved-specialist-test');
+  const rowByKey=new Map(included.map(x=>[x.key,x.row]));
+  const details=result.rows.map(x=>{
+    const row=rowByKey.get(x.key)||{};
+    const baseline=String(row.ai_prediction||'').trim();
+    const raw=String(row.ai_confidence||row.confidence||'').trim();
+    const baselineConfidence=raw===''?null:Number(raw);
+    return {...x,baselinePrediction:baseline,baselineConfidence:Number.isFinite(baselineConfidence)?baselineConfidence:null,
+      baselineMatchesHuman:baseline?baseline===x.actual:null,specialistMatchesHuman:x.predicted===x.actual};
+  });
+  return { ...result, details, excluded:items.length-included.length,
+    missing:holdoutResolved.length-items.length,
+    baselineComparable:details.filter(x=>x.baselinePrediction).length,
+    baselineTopLabelCorrect:details.filter(x=>x.baselineMatchesHuman===true).length,
+    note:'Baseline is original AI top suggestion, NOT the automatic decision after threshold/margin review.'};
+}
 export const SPECIALIST_MODEL_KEY=MODEL_KEY;
