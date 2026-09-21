@@ -24,27 +24,65 @@ async function scan(handle, prefix = '', out = new Map()) {
   }
   return out;
 }
+function basename(key) { return key.slice(key.lastIndexOf('/') + 1); }
+function makeLookup(files) {
+  const byName = new Map();
+  for (const path of files.keys()) {
+    const name = basename(path);
+    if (!byName.has(name)) byName.set(name, []);
+    byName.get(name).push(path);
+  }
+  return (key) => {
+    if (files.has(key)) return { key, candidates: [key], method: 'exact' };
+    const possibilities = (byName.get(basename(key)) || [])
+      .filter(path => path === key || path.endsWith('/' + key));
+    return { key, candidates: possibilities, method: possibilities.length === 1 ? 'unique suffix' :
+      possibilities.length > 1 ? 'ambiguous' : 'missing' };
+  };
+}
 export async function resolveTrainingImages({ directoryHandle, trainingRows, holdoutRows = [], independentRows = [] }) {
   const training = uniqueRows(trainingRows, 'training');
   const holdout = uniqueRows(holdoutRows, 'holdout');
   const independent = uniqueRows(independentRows, 'independent');
-  const collisions = [...training].filter(k => holdout.has(k));
-  if (collisions.length) throw new Error(`Refusing ${collisions.length} training/holdout path collision(s): ${collisions.slice(0, 5).join(', ')}`);
-  const files = await scan(directoryHandle);
-  const resolved = [], missing = [];
+  const directCollisions = [...training].filter(k => holdout.has(k));
+  if (directCollisions.length) throw new Error(`Refusing ${directCollisions.length} training/holdout path collision(s): ${directCollisions.slice(0, 5).join(', ')`);
+  const files = await scan(directoryHandle), lookup = makeLookup(files);
+  const heldoutCandidates = new Set();
+  for (const key of holdout) for (const path of lookup(key).candidates) heldoutCandidates.add(path);
+  const resolved = [], missing = [], ambiguous = [];
+  const usedPaths = new Set();
+  let suffixMatched = 0, exactMatched = 0;
+  const collisions = [], duplicateResolved = [];
   for (const row of trainingRows) {
-    const key = pathOf(row), file = files.get(key);
-    (file ? resolved : missing).push(file ? { row, key, file } : { row, key });
+    const key = pathOf(row), match = lookup(key);
+    if (match.candidates.length > 1) {
+      ambiguous.push({ row, key, candidates: match.candidates.slice(0, 8) });
+      continue;
+    }
+    if (!match.candidates.length) { missing.push({ row, key }); continue; }
+    const actualPath = match.candidates[0];
+    if (heldoutCandidates.has(actualPath)) { collisions.push(key); continue; }
+    if (usedPaths.has(actualPath)) { duplicateResolved.push(key); continue; }
+    usedPaths.add(actualPath);
+    if (match.method === 'exact') exactMatched++; else suffixMatched++;
+    resolved.push({ row, key, matchedPath: actualPath, file: files.get(actualPath) });
   }
-  const independentResolved = independentRows.filter(row => {
-    const key = pathOf(row);
-    return key && !training.has(key) && !holdout.has(key) && files.has(key) && labelOf(row);
-  }).map(row => ({ row, key: pathOf(row), file: files.get(pathOf(row)) }));
+  if (collisions.length) throw new Error(`Refusing ${collisions.length} training/holdout image collision(s) after HDD matching: ${collisions.slice(0, 5).join(', ')`);
+  if (duplicateResolved.length) throw new Error(`Refusing ${duplicateResolved.length} training rows resolving to the same HDD image: ${duplicateResolved.slice(0, 5).join(', ')`);
+  const independentResolved = [];
+  for (const row of independentRows) {
+    const key = pathOf(row), m = lookup(key);
+    if (m.candidates.length !== 1 || !labelOf(row)) continue;
+    const actualPath = m.candidates[0];
+    if (usedPaths.has(actualPath) || heldoutCandidates.has(actualPath)) continue;
+    usedPaths.add(actualPath);
+    independentResolved.push({ row, key, matchedPath: actualPath, file: files.get(actualPath) });
+  }
   const counts = {};
   for (const item of resolved) { const label = labelOf(item.row); if (label) counts[label] = (counts[label] || 0) + 1; }
-  return { resolved, missing, independentResolved, counts, scannedFiles: files.size,
+  return { resolved, missing, ambiguous, independentResolved, counts, scannedFiles: files.size,
     trainingCount: training.size, holdoutCount: holdout.size, independentCount: independent.size,
-    holdoutOverlapCount: collisions.length };
+    holdoutOverlapCount: 0, exactMatched, suffixMatched };
 }
 export function makeBalancedCandidate({ resolved, independentResolved = [], targetPerClass = null }) {
   const groups = new Map();
