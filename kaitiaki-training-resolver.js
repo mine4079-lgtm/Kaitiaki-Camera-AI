@@ -45,7 +45,7 @@ export async function resolveTrainingImages({ directoryHandle, trainingRows, hol
   const holdout = uniqueRows(holdoutRows, 'holdout');
   const independent = uniqueRows(independentRows, 'independent');
   const directCollisions = [...training].filter(k => holdout.has(k));
-  if (directCollisions.length) throw new Error(`Refusing ${directCollisions.length} training/holdout path collision(s): ${directCollisions.slice(0, 5).join(', ')`);
+  if (directCollisions.length) throw new Error(`Refusing ${directCollisions.length} training/holdout path collision(s): ${directCollisions.slice(0, 5).join(', ')}`);
   const files = await scan(directoryHandle), lookup = makeLookup(files);
   const heldoutCandidates = new Set();
   for (const key of holdout) for (const path of lookup(key).candidates) heldoutCandidates.add(path);
@@ -67,8 +67,8 @@ export async function resolveTrainingImages({ directoryHandle, trainingRows, hol
     if (match.method === 'exact') exactMatched++; else suffixMatched++;
     resolved.push({ row, key, matchedPath: actualPath, file: files.get(actualPath) });
   }
-  if (collisions.length) throw new Error(`Refusing ${collisions.length} training/holdout image collision(s) after HDD matching: ${collisions.slice(0, 5).join(', ')`);
-  if (duplicateResolved.length) throw new Error(`Refusing ${duplicateResolved.length} training rows resolving to the same HDD image: ${duplicateResolved.slice(0, 5).join(', ')`);
+  if (collisions.length) throw new Error(`Refusing ${collisions.length} training/holdout image collision(s) after HDD matching: ${collisions.slice(0, 5).join(', ')}`);
+  if (duplicateResolved.length) throw new Error(`Refusing ${duplicateResolved.length} training rows resolving to the same HDD image: ${duplicateResolved.slice(0, 5).join(', ')}`);
   const independentResolved = [];
   for (const row of independentRows) {
     const key = pathOf(row), m = lookup(key);
