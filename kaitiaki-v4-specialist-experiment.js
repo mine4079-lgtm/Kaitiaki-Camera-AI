@@ -52,7 +52,7 @@ async function matrix(net,items,onProgress,phase){
   }
   if(!xs.length)throw Error('No readable images in '+phase);
   const size=xs[0].length,flat=new Float32Array(xs.length*size);xs.forEach((v,i)=>flat.set(v,i*size));
-  return{x:tf.tensor2d(flat,[xs.length,size]),y:tf.tensor1d(ys,'int32'),items:kept,size};
+  return{x:tf.tensor2d(flat,[xs.length,size]),y:tf.tensor2d(ys.map(i=>CLASSES.map((_,j)=>i===j?1:0)).flat(),[ys.length,CLASSES.length],'float32'),items:kept,size};
 }
 function counts(items){return Object.fromEntries(CLASSES.map(c=>[c,items.filter(x=>x.label===c).length]))}
 async function evaluate(net,model,items,onProgress,phase){
@@ -71,7 +71,7 @@ export async function runSpecialistExperiment({resolved,holdoutResolved=[],onPro
   const selected=balanced(source,min),split=deterministicSplit(selected);
   for(const part of ['train','validation','test'])for(const c of CLASSES)if(!split[part].some(x=>x.label===c))throw Error('Not enough independent '+c+' groups for '+part+' split.');
   const net=await loadLibs(),tr=await matrix(net,split.train,onProgress,'features-train'),va=await matrix(net,split.validation,onProgress,'features-validation');
-  const model=tf.sequential();model.add(tf.layers.dense({inputShape:[tr.size],units:64,activation:'relu'}));model.add(tf.layers.dropout({rate:.25}));model.add(tf.layers.dense({units:CLASSES.length,activation:'softmax'}));model.compile({optimizer:tf.train.adam(.001),loss:'sparseCategoricalCrossentropy',metrics:['accuracy']});
+  const model=tf.sequential();model.add(tf.layers.dense({inputShape:[tr.size],units:64,activation:'relu'}));model.add(tf.layers.dropout({rate:.25}));model.add(tf.layers.dense({units:CLASSES.length,activation:'softmax'}));model.compile({optimizer:tf.train.adam(.001),loss:'categoricalCrossentropy',metrics:['accuracy']});
   await model.fit(tr.x,tr.y,{epochs:14,batchSize:16,shuffle:true,validationData:[va.x,va.y],callbacks:{onEpochEnd:async(epoch,logs)=>onProgress?.({phase:'training',epoch:epoch+1,total:14,logs})}});
   tr.x.dispose();tr.y.dispose();va.x.dispose();va.y.dispose();
   const internal=await evaluate(net,model,split.test,onProgress,'internal-test');
