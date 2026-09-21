@@ -47,8 +47,14 @@ export async function resolveTrainingImages({ directoryHandle, trainingRows, hol
   const directCollisions = [...training].filter(k => holdout.has(k));
   if (directCollisions.length) throw new Error(`Refusing ${directCollisions.length} training/holdout path collision(s): ${directCollisions.slice(0, 5).join(', ')}`);
   const files = await scan(directoryHandle), lookup = makeLookup(files);
-  const heldoutCandidates = new Set();
-  for (const key of holdout) for (const path of lookup(key).candidates) heldoutCandidates.add(path);
+  const heldoutCandidates = new Set(), holdoutResolved = [], holdoutMissing = [], holdoutAmbiguous = [];
+  for (const row of holdoutRows) {
+    const key = pathOf(row), m = lookup(key);
+    for (const path of m.candidates) heldoutCandidates.add(path);
+    if (m.candidates.length === 1) holdoutResolved.push({ row, key, matchedPath: m.candidates[0], file: files.get(m.candidates[0]) });
+    else if (m.candidates.length > 1) holdoutAmbiguous.push({ row, key, candidates: m.candidates.slice(0, 8) });
+    else holdoutMissing.push({ row, key });
+  }
   const resolved = [], missing = [], ambiguous = [];
   const usedPaths = new Set();
   let suffixMatched = 0, exactMatched = 0;
@@ -80,7 +86,7 @@ export async function resolveTrainingImages({ directoryHandle, trainingRows, hol
   }
   const counts = {};
   for (const item of resolved) { const label = labelOf(item.row); if (label) counts[label] = (counts[label] || 0) + 1; }
-  return { resolved, missing, ambiguous, independentResolved, counts, scannedFiles: files.size,
+  return { resolved, missing, ambiguous, independentResolved, holdoutResolved, holdoutMissing, holdoutAmbiguous, counts, scannedFiles: files.size,
     trainingCount: training.size, holdoutCount: holdout.size, independentCount: independent.size,
     holdoutOverlapCount: 0, exactMatched, suffixMatched };
 }
