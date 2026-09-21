@@ -16,11 +16,21 @@ async function loadLibs(){
   return mobilenet.load({version:2,alpha:.5,inputResolution:160});
 }
 function deterministicSplit(items){
-  const groups=new Map();
-  for(const item of items){const k=groupKey(item);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(item)}
-  const train=[],validation=[],test=[];
-  for(const [k,rows] of groups){const n=hash32(k)%100,target=n<15?test:n<30?validation:train;target.push(...rows)}
-  return{train,validation,test,groups:groups.size};
+  const train=[],validation=[],test=[],report={};
+  for(const label of CLASSES){
+    const groups=new Map();
+    for(const item of items.filter(x=>x.label===label)){const k=groupKey(item);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(item)}
+    const ordered=[...groups.entries()].sort((a,b)=>hash32(a[0])-hash32(b[0]));
+    report[label]={groups:ordered.length,trainGroups:0,validationGroups:0,testGroups:0};
+    if(ordered.length<3)throw Error('Need at least 3 independent '+label+' groups for train, validation and test; found '+ordered.length+'.');
+    const valCount=Math.max(1,Math.floor(ordered.length*.15)),testCount=Math.max(1,Math.floor(ordered.length*.15));
+    const testGroups=ordered.slice(0,testCount),valGroups=ordered.slice(testCount,testCount+valCount),trainGroups=ordered.slice(testCount+valCount);
+    for(const [,rows] of testGroups)test.push(...rows);
+    for(const [,rows] of valGroups)validation.push(...rows);
+    for(const [,rows] of trainGroups)train.push(...rows);
+    report[label].testGroups=testGroups.length;report[label].validationGroups=valGroups.length;report[label].trainGroups=trainGroups.length;
+  }
+  return{train,validation,test,report,groups:Object.values(report).reduce((n,x)=>n+x.groups,0)};
 }
 function balanced(items,cap){
   const out=[];
@@ -68,7 +78,7 @@ export async function runSpecialistExperiment({resolved,holdoutResolved=[],onPro
   const holdoutItems=holdoutResolved.map(x=>({...x,label:String(x.row?.confirmed_label||x.row?.label||'Possum').trim()})).filter(x=>CLASSES.includes(x.label));
   const heldout=holdoutItems.length?await evaluate(net,model,holdoutItems,onProgress,'heldout-test'):{total:0,correct:0,accuracy:null,confusion:{},rows:[]};
   await model.save(MODEL_KEY);
-  const meta={createdAt:new Date().toISOString(),classes:CLASSES,productionModelUntouched:true,available,balancedPerClass:min,selected:counts(selected),split:{train:counts(split.train),validation:counts(split.validation),test:counts(split.test)},internal:{total:internal.total,correct:internal.correct,accuracy:internal.accuracy,confusion:internal.confusion},heldout:{total:heldout.total,correct:heldout.correct,accuracy:heldout.accuracy,confusion:heldout.confusion},modelKey:MODEL_KEY};
+  const meta={createdAt:new Date().toISOString(),classes:CLASSES,productionModelUntouched:true,available,balancedPerClass:min,selected:counts(selected),split:{train:counts(split.train),validation:counts(split.validation),test:counts(split.test),groups:split.report},internal:{total:internal.total,correct:internal.correct,accuracy:internal.accuracy,confusion:internal.confusion},heldout:{total:heldout.total,correct:heldout.correct,accuracy:heldout.accuracy,confusion:heldout.confusion},modelKey:MODEL_KEY};
   localStorage.setItem('kaitiaki-v4-prw-specialist-experiment-v1-meta',JSON.stringify(meta));
   return meta;
 }
