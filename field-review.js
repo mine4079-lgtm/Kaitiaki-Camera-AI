@@ -34,14 +34,20 @@ async function start(){if(working)return;const model=api();if(!model){notice('V4
 async function prepareOffline(){
  const button=$('offlineCheck'),status=$('offlineStatus');
  if(!button||!status)return;
- button.disabled=true;status.textContent='Loading the saved V4 model and AI libraries. Keep internet connected…';
+ button.disabled=true;status.textContent='Preparing offline page caching. Keep internet connected…';
  try{
+  if(!('serviceWorker' in navigator)||!('caches' in window))throw Error('Offline page caching is not supported in this browser.');
+  const worker=await navigator.serviceWorker.register('./sw.js',{scope:'./'});
+  await navigator.serviceWorker.ready;
+  if(!navigator.serviceWorker.controller){
+    status.textContent='Offline caching registered. Reload this page once while connected, then press this button again.';
+    return;
+  }
+  if(!worker.active)throw Error('The offline service worker is not active. Reopen the app while connected.');
+  status.textContent='Loading saved V4 and AI libraries. Keep internet connected…';
   const model=api();if(!model?.loadSavedModel)throw Error('V4 classifier is unavailable.');
   await model.loadSavedModel();
   status.textContent='V4 loaded on this laptop. Checking offline page cache…';
-  if(!('serviceWorker' in navigator)||!('caches' in window))throw Error('Offline page caching is not supported in this browser.');
-  const worker=await navigator.serviceWorker.ready;
-  if(!worker.active)throw Error('The offline service worker is not active. Reopen the app while connected.');
   const targets=['./index.html','./field-review.html','./field-review.js?v=2','./ai-v4-field-classifier.js?v=17'];
   const cache=await caches.open('kaitiaki-camera-v84');
   const missing=[];
