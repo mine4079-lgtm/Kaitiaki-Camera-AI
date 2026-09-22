@@ -1,0 +1,73 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kaitiaki · Specialist reject-gate audit</title>
+<style>body{font:16px Arial,sans-serif;max-width:970px;margin:auto;padding:20px;background:#f3f6f5;color:#17201e}section{background:white;padding:16px;border:1px solid #dfe6e3;border-radius:14px;margin:14px 0}.warn{background:#fff3df;padding:12px;border-radius:8px}.good{background:#edf5f2;padding:12px;border-radius:8px}button{background:#0d6658;border:0;color:white;border-radius:8px;padding:10px;font-weight:bold}button:disabled{opacity:.5}table{border-collapse:collapse;width:100%;font-size:14px}td,th{padding:7px;text-align:left;border-bottom:1px solid #ddd}input{max-width:100%}.small{font-size:13px;color:#52615b}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style>
+<main><h1>Experimental specialist: reject-gate audit</h1>
+<p class="warn"><b>Read-only, CSV-only diagnostic.</b> No HDD scan, model load, retraining, threshold change, or production V4 integration. A three-class specialist cannot reject unknown animals just by having high confidence. <b>The live gate remains HUMAN REVIEW for every specialist result.</b></p>
+<section><h2>1. Load existing exports</h2>
+<p><label>Held-out specialist/V4 comparison CSV<br><input id="positive" type="file" accept=".csv,text/csv"></label></p>
+<p><label>Non-target safety probe CSV<br><input id="negative" type="file" accept=".csv,text/csv"></label></p>
+<button id="run">Run offline gate audit</button><p id="status" class="small">Both exports are required; no image files needed.</p></section>
+<section id="results" hidden><h2>2. What the existing evidence permits</h2><div id="summary"></div>
+<h3>Illustrative confidence-only thresholds (NOT production settings)</h3>
+<p class="small">Shown to reveal that confidence alone cannot reject unknowns. A non-target accepted as Possum/Rat/Weka is a false accept. A positive incorrectly labelled with high confidence is also a wrong accept. Results are counts on selected, unevenly distributed images, not field rates.</p>
+<table><thead><tr><th>Threshold</th><th>Correct specialist positives accepted</th><th>Wrong species positives accepted</th><th>Non-targets falsely accepted</th></tr></thead><tbody id="thresholds"></tbody></table>
+<div class="warn"><b>Decision: HUMAN REVIEW only.</b> Confidence-only thresholds are not an adequate non-target rejection gate. Additional independently verified data and a separately evaluated open-set/Other detector are required before any automatic specialist decisions.</div>
+<button id="download">Export audit decision CSV</button><p id="details" class="small"></p></section>
+<p><a href="./hdd-match.html">Back to HDD Matcher</a></p></main>
+<script>
+const $=id=>document.getElementById(id);
+function parseCSV(text){
+ const rows=[],cells=[];let cell='',quoted=false;
+ for(let i=0;i<text.length;i++){const ch=text[i];if(quoted){if(ch==='"'&&text[i+1]==='"'){cell+='"';i++}else if(ch==='"')quoted=false;else cell+=ch}
+ else if(ch==='"')quoted=true;else if(ch===','){cells.push(cell);cell=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&text[i+1]==='\n')i++;cells.push(cell);cell='';if(cells.some(x=>x!==''))rows.push(cells.splice(0));else cells.length=0}else cell+=ch}
+ if(quoted)throw Error('Invalid CSV: unmatched quote');cells.push(cell);if(cells.some(x=>x!==''))rows.push(cells);
+ if(!rows.length)throw Error('CSV is empty');const header=rows.shift().map(x=>x.trim().replace(/^\uFEFF/,''));
+ if(new Set(header).size!==header.length)throw Error('CSV has duplicate headings');
+ return rows.map((row,i)=>Object.fromEntries(header.map((h,j)=>[h,row[j]??'']))); 
+}
+function confidence(v){const n=Number(v);return v!==''&&Number.isFinite(n)&&n>=0&&n<=1?n:null}
+function csvQuote(v){const s=String(v??'');return /[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
+let audit=[];
+$('run').onclick=async()=>{
+ const status=$('status');$('results').hidden=true;audit=[];
+ try{
+  if(!$('positive').files[0]||!$('negative').files[0])throw Error('Please choose both exported CSV files.');
+  const positives=parseCSV(await $('positive').files[0].text()),negatives=parseCSV(await $('negative').files[0].text());
+  if(!positives.length||!negatives.length)throw Error('Both CSVs need at least one data row.');
+  for(const key of ['relative_path','human_label','specialist_prediction','specialist_confidence'])if(!(key in positives[0]))throw Error('Comparison CSV missing: '+key);
+  for(const key of ['relative_path','human_label','forced_specialist_prediction','specialist_confidence','evaluation_origin'])if(!(key in negatives[0]))throw Error('Non-target CSV missing: '+key);
+  const selected=new Map();
+  for(const r of positives){
+   const c=confidence(r.specialist_confidence);
+   if(c==null)continue;
+   const actual=r.human_label.trim(),pred=r.specialist_prediction.trim(),key=r.relative_path.trim().toLowerCase();
+   if(!['Possum','Rat','Weka'].includes(actual)||!key||selected.has(key))continue;
+   selected.set(key,{kind:'Held-out positive',actual,pred,conf:c,key});
+  }
+  const independent=new Map(),training=[];
+  for(const r of negatives){
+   const origin=r.evaluation_origin.trim(),actual=r.human_label.trim(),pred=r.forced_specialist_prediction.trim(),key=r.relative_path.trim().toLowerCase(),c=confidence(r.specialist_confidence);
+   if(!key||c==null||!actual||['Possum','Rat','Weka'].includes(actual))continue;
+   if(origin==='Training diagnostic'){training.push({kind:'Training diagnostic',actual,pred,conf:c,key});continue}
+   if(origin!=='Held-out'&&origin!=='Independent')continue;
+   if(selected.has(key))throw Error('Same physical image in positive and non-target results: '+key);
+   if(!independent.has(key))independent.set(key,{kind:'Independent non-target',actual,pred,conf:c,key});
+  }
+  if(!selected.size||!independent.size)throw Error('Need matched specialist positives and independently evaluated non-targets. Training diagnostics are not independent.');
+  const p=[...selected.values()],n=[...independent.values()];audit=[...p,...n,...training];
+  const correct=p.filter(x=>x.actual===x.pred).length,wrong=p.length-correct;
+  $('summary').innerHTML='<p class="good"><b>Held-out positive samples:</b> '+p.length+' ('+correct+' correct / '+wrong+' wrong species). <b>Independent non-target samples:</b> '+n.length+'. <b>Training-only diagnostics:</b> '+training.length+' (excluded from safety assessment).</p>';
+  $('thresholds').innerHTML=[.5,.8,.9,.95,.99].map(t=>{
+   const pass=x=>x.conf>=t;
+   return '<tr><td>≥'+Math.round(100*t)+'%</td><td>'+p.filter(x=>pass(x)&&x.pred===x.actual).length+' / '+p.length+'</td><td>'+p.filter(x=>pass(x)&&x.pred!==x.actual).length+' / '+p.length+'</td><td>'+n.filter(pass).length+' / '+n.length+'</td></tr>';
+  }).join('');
+  $('details').textContent='No automatic decisions are enabled by this audit. '+n.length+' selected negatives do not establish an unseen-camera false-positive rate.';
+  $('results').hidden=false;status.textContent='Audit completed locally; no photos or labels changed.';
+ }catch(err){status.textContent='Audit stopped: '+String(err?.message||err)}
+};
+$('download').onclick=()=>{
+ const fields=['relative_path','evaluation_group','human_label','specialist_prediction','specialist_confidence','allowed_field_decision','reason'];
+ const data=[fields,...audit.map(x=>[x.key,x.kind,x.actual,x.pred,x.conf,'HUMAN REVIEW','Experimental 3-class model cannot safely reject non-targets'])].map(row=>row.map(csvQuote).join(',')).join('\r\n');
+ const url=URL.createObjectURL(new Blob([data],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='kaitiaki-specialist-gate-audit.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+</script></html>
