@@ -2,11 +2,12 @@
 <title>Kaitiaki · Specialist reject-gate audit</title>
 <style>body{font:16px Arial,sans-serif;max-width:970px;margin:auto;padding:20px;background:#f3f6f5;color:#17201e}section{background:white;padding:16px;border:1px solid #dfe6e3;border-radius:14px;margin:14px 0}.warn{background:#fff3df;padding:12px;border-radius:8px}.good{background:#edf5f2;padding:12px;border-radius:8px}button{background:#0d6658;border:0;color:white;border-radius:8px;padding:10px;font-weight:bold}button:disabled{opacity:.5}table{border-collapse:collapse;width:100%;font-size:14px}td,th{padding:7px;text-align:left;border-bottom:1px solid #ddd}input{max-width:100%}.small{font-size:13px;color:#52615b}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style>
 <main><h1>Experimental specialist: reject-gate audit</h1>
-<p class="warn"><b>Read-only, CSV-only diagnostic.</b> No HDD scan, model load, retraining, threshold change, or production V4 integration. A three-class specialist cannot reject unknown animals just by having high confidence. <b>The live gate remains HUMAN REVIEW for every specialist result.</b></p>
+<p class="warn"><b>Read-only, CSV-only diagnostic.</b> No HDD scan, model load, retraining, threshold change, or production V4 integration. The training CSV is used ONLY to exclude held-out images from shared camera-hour sessions. A three-class specialist cannot reject unknown animals just by having high confidence. <b>The live gate remains HUMAN REVIEW for every specialist result.</b></p>
 <section><h2>1. Load existing exports</h2>
 <p><label>Held-out specialist/V4 comparison CSV<br><input id="positive" type="file" accept=".csv,text/csv"></label></p>
 <p><label>Non-target safety probe CSV<br><input id="negative" type="file" accept=".csv,text/csv"></label></p>
-<button id="run">Run offline gate audit</button><p id="status" class="small">Both exports are required; no image files needed.</p></section>
+<p><label>Original human-verified 309-image training CSV (required to remove same camera-hour leakage)<br><input id="training" type="file" accept=".csv,text/csv"></label></p>
+<button id="run">Run offline gate audit</button><p id="status" class="small">The two exports and original training CSV are required; no image files needed.</p></section>
 <section id="results" hidden><h2>2. What the existing evidence permits</h2><div id="summary"></div>
 <h3>Illustrative confidence-only thresholds (NOT production settings)</h3>
 <p class="small">Shown to reveal that confidence alone cannot reject unknowns. A non-target accepted as Possum/Rat/Weka is a false accept. A positive incorrectly labelled with high confidence is also a wrong accept. Results are counts on selected, unevenly distributed images, not field rates.</p>
@@ -31,6 +32,16 @@ function cameraID(path){
  return m?m[1].toLowerCase():null;
 }
 function frequency(rows,key){const counts=new Map();for(const row of rows){const v=key(row);if(v)counts.set(v,(counts.get(v)||0)+1)}return [...counts.entries()].sort((a,b)=>b[1]-a[1]);}
+function cameraHour(path){
+ const file=String(path||'').split(/[\\/]/).pop(),m=file.match(/^([^~]+)~(\\d{4}-\\d{2}-\\d{2})t(\\d{2})[-:]/i);
+ return m?m[1].toLowerCase()+'|'+m[2]+'|'+m[3]:null;
+}
+function leakageFilter(positives,training){
+ const hours=new Set(training.filter(r=>['Possum','Rat','Weka'].includes(String(r.confirmed_label??r.label??'').trim())).map(r=>cameraHour(r.relative_path||r.file_name||r.path)).filter(Boolean));
+ const independent=[],shared=[];
+ for(const row of positives){const h=cameraHour(row.relative_path);(h&&hours.has(h)?shared:independent).push(row)}
+ return {independent,shared};
+}
 function coverageReport(pos,neg,train){
  const posCounts=frequency(pos,r=>r.actual),negCounts=frequency(neg,r=>r.actual);
  const negCameras=new Set(neg.map(r=>cameraID(r.key)).filter(Boolean)),posCameras=new Set(pos.map(r=>cameraID(r.key)).filter(Boolean));
@@ -43,8 +54,11 @@ let audit=[];
 $('run').onclick=async()=>{
  const status=$('status');$('results').hidden=true;audit=[];
  try{
-  if(!$('positive').files[0]||!$('negative').files[0])throw Error('Please choose both exported CSV files.');
-  const positives=parseCSV(await $('positive').files[0].text()),negatives=parseCSV(await $('negative').files[0].text());
+  if(!$('positive').files[0]||!$('negative').files[0]||!$('training').files[0])throw Error('Choose the comparison, non-target and original training CSV files.');
+  const positiveRows=parseCSV(await $('positive').files[0].text()),negatives=parseCSV(await $('negative').files[0].text()),trainingRows=parseCSV(await $('training').files[0].text());
+  if(!trainingRows.length||!('confirmed_label' in trainingRows[0])||!('relative_path' in trainingRows[0]))throw Error('Expected the original human-verified training CSV with confirmed_label and relative_path.');
+  if(trainingRows.length!==309)throw Error('Expected the original 309-image training CSV; this file has '+trainingRows.length+' rows.');
+  const leakage=leakageFilter(positiveRows,trainingRows),positives=leakage.independent;
   if(!positives.length||!negatives.length)throw Error('Both CSVs need at least one data row.');
   for(const key of ['relative_path','human_label','specialist_prediction','specialist_confidence'])if(!(key in positives[0]))throw Error('Comparison CSV missing: '+key);
   for(const key of ['relative_path','human_label','forced_specialist_prediction','specialist_confidence','evaluation_origin'])if(!(key in negatives[0]))throw Error('Non-target CSV missing: '+key);
@@ -68,7 +82,7 @@ $('run').onclick=async()=>{
   if(!selected.size||!independent.size)throw Error('Need matched specialist positives and independently evaluated non-targets. Training diagnostics are not independent.');
   const p=[...selected.values()],n=[...independent.values()];audit=[...p,...n,...training];
   const correct=p.filter(x=>x.actual===x.pred).length,wrong=p.length-correct;
-  $('summary').innerHTML='<p class="good"><b>Held-out positive samples:</b> '+p.length+' ('+correct+' correct / '+wrong+' wrong species). <b>Independent non-target samples:</b> '+n.length+'. <b>Training-only diagnostics:</b> '+training.length+' (excluded from safety assessment).</p>';
+  $('summary').innerHTML='<p class="good"><b>Held-out positive samples:</b> '+p.length+' ('+correct+' correct / '+wrong+' wrong species). <b>Independent non-target samples:</b> '+n.length+'. <b>Training-only diagnostics:</b> '+training.length+' (excluded from safety assessment). <b>Same camera-hour positive captures excluded:</b> '+leakage.shared.length+'.</p>';
   const cover=coverageReport(p,n,training);
   const describe=x=>x.map(([label,num])=>label+': '+num).join(', ')||'none';
   $('coverage').textContent='Held-out species: '+describe(cover.posCounts)+'. Independent non-target labels: '+describe(cover.negCounts)+'. Distinct identifiable cameras: positive '+cover.posCameras+', non-target '+cover.negCameras+'. Non-target training-only diagnostics: '+cover.trainingOther+'. Missing held-out species: '+(cover.missing.join(', ')||'none')+'. '+cover.verdict;
@@ -76,7 +90,7 @@ $('run').onclick=async()=>{
    const pass=x=>x.conf>=t;
    return '<tr><td>≥'+Math.round(100*t)+'%</td><td>'+p.filter(x=>pass(x)&&x.pred===x.actual).length+' / '+p.length+'</td><td>'+p.filter(x=>pass(x)&&x.pred!==x.actual).length+' / '+p.length+'</td><td>'+n.filter(pass).length+' / '+n.length+'</td></tr>';
   }).join('');
-  $('details').textContent='No automatic decisions are enabled by this audit. '+n.length+' selected negatives do not establish an unseen-camera false-positive rate.';
+  $('details').textContent='No automatic decisions are enabled by this audit. '+leakage.shared.length+' positive captures sharing a training camera-hour were excluded. '+n.length+' selected negatives do not establish an unseen-camera false-positive rate.';
   $('results').hidden=false;status.textContent='Audit completed locally; no photos or labels changed.';
  }catch(err){status.textContent='Audit stopped: '+String(err?.message||err)}
 };
