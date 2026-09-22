@@ -33,7 +33,7 @@ function cameraID(path){
 }
 function frequency(rows,key){const counts=new Map();for(const row of rows){const v=key(row);if(v)counts.set(v,(counts.get(v)||0)+1)}return [...counts.entries()].sort((a,b)=>b[1]-a[1]);}
 function cameraHour(path){
- const file=String(path||'').split(/[\\/]/).pop(),m=file.match(/^([^~]+)~(\\d{4}-\\d{2}-\\d{2})t(\\d{2})[-:]/i);
+ const file=String(path||'').split(/[\\/]/).pop(),m=file.match(/^([^~]+)~(\d{4}-\d{2}-\d{2})t(\d{2})[-:]/i);
  return m?m[1].toLowerCase()+'|'+m[2]+'|'+m[3]:null;
 }
 function leakageFilter(positives,training){
