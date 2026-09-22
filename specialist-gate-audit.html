@@ -11,7 +11,7 @@
 <h3>Illustrative confidence-only thresholds (NOT production settings)</h3>
 <p class="small">Shown to reveal that confidence alone cannot reject unknowns. A non-target accepted as Possum/Rat/Weka is a false accept. A positive incorrectly labelled with high confidence is also a wrong accept. Results are counts on selected, unevenly distributed images, not field rates.</p>
 <table><thead><tr><th>Threshold</th><th>Correct specialist positives accepted</th><th>Wrong species positives accepted</th><th>Non-targets falsely accepted</th></tr></thead><tbody id="thresholds"></tbody></table>
-<div class="warn"><b>Decision: HUMAN REVIEW only.</b> Confidence-only thresholds are not an adequate non-target rejection gate. Additional independently verified data and a separately evaluated open-set/Other detector are required before any automatic specialist decisions.</div>
+<h3>Coverage and open-set model readiness</h3><div id="coverage" class="warn"></div><div class="warn"><b>Decision: HUMAN REVIEW only.</b> Confidence-only thresholds are not an adequate non-target rejection gate. Additional independently verified data and a separately evaluated open-set/Other detector are required before any automatic specialist decisions.</div>
 <button id="download">Export audit decision CSV</button><p id="details" class="small"></p></section>
 <p><a href="./hdd-match.html">Back to HDD Matcher</a></p></main>
 <script>
@@ -26,6 +26,18 @@ function parseCSV(text){
  return rows.map((row,i)=>Object.fromEntries(header.map((h,j)=>[h,row[j]??'']))); 
 }
 function confidence(v){const n=Number(v);return v!==''&&Number.isFinite(n)&&n>=0&&n<=1?n:null}
+function cameraID(path){
+ const file=String(path||'').split(/[\\/]/).pop(),m=file.match(/^([^~]+)~/);
+ return m?m[1].toLowerCase():null;
+}
+function frequency(rows,key){const counts=new Map();for(const row of rows){const v=key(row);if(v)counts.set(v,(counts.get(v)||0)+1)}return [...counts.entries()].sort((a,b)=>b[1]-a[1]);}
+function coverageReport(pos,neg,train){
+ const posCounts=frequency(pos,r=>r.actual),negCounts=frequency(neg,r=>r.actual);
+ const negCameras=new Set(neg.map(r=>cameraID(r.key)).filter(Boolean)),posCameras=new Set(pos.map(r=>cameraID(r.key)).filter(Boolean));
+ const labels=['Possum','Rat','Weka'];const missing=labels.filter(label=>!pos.some(r=>r.actual===label));
+ return {posCounts,negCounts,negCameras:negCameras.size,posCameras:posCameras.size,trainingOther:train.length,missing,
+   verdict:'NOT READY: no validated Other/unknown detector exists. The available non-target controls and species coverage do not support automatic field decisions.'};
+}
 function csvQuote(v){const s=String(v??'');return /[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
 let audit=[];
 $('run').onclick=async()=>{
@@ -57,6 +69,9 @@ $('run').onclick=async()=>{
   const p=[...selected.values()],n=[...independent.values()];audit=[...p,...n,...training];
   const correct=p.filter(x=>x.actual===x.pred).length,wrong=p.length-correct;
   $('summary').innerHTML='<p class="good"><b>Held-out positive samples:</b> '+p.length+' ('+correct+' correct / '+wrong+' wrong species). <b>Independent non-target samples:</b> '+n.length+'. <b>Training-only diagnostics:</b> '+training.length+' (excluded from safety assessment).</p>';
+  const cover=coverageReport(p,n,training);
+  const describe=x=>x.map(([label,num])=>label+': '+num).join(', ')||'none';
+  $('coverage').textContent='Held-out species: '+describe(cover.posCounts)+'. Independent non-target labels: '+describe(cover.negCounts)+'. Distinct identifiable cameras: positive '+cover.posCameras+', non-target '+cover.negCameras+'. Non-target training-only diagnostics: '+cover.trainingOther+'. Missing held-out species: '+(cover.missing.join(', ')||'none')+'. '+cover.verdict;
   $('thresholds').innerHTML=[.5,.8,.9,.95,.99].map(t=>{
    const pass=x=>x.conf>=t;
    return '<tr><td>≥'+Math.round(100*t)+'%</td><td>'+p.filter(x=>pass(x)&&x.pred===x.actual).length+' / '+p.length+'</td><td>'+p.filter(x=>pass(x)&&x.pred!==x.actual).length+' / '+p.length+'</td><td>'+n.filter(pass).length+' / '+n.length+'</td></tr>';
