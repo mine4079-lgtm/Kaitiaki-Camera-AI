@@ -125,4 +125,41 @@ export async function compareSavedSpecialist({holdoutResolved=[],trainingResolve
     baselineTopLabelCorrect:details.filter(x=>x.baselineMatchesHuman===true).length,
     note:'Baseline is original AI top suggestion, NOT the automatic decision after threshold/margin review.'};
 }
+/* Diagnostic ONLY: a 3-class softmax must choose Possum, Rat or Weka even for
+   genuine Other/Deer/Stoat/etc. This measures that risk on personally verified
+   negative controls. It does not estimate a field false-positive rate. */
+export async function probeSavedSpecialistNonTargets({resolved=[],independentResolved=[],trainingResolved=[],onProgress}={}){
+  const source=[...resolved,...independentResolved];
+  const seen=new Set(),negative=[];
+  for(const item of source){
+    const row=item.row||{},label=String(row.confirmed_label??row.label??'').trim();
+    const verified=String(row.human_verified??'Yes').trim().toLowerCase();
+    if(!label||CLASSES.includes(label)||verified==='no'||verified==='false'||!item.file)continue;
+    const path=String(item.matchedPath||item.key||'').toLowerCase();
+    if(!path||seen.has(path))continue;
+    seen.add(path);
+    negative.push({...item,label});
+  }
+  const safe=holdoutWithoutSharedHours(negative,trainingResolved.filter(x=>CLASSES.includes(String(x.row?.confirmed_label??x.row?.label??'').trim())));
+  if(!safe.independent.length)throw Error('No independently verified non-target images are available after session exclusions.');
+  const net=await loadLibs();
+  let model;
+  try{model=await tf.loadLayersModel(MODEL_KEY)}
+  catch{throw Error('Saved specialist not found in Edge; this probe does not retrain.')}
+  const details=[],skipped=[];
+  for(let i=0;i<safe.independent.length;i++){
+    const item=safe.independent[i];
+    try{
+      const v=await feature(net,item);
+      const scores=tf.tidy(()=>Array.from(model.predict(tf.tensor2d(v,[1,v.length])).dataSync()));
+      const ix=scores.indexOf(Math.max(...scores));
+      details.push({key:item.key,actual:item.label,predicted:CLASSES[ix],confidence:scores[ix]});
+    }catch(e){skipped.push({key:item.key,error:String(e?.message||e)})}
+    if(i%4===0||i===safe.independent.length-1){onProgress?.({phase:'negative-probe',current:i+1,total:safe.independent.length});await new Promise(r=>setTimeout(r,0))}
+  }
+  const counts=Object.fromEntries(CLASSES.map(label=>[label,details.filter(x=>x.predicted===label).length]));
+  return {total:details.length,counts,highConfidence:details.filter(x=>x.confidence>=.9).length,
+    excludedSharedCameraHour:safe.shared.length,skipped,details,
+    warning:'Every 3-class specialist prediction on a non-target is necessarily a wrong species; confidence is NOT rejection or field reliability.'};
+}
 export const SPECIALIST_MODEL_KEY=MODEL_KEY;
