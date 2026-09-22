@@ -3,6 +3,17 @@
 const CLASSES=['Possum','Rat','Weka'];
 const MODEL_KEY='indexeddb://kaitiaki-v4-prw-specialist-experiment-v1';
 function hash32(t){let h=2166136261;for(const ch of String(t)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+function cameraHourKey(item){
+  const n=String(item?.row?.file_name||item?.row?.relative_path||item?.key||'').toLowerCase().split('/').pop();
+  const m=n.match(/^([^~]+)~(\d{4}-\d{2}-\d{2})t(\d{2})[-:]/);
+  return m?m[1]+'|'+m[2]+'|'+m[3]:null;
+}
+function holdoutWithoutSharedHours(holdout,training){
+  const hours=new Set(training.map(cameraHourKey).filter(Boolean));
+  const independent=[],shared=[];
+  for(const item of holdout){const hour=cameraHourKey(item);(hour&&hours.has(hour)?shared:independent).push(item)}
+  return {independent,shared};
+}
 function groupKey(item){
   const n=String(item?.row?.file_name||item?.row?.relative_path||item?.key||'').toLowerCase();
   const m=n.match(/^([^~]+)~(\d{4}-\d{2}-\d{2}t\d{2}-\d{2})/);
@@ -75,20 +86,24 @@ export async function runSpecialistExperiment({resolved,holdoutResolved=[],onPro
   await model.fit(tr.x,tr.y,{epochs:14,batchSize:16,shuffle:true,validationData:[va.x,va.y],callbacks:{onEpochEnd:async(epoch,logs)=>onProgress?.({phase:'training',epoch:epoch+1,total:14,logs})}});
   tr.x.dispose();tr.y.dispose();va.x.dispose();va.y.dispose();
   const internal=await evaluate(net,model,split.test,onProgress,'internal-test');
-  const holdoutItems=holdoutResolved.map(x=>({...x,label:String(x.row?.confirmed_label||x.row?.label||'Possum').trim()})).filter(x=>CLASSES.includes(x.label));
+  const allHoldout=holdoutResolved.map(x=>({...x,label:String(x.row?.confirmed_label||x.row?.label||'').trim()})).filter(x=>CLASSES.includes(x.label));
+  const safeHoldout=holdoutWithoutSharedHours(allHoldout,selected);
+  const holdoutItems=safeHoldout.independent;
   const heldout=holdoutItems.length?await evaluate(net,model,holdoutItems,onProgress,'heldout-test'):{total:0,correct:0,accuracy:null,confusion:{},rows:[]};
   await model.save(MODEL_KEY);
-  const meta={createdAt:new Date().toISOString(),classes:CLASSES,productionModelUntouched:true,available,balancedPerClass:min,selected:counts(selected),split:{train:counts(split.train),validation:counts(split.validation),test:counts(split.test),groups:split.report},internal:{total:internal.total,correct:internal.correct,accuracy:internal.accuracy,confusion:internal.confusion},heldout:{total:heldout.total,correct:heldout.correct,accuracy:heldout.accuracy,confusion:heldout.confusion},modelKey:MODEL_KEY};
+  const meta={createdAt:new Date().toISOString(),classes:CLASSES,productionModelUntouched:true,available,balancedPerClass:min,selected:counts(selected),split:{train:counts(split.train),validation:counts(split.validation),test:counts(split.test),groups:split.report},internal:{total:internal.total,correct:internal.correct,accuracy:internal.accuracy,confusion:internal.confusion},heldout:{total:heldout.total,correct:heldout.correct,accuracy:heldout.accuracy,confusion:heldout.confusion,excludedSharedCameraHour:safeHoldout.shared.length},modelKey:MODEL_KEY};
   localStorage.setItem('kaitiaki-v4-prw-specialist-experiment-v1-meta',JSON.stringify(meta));
   return meta;
 }
 /* Re-evaluate an EXISTING saved specialist without retraining. Only three human-confirmed
    species are scored; other classes are excluded explicitly. Original V4 suggestions
    are shown as descriptive comparison, not V4 auto-accept decisions. */
-export async function compareSavedSpecialist({holdoutResolved=[],onProgress}={}){
+export async function compareSavedSpecialist({holdoutResolved=[],trainingResolved=[],onProgress}={}){
   if(!holdoutResolved.length)throw Error('Reconnect the HDD and supply your held-out evaluation CSV first.');
   const items=holdoutResolved.map(x=>({...x,label:String(x.row?.confirmed_label||x.row?.label||'').trim()}));
-  const included=items.filter(x=>CLASSES.includes(x.label));
+  const includedAll=items.filter(x=>CLASSES.includes(x.label));
+  const safe=holdoutWithoutSharedHours(includedAll,trainingResolved);
+  const included=safe.independent;
   if(!included.length)throw Error('No human-confirmed Possum, Rat or Weka examples found in held-out CSV.');
   const net=await loadLibs();
   let model;
@@ -104,7 +119,7 @@ export async function compareSavedSpecialist({holdoutResolved=[],onProgress}={})
     return {...x,baselinePrediction:baseline,baselineConfidence:Number.isFinite(baselineConfidence)?baselineConfidence:null,
       baselineMatchesHuman:baseline?baseline===x.actual:null,specialistMatchesHuman:x.predicted===x.actual};
   });
-  return { ...result, details, excluded:items.length-included.length,
+  return { ...result, details, excluded:items.length-includedAll.length,excludedSharedCameraHour:safe.shared.length,
     missing:holdoutResolved.length-items.length,
     baselineComparable:details.filter(x=>x.baselinePrediction).length,
     baselineTopLabelCorrect:details.filter(x=>x.baselineMatchesHuman===true).length,
