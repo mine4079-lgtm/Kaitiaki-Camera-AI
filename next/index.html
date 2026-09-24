@@ -163,5 +163,6 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 (async()=>{try{db=await openDB();rows=await allItems();rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();$("status").textContent="Ready. "+rows.length.toLocaleString()+" saved image records available."}catch(err){$("status").textContent="Local storage unavailable: "+String(err.message||err)+". Use a normal, non-private browser tab.";$("start").disabled=true}})();
 })();
 </script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}))}</script>
 </body>
 </html>
