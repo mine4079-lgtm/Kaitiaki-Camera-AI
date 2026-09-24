@@ -1,0 +1,15 @@
+{
+  "name": "kaitiaki-next-vision",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-24",
+  "vars": {
+    "ALLOWED_ORIGIN": "https://mine4079-lgtm.github.io",
+    "OPENAI_MODEL": "gpt-4.1-mini"
+  },
+  "secrets": {
+    "required": [
+      "OPENAI_API_KEY",
+      "KAITIAKI_ACCESS_TOKEN"
+    ]
+  }
+}
