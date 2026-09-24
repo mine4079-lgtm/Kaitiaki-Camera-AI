@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kaitiaki-camera-v84';
+const CACHE_NAME = 'kaitiaki-camera-v85';
 const IMAGE_CACHE = 'kaitiaki-camera-images-v1';
 const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./sw.js','./runtime-fix.js','./ai-trainer-v13.js?v=10','./training-v2.html','./ai-v2-field-classifier.js?v=11','./training-v3.html','./ai-v3-field-classifier.js?v=6','./training-v4.html','./ai-v4-field-classifier.js?v=17','./field-review.html','./field-review.js?v=2','./dataset-audit.html','./dataset-audit.js?v=5'];
 
@@ -22,4 +22,4 @@ async function patchHtml(response, requestUrl=''){
 async function cacheShell(){const cache=await caches.open(CACHE_NAME);for(const url of APP_SHELL){try{const r=await fetch(url,{cache:'no-store'});await cache.put(url,url.endsWith('.html')||url==='./'?await patchHtml(r.clone(),url):r)}catch{}}}
 self.addEventListener('install',e=>e.waitUntil(cacheShell().then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE_NAME&&k!==IMAGE_CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
-self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request,{cache:'no-store'}).then(async r=>{const p=await patchHtml(r.clone(),e.request.url);caches.open(CACHE_NAME).then(c=>c.put(e.request,p.clone())).catch(()=>{});return p}).catch(()=>caches.match(e.request).then(c=>c||(e.request.mode==='navigate'?caches.match('./index.html'):new Response('',{status:504,statusText:'Offline'})))))});
+self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;if(new URL(e.request.url).pathname.includes('/Kaitiaki-Camera-AI/next/'))return;e.respondWith(fetch(e.request,{cache:'no-store'}).then(async r=>{const p=await patchHtml(r.clone(),e.request.url);caches.open(CACHE_NAME).then(c=>c.put(e.request,p.clone())).catch(()=>{});return p}).catch(()=>caches.match(e.request).then(c=>c||(e.request.mode==='navigate'?caches.match('./index.html'):new Response('',{status:504,statusText:'Offline'})))))});
