@@ -59,7 +59,7 @@ dialog::backdrop{background:#0c211dcc}
 .dialog-content{padding:17px}.choices{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:14px 0}
 .choices button{border:1px solid #dce8e2;border-radius:11px;background:white;padding:12px 6px;font-weight:750}
 .choices button.selected{background:#e0f3eb;color:#0b6655;border:2px solid #0b6655;padding:11px 5px}
-.dialog-actions{display:flex;gap:9px;margin-top:13px;flex-wrap:wrap}
+.dialog-actions{display:flex;gap:9px;margin-top:13px;flex-wrap:wrap}.btn.danger{background:#fff0ed;color:#9b2c20;border-color:#f2cbc5}
 .footer{color:#84948c;font-size:11px;margin-top:26px}
 @media(max-width:480px){h2{font-size:23px}.panel{padding:15px}.gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stat{padding:10px}.stat b{font-size:21px}.item-body{padding:8px}.tag{font-size:10px}.choices{grid-template-columns:repeat(2,1fr)}}
 </style>
@@ -108,7 +108,7 @@ dialog::backdrop{background:#0c211dcc}
 <dialog id="reviewDialog" aria-label="Review image">
 <div class="dialog-title"><strong id="dialogName">Review photo</strong><button id="closeDialog" class="x" aria-label="Close">×</button></div>
 <img id="large" alt="Selected wildlife camera photo" hidden><div id="noPreview" hidden>Re-select the original folder or photo to view this image.</div>
-<div class="dialog-content"><p class="sub" id="dialogPath"></p><div class="notice green" id="dialogAi" hidden></div><h3>Confirm actual label</h3><div id="choices" class="choices"></div><div class="dialog-actions"><button id="saveLabel" class="btn" disabled>Save confirmed label</button><button id="nextImage" class="btn light">Next image</button></div><p class="sub" id="dialogMessage" role="status" style="margin:10px 0 0"></p></div>
+<div class="dialog-content"><p class="sub" id="dialogPath"></p><div class="notice green" id="dialogAi" hidden></div><h3>Confirm actual label</h3><div id="choices" class="choices"></div><div class="dialog-actions"><button id="saveLabel" class="btn" disabled>Save confirmed label</button><button id="nextImage" class="btn light">Next image</button><button id="deleteRecord" class="btn danger">Delete record</button></div><p class="sub" id="dialogMessage" role="status" style="margin:10px 0 0"></p></div>
 </dialog>
 <script>
 (function(){
@@ -124,6 +124,7 @@ async function makePreview(file){const bmp=await createImageBitmap(file);try{con
 function openDB(){return new Promise((resolve,reject)=>{const request=indexedDB.open(DB_NAME,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(STORE))request.result.createObjectStore(STORE,{keyPath:"key"})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
 function storeItems(items){return new Promise((resolve,reject)=>{const t=db.transaction(STORE,"readwrite");const s=t.objectStore(STORE);for(const x of items)s.put(x);t.oncomplete=resolve;t.onerror=()=>reject(t.error)})}
 function allItems(){return new Promise((resolve,reject)=>{const t=db.transaction(STORE,"readonly"),q=t.objectStore(STORE).getAll();q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
+function removeItem(key){return new Promise((resolve,reject)=>{const t=db.transaction(STORE,"readwrite");t.objectStore(STORE).delete(key);t.oncomplete=resolve;t.onerror=()=>reject(t.error)})}
 function updateStats(){const v=rows.filter(r=>r.verified).length;for(const id of ["total","r-total"])$(id).textContent=rows.length.toLocaleString();for(const id of ["verified","r-verified"])$(id).textContent=v.toLocaleString();for(const id of ["pending","r-pending"])$(id).textContent=(rows.length-v).toLocaleString();let summary={};for(const r of rows){if(r.verified)summary[r.label]=(summary[r.label]||0)+1}const parts=Object.entries(summary).sort((a,b)=>b[1]-a[1]).map(([name,n])=>name+": "+n.toLocaleString());$("breakdown").textContent=parts.length?parts.join(" · "):"No verified images yet."}
 function escapeHTML(str){return String(str).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]))}
 function clearThumbs(){for(const url of thumbUrls)URL.revokeObjectURL(url);thumbUrls=[]}
@@ -151,7 +152,7 @@ if(fresh.length||updated.length){await storeItems([...fresh,...updated]);if(fres
 $("status").textContent=paused?"Paused safely at "+done.toLocaleString()+" / "+total.toLocaleString()+". Press Import again to resume.":"Import complete. "+added.toLocaleString()+" new records; existing labels preserved. Go to Results to review.";
 }catch(err){$("status").textContent="Import stopped: "+String(err.message||err)+". Last completed checkpoint is saved."}finally{working=false;$("start").disabled=false;$("pause").disabled=true;render()}
 };
-function openReview(key){selectedKey=key;const r=rows.find(x=>x.key===key);if(!r)return;selectedLabel=r.verified?r.label:"";$("dialogName").textContent=r.name;$("dialogPath").textContent=r.path;const ai=$("dialogAi");ai.hidden=!r.aiPrediction;ai.textContent=r.aiPrediction?"AI suggests "+r.aiPrediction+" · "+r.aiConfidence+"% — "+(r.aiNote||"")+" (not verified)":"";$("dialogMessage").textContent=r.verified?"Saved label: "+r.label:"Choose what you actually see in the image.";$("saveLabel").disabled=!selectedLabel;
+function openReview(key){selectedKey=key;const r=rows.find(x=>x.key===key);if(!r)return;selectedLabel=r.verified?r.label:"";$("deleteRecord").disabled=false;$("dialogName").textContent=r.name;$("dialogPath").textContent=r.path;const ai=$("dialogAi");ai.hidden=!r.aiPrediction;ai.textContent=r.aiPrediction?"AI suggests "+r.aiPrediction+" · "+r.aiConfidence+"% — "+(r.aiNote||"")+" (not verified)":"";$("dialogMessage").textContent=r.verified?"Saved label: "+r.label:"Choose what you actually see in the image.";$("saveLabel").disabled=!selectedLabel;
 if(largeUrl){URL.revokeObjectURL(largeUrl);largeUrl=null}const f=filesByKey.get(key),savedPreview=!f&&r.preview instanceof Blob?r.preview:null,shown=f||savedPreview;$("large").hidden=!shown;$("noPreview").hidden=!!shown;if(shown){largeUrl=URL.createObjectURL(shown);$("large").src=largeUrl}else{$("large").removeAttribute("src")}
 const c=$("choices");c.replaceChildren();for(const label of SPECIES){const b=document.createElement("button");b.textContent=label;b.className=selectedLabel===label?"selected":"";b.onclick=()=>{selectedLabel=label;c.querySelectorAll("button").forEach(x=>x.classList.toggle("selected",x===b));$("saveLabel").disabled=false};c.append(b)}
 $("reviewDialog").showModal()
@@ -159,6 +160,23 @@ $("reviewDialog").showModal()
 $("closeDialog").onclick=()=>$("reviewDialog").close();$("reviewDialog").addEventListener("close",()=>{if(largeUrl){URL.revokeObjectURL(largeUrl);largeUrl=null}});
 $("saveLabel").onclick=async()=>{const r=rows.find(x=>x.key===selectedKey);if(!r||!selectedLabel)return;const next={...r,label:selectedLabel,verified:selectedLabel!=="Unsure",updatedAt:new Date().toISOString()};try{await storeItems([next]);rows[rows.indexOf(r)]=next;$("dialogMessage").textContent=next.verified?"Confirmed: "+selectedLabel:"Marked unsure for further review.";$("saveLabel").disabled=true;render()}catch(err){$("dialogMessage").textContent="Save failed: "+String(err.message||err)}};
 $("nextImage").onclick=()=>{const arr=filtered();const idx=arr.findIndex(r=>r.key===selectedKey);const next=arr[idx+1]||arr[0];if(next){$("reviewDialog").close();openReview(next.key)}};
+$("deleteRecord").onclick=async()=>{
+ const key=selectedKey,r=rows.find(x=>x.key===key);
+ if(!r||working||window.KaitiakiCloudIsRunning?.()){ $("dialogMessage").textContent="Finish the current import or AI run before deleting a record.";return;}
+ const message="Delete ONLY this saved Kaitiaki record?\n\n"+r.name+"\nSaved label: "+(r.verified?r.label+" (verified)":r.label||"Not verified")+"\n\nIts AI result, confirmed label and local preview will be removed. The original photo on your phone, SD card or HDD will NOT be deleted. This cannot be undone unless you have a CSV backup.";
+ if(!confirm(message))return;
+ const button=$("deleteRecord");button.disabled=true;
+ try{
+   await removeItem(key);
+   rows=rows.filter(x=>x.key!==key);
+   filesByKey.delete(key);
+   selectedKey=null;selectedLabel="";
+   $("reviewDialog").close();
+   render();
+   $("status").textContent="Deleted one saved record. Your source photo was not touched.";
+ }catch(err){$("dialogMessage").textContent="Delete failed: "+String(err.message||err)}
+ finally{button.disabled=false}
+};
 function csvCell(s){return '"'+String(s??"").replace(/"/g,'""')+'"'}
 function exportCSV(verifiedOnly){const data=verifiedOnly?rows.filter(r=>r.verified):rows;const head=["relative_path","file_name","file_size","file_last_modified","ai_prediction","ai_confidence","ai_note","ai_model","confirmed_label","human_verified","updated_at"];const content=[head.map(csvCell).join(",")].concat(data.map(r=>[r.path,r.name,r.size,new Date(r.lastModified).toISOString(),r.aiPrediction||"",r.aiConfidence??"",r.aiNote||"",r.aiModel||"",r.label,r.verified?"yes":"no",r.updatedAt].map(csvCell).join(","))).join("\r\n");const url=URL.createObjectURL(new Blob(["\ufeff",content],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=verifiedOnly?"kaitiaki-next-verified.csv":"kaitiaki-next-results.csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)}
 $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV(false);$("export3").onclick=() => exportCSV(true);
