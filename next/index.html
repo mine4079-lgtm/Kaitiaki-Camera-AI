@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b6655">
+<title>Kaitiaki Next — clean field workflow</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+:root{font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#182b28;background:#f4f7f5;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0}button,select,input{font:inherit}button{cursor:pointer}
+header{background:#0b6655;color:white;padding:20px max(18px,calc((100vw - 1100px)/2));display:flex;align-items:center;gap:12px}
+.logo{height:42px;width:42px;display:grid;place-items:center;border-radius:13px;background:white;color:#0b6655;font-size:23px;font-weight:900}
+header h1{font-size:20px;margin:0}header p{font-size:12px;opacity:.85;margin:3px 0 0}
+.tag{margin-left:auto;background:#ffffff24;border:1px solid #ffffff48;border-radius:20px;font-size:11px;padding:6px 10px;font-weight:800}
+main{max-width:1100px;margin:auto;padding:20px 16px 92px}
+nav{display:flex;gap:7px;margin-bottom:22px;max-width:450px;background:#e7eeeb;border-radius:15px;padding:5px}
+nav button{flex:1;border:0;padding:12px 5px;background:transparent;color:#526660;border-radius:11px;font-weight:800}
+nav button.current{background:white;color:#0b6655;box-shadow:0 2px 6px #13342913}
+.view{display:none}.view.current{display:block}
+h2{font-size:26px;letter-spacing:-.02em;margin:4px 0 7px}h3{margin:0 0 8px;font-size:17px}
+.sub{color:#63716d;font-size:14px;line-height:1.55;margin:0 0 17px}
+.panel{background:white;border:1px solid #dbe5e0;border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 3px 14px #14362d07}
+.notice{background:#fff5df;border:1px solid #f2deaf;color:#6c4c13;border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.5}
+.notice.green{background:#e8f6ef;border-color:#c7e9d6;color:#155940}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}
+.btn{background:#0b6655;color:white;border:1px solid #0b6655;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:800;min-height:45px}
+.btn.light{background:#eaf2ee;color:#0b6655;border-color:#d4e8df}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+input[type=file]{display:none}
+.statbar{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:16px 0}
+.stat{padding:13px;background:#fff;border:1px solid #dfe8e3;border-radius:14px}
+.stat b{font-size:25px;display:block;font-variant-numeric:tabular-nums}
+.stat small{color:#677a73;font-size:11px;font-weight:800}
+.progress{background:#e2ebe6;border-radius:100px;height:9px;overflow:hidden;margin-top:14px}
+.progress div{height:100%;width:0;background:#0b6655;transition:width .15s}
+#status{margin-top:9px;font-size:13px;color:#546962;line-height:1.5}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}
+.toolbar button{border:1px solid #d8e5df;border-radius:11px;padding:9px 12px;background:white;font-weight:750;color:#446258;font-size:13px}
+.toolbar button.active{background:#0b6655;color:white;border-color:#0b6655}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:13px}
+.item{background:white;border:1px solid #dbe6e0;border-radius:15px;overflow:hidden;text-align:left;padding:0;min-width:0;box-shadow:0 2px 7px #123b2f0a}
+.item img,.placeholder{display:block;width:100%;aspect-ratio:1.45;object-fit:cover;background:#e6ece9}
+.placeholder{display:grid;place-items:center;color:#60746c;font-size:12px;padding:12px;text-align:center}
+.item-body{padding:10px}.item strong{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .kind{display:inline-block;font-size:11px;border-radius:20px;background:#fff2d9;color:#945b07;margin:8px 0 4px;padding:5px 9px;font-weight:800}
+.item .kind.good{background:#e2f6e8;color:#16683d}
+.item small{display:block;color:#68756f;font-size:11px;line-height:1.5}
+.empty{padding:38px 16px;text-align:center;color:#728079;background:white;border:1px dashed #c5d4cb;border-radius:15px}
+label.field{font-size:13px;font-weight:700;color:#3f564e;display:block;margin-top:14px}
+.field select{display:block;width:100%;margin-top:6px;border:1px solid #cbdad3;border-radius:10px;padding:11px;background:white}
+#more{margin:17px auto;display:block}
+dialog{width:min(95vw,700px);border:0;border-radius:19px;padding:0;background:white;box-shadow:0 15px 55px #0005;max-height:94vh;overflow-y:auto}
+dialog::backdrop{background:#0c211dcc}
+.dialog-title{padding:15px 16px;display:flex;align-items:center;justify-content:space-between;gap:9px}
+.dialog-title strong{overflow-wrap:anywhere}.x{border:0;border-radius:50%;font-size:22px;background:#edf1ef;width:35px;height:35px;flex:0 0 35px}
+#large{display:block;width:100%;max-height:48vh;object-fit:contain;background:#19201e}
+#noPreview{padding:38px 14px;text-align:center;background:#edf1ef;color:#56685f}
+.dialog-content{padding:17px}.choices{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:14px 0}
+.choices button{border:1px solid #dce8e2;border-radius:11px;background:white;padding:12px 6px;font-weight:750}
+.choices button.selected{background:#e0f3eb;color:#0b6655;border:2px solid #0b6655;padding:11px 5px}
+.dialog-actions{display:flex;gap:9px;margin-top:13px;flex-wrap:wrap}
+.footer{color:#84948c;font-size:11px;margin-top:26px}
+@media(max-width:480px){h2{font-size:23px}.panel{padding:15px}.gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stat{padding:10px}.stat b{font-size:21px}.item-body{padding:8px}.tag{font-size:10px}.choices{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header><div class="logo">K</div><div><h1>Kaitiaki Camera AI</h1><p>Fresh field app · your originals stay untouched</p></div><span class="tag">NEW BUILD</span></header>
+<main>
+<nav aria-label="Main sections">
+<button data-tab="scan" class="current">Scan</button>
+<button data-tab="results">Results</button>
+<button data-tab="learning">Learning</button>
+</nav>
+<section class="view current" id="scan">
+<h2>Scan your camera images</h2>
+<p class="sub">A clean starting point for SD cards, HDD folders and individual photos.</p>
+<div class="notice"><strong>First build:</strong> This version imports and saves review progress, but does not yet identify animals automatically. We will connect and test the new AI separately. No simulated predictions are shown.</div>
+<div class="panel">
+<h3>1. Choose your photos</h3>
+<p class="sub">Use Choose photos on your phone, or Choose folder on your laptop. Files stay on your device.</p>
+<div class="actions"><button id="pickPhotos" class="btn">Choose photos</button><button id="pickFolder" class="btn light">Choose folder / SD card</button></div>
+<input id="photos" type="file" accept="image/*" multiple>
+<input id="folder" type="file" accept="image/*" webkitdirectory directory multiple>
+<p id="chosen" class="sub" style="margin:14px 0 0">Nothing selected yet.</p>
+<div class="actions"><button id="start" class="btn" disabled>Import and save progress</button><button id="pause" class="btn light" disabled>Pause</button></div>
+<div class="progress"><div id="bar"></div></div><div id="status" role="status">Ready.</div>
+</div>
+<div class="statbar"><div class="stat"><b id="total">0</b><small>IMAGES SAVED</small></div><div class="stat"><b id="verified">0</b><small>VERIFIED</small></div><div class="stat"><b id="pending">0</b><small>TO REVIEW</small></div></div>
+<div class="panel"><h3>2. Continue where you left off</h3><p class="sub">Progress is saved locally every 50 photos. Re-select the same folder later to reconnect the image previews; already saved labels are retained.</p><div class="actions"><button id="export1" class="btn light">Export results CSV</button><button id="seeResults" class="btn light">See results</button></div></div>
+</section>
+<section class="view" id="results">
+<h2>Your image results</h2>
+<p class="sub">Tap a photo to confirm its actual species. Only human-confirmed labels are treated as verified.</p>
+<div class="statbar"><div class="stat"><b id="r-total">0</b><small>IMAGES SAVED</small></div><div class="stat"><b id="r-verified">0</b><small>VERIFIED</small></div><div class="stat"><b id="r-pending">0</b><small>TO REVIEW</small></div></div>
+<div class="toolbar" role="group" aria-label="Filter images"><button class="active" data-filter="all">All</button><button data-filter="pending">To review</button><button data-filter="verified">Verified</button><button id="export2">Export CSV</button></div>
+<div id="gallery" class="gallery"></div><button id="more" class="btn light" hidden>Show more photos</button>
+</section>
+<section class="view" id="learning">
+<h2>Learning, without the clutter</h2>
+<p class="sub">Every confirmed correction builds your verified dataset. New AI versions will be tested before you can activate one.</p>
+<div class="panel"><h3>Verified examples</h3><div id="breakdown" class="sub">No verified images yet.</div><button id="export3" class="btn light">Export verified CSV</button></div>
+<div class="notice green"><strong>Model status:</strong> New AI not trained yet. Production V4 and PestScan are completely separate and unchanged. We won't automatically train on unverified predictions.</div>
+<div class="panel"><h3>Target species</h3><p class="sub">Possum · Rat · Stoat · Mouse · Deer · Pig · Weka, with separate Other wildlife, Empty image and Unsure labels.</p></div>
+</section>
+<p class="footer">Kaitiaki Next · local metadata only · nothing uploaded · source photos never edited.</p>
+</main>
+<dialog id="reviewDialog" aria-label="Review image">
+<div class="dialog-title"><strong id="dialogName">Review photo</strong><button id="closeDialog" class="x" aria-label="Close">×</button></div>
+<img id="large" alt="Selected wildlife camera photo" hidden><div id="noPreview" hidden>Re-select the original folder or photo to view this image.</div>
+<div class="dialog-content"><p class="sub" id="dialogPath"></p><h3>Confirm actual label</h3><div id="choices" class="choices"></div><div class="dialog-actions"><button id="saveLabel" class="btn" disabled>Save confirmed label</button><button id="nextImage" class="btn light">Next image</button></div><p class="sub" id="dialogMessage" role="status" style="margin:10px 0 0"></p></div>
+</dialog>
+<script>
+(function(){
+"use strict";
+const SPECIES=["Possum","Rat","Stoat","Mouse","Deer","Pig","Weka","Other wildlife","Empty image","Unsure"];
+const DB_NAME="kaitiaki-next-v1"; const STORE="image-records"; const BATCH=50;
+const $=id=>document.getElementById(id);
+let db, rows=[], selectedFiles=[], filesByKey=new Map(), activeTab="scan", filter="all", limit=24, paused=false, working=false, selectedKey=null, selectedLabel="", largeUrl=null, thumbUrls=[];
+const pathFor=f=>f.webkitRelativePath||f.name;
+const keyFor=f=>pathFor(f)+"|"+f.size+"|"+f.lastModified;
+const wait=()=>new Promise(resolve=>setTimeout(resolve,0));
+function openDB(){return new Promise((resolve,reject)=>{const request=indexedDB.open(DB_NAME,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(STORE))request.result.createObjectStore(STORE,{keyPath:"key"})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
+function storeItems(items){return new Promise((resolve,reject)=>{const t=db.transaction(STORE,"readwrite");const s=t.objectStore(STORE);for(const x of items)s.put(x);t.oncomplete=resolve;t.onerror=()=>reject(t.error)})}
+function allItems(){return new Promise((resolve,reject)=>{const t=db.transaction(STORE,"readonly"),q=t.objectStore(STORE).getAll();q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
+function updateStats(){const v=rows.filter(r=>r.verified).length;for(const id of ["total","r-total"])$(id).textContent=rows.length.toLocaleString();for(const id of ["verified","r-verified"])$(id).textContent=v.toLocaleString();for(const id of ["pending","r-pending"])$(id).textContent=(rows.length-v).toLocaleString();let summary={};for(const r of rows){if(r.verified)summary[r.label]=(summary[r.label]||0)+1}const parts=Object.entries(summary).sort((a,b)=>b[1]-a[1]).map(([name,n])=>name+": "+n.toLocaleString());$("breakdown").textContent=parts.length?parts.join(" · "):"No verified images yet."}
+function escapeHTML(str){return String(str).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]))}
+function clearThumbs(){for(const url of thumbUrls)URL.revokeObjectURL(url);thumbUrls=[]}
+function filtered(){return rows.filter(r=>filter==="all"||(filter==="verified"?r.verified:!r.verified))}
+function render(){updateStats();if(activeTab!=="results")return;clearThumbs();const data=filtered(),visible=data.slice(0,limit);const root=$("gallery");root.replaceChildren();if(!data.length){root.innerHTML='<div class="empty">No photos in this view yet.</div>'}
+for(const r of visible){const b=document.createElement("button");b.className="item";b.dataset.key=r.key;
+const f=filesByKey.get(r.key);if(f){const img=document.createElement("img");const src=URL.createObjectURL(f);thumbUrls.push(src);img.src=src;img.alt=r.name;img.loading="lazy";b.append(img)}else{const p=document.createElement("div");p.className="placeholder";p.textContent="Reconnect folder to view image";b.append(p)}
+const body=document.createElement("div");body.className="item-body";body.innerHTML="<strong>"+escapeHTML(r.name)+"</strong><span class='kind "+(r.verified?"good":"")+"'>"+escapeHTML(r.verified?r.label:"Needs review")+"</span><small>"+escapeHTML(r.path)+"</small>";b.append(body);b.addEventListener("click",()=>openReview(r.key));root.append(b)}
+$("more").hidden=visible.length>=data.length;$("more").textContent="Show more photos ("+visible.length+" / "+data.length+")"}
+function activateTab(name){activeTab=name;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("current",b.dataset.tab===name));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("current",v.id===name));render()}
+document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>activateTab(b.dataset.tab)));
+document.querySelectorAll("[data-filter]").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.filter;limit=24;document.querySelectorAll("[data-filter]").forEach(x=>x.classList.toggle("active",x===b));render()}));
+$("seeResults").onclick=()=>activateTab("results");$("more").onclick=()=>{limit+=24;render()};
+$("pickPhotos").onclick=()=>$("photos").click();$("pickFolder").onclick=()=>$("folder").click();
+function choose(list){if(working)return;selectedFiles=Array.from(list).filter(f=>f.type.startsWith("image/")||/\.(jpe?g|png|webp|gif|bmp)$/i.test(f.name));filesByKey=new Map(selectedFiles.map(f=>[keyFor(f),f]));$("chosen").textContent=selectedFiles.length.toLocaleString()+" image(s) selected. Existing saved labels will be kept.";$("start").disabled=!selectedFiles.length;render()}
+$("photos").addEventListener("change",e=>choose(e.target.files));$("folder").addEventListener("change",e=>choose(e.target.files));
+$("pause").onclick=()=>{paused=true;$("status").textContent="Pausing after the current saved batch…"};
+$("start").onclick=async()=>{
+if(working||!selectedFiles.length)return;working=true;paused=false;$("start").disabled=true;$("pause").disabled=false;
+let done=0,added=0;const existing=new Map(rows.map(r=>[r.key,r]));const total=selectedFiles.length;
+try{
+for(let i=0;i<total;i+=BATCH){const chunk=selectedFiles.slice(i,i+BATCH),fresh=[];for(const f of chunk){const key=keyFor(f);if(existing.has(key))continue;const r={key,path:pathFor(f),name:f.name,size:f.size,lastModified:f.lastModified,label:"",verified:false,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};fresh.push(r);existing.set(key,r)}
+if(fresh.length){await storeItems(fresh);rows.push(...fresh);added+=fresh.length}done+=chunk.length;$("bar").style.width=Math.round(done/total*100)+"%";$("status").textContent=done.toLocaleString()+" / "+total.toLocaleString()+" checked · "+added.toLocaleString()+" newly saved · checkpoint saved";updateStats();await wait();if(paused)break}
+$("status").textContent=paused?"Paused safely at "+done.toLocaleString()+" / "+total.toLocaleString()+". Press Import again to resume.":"Import complete. "+added.toLocaleString()+" new records; existing labels preserved. Go to Results to review.";
+}catch(err){$("status").textContent="Import stopped: "+String(err.message||err)+". Last completed checkpoint is saved."}finally{working=false;$("start").disabled=false;$("pause").disabled=true;render()}
+};
+function openReview(key){selectedKey=key;const r=rows.find(x=>x.key===key);if(!r)return;selectedLabel=r.verified?r.label:"";$("dialogName").textContent=r.name;$("dialogPath").textContent=r.path;$("dialogMessage").textContent=r.verified?"Saved label: "+r.label:"Choose what you actually see in the image.";$("saveLabel").disabled=!selectedLabel;
+if(largeUrl){URL.revokeObjectURL(largeUrl);largeUrl=null}const f=filesByKey.get(key);$("large").hidden=!f;$("noPreview").hidden=!!f;if(f){largeUrl=URL.createObjectURL(f);$("large").src=largeUrl}else{$("large").removeAttribute("src")}
+const c=$("choices");c.replaceChildren();for(const label of SPECIES){const b=document.createElement("button");b.textContent=label;b.className=selectedLabel===label?"selected":"";b.onclick=()=>{selectedLabel=label;c.querySelectorAll("button").forEach(x=>x.classList.toggle("selected",x===b));$("saveLabel").disabled=false};c.append(b)}
+$("reviewDialog").showModal()
+}
+$("closeDialog").onclick=()=>$("reviewDialog").close();$("reviewDialog").addEventListener("close",()=>{if(largeUrl){URL.revokeObjectURL(largeUrl);largeUrl=null}});
+$("saveLabel").onclick=async()=>{const r=rows.find(x=>x.key===selectedKey);if(!r||!selectedLabel)return;const next={...r,label:selectedLabel,verified:selectedLabel!=="Unsure",updatedAt:new Date().toISOString()};try{await storeItems([next]);rows[rows.indexOf(r)]=next;$("dialogMessage").textContent=next.verified?"Confirmed: "+selectedLabel:"Marked unsure for further review.";$("saveLabel").disabled=true;render()}catch(err){$("dialogMessage").textContent="Save failed: "+String(err.message||err)}};
+$("nextImage").onclick=()=>{const arr=filtered();const idx=arr.findIndex(r=>r.key===selectedKey);const next=arr[idx+1]||arr[0];if(next){$("reviewDialog").close();openReview(next.key)}};
+function csvCell(s){return '"'+String(s??"").replace(/"/g,'""')+'"'}
+function exportCSV(verifiedOnly){const data=verifiedOnly?rows.filter(r=>r.verified):rows;const head=["relative_path","file_name","file_size","file_last_modified","ai_prediction","ai_confidence","confirmed_label","human_verified","updated_at"];const content=[head.map(csvCell).join(",")].concat(data.map(r=>[r.path,r.name,r.size,new Date(r.lastModified).toISOString(),"","",r.label,r.verified?"yes":"no",r.updatedAt].map(csvCell).join(","))).join("\r\n");const url=URL.createObjectURL(new Blob(["\ufeff",content],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=verifiedOnly?"kaitiaki-next-verified.csv":"kaitiaki-next-results.csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)}
+$("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV(false);$("export3").onclick=() => exportCSV(true);
+(async()=>{try{db=await openDB();rows=await allItems();rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();$("status").textContent="Ready. "+rows.length.toLocaleString()+" saved image records available."}catch(err){$("status").textContent="Local storage unavailable: "+String(err.message||err)+". Use a normal, non-private browser tab.";$("start").disabled=true}})();
+})();
+</script>
+</body>
+</html>
