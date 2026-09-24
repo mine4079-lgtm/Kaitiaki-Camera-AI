@@ -30,11 +30,11 @@ const image=await jpeg(files.get(row.key));
 const res=await fetch(url,{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+key},body:JSON.stringify({image})});
 const out=await res.json();if(!res.ok)throw Error(out.error||"HTTP "+res.status);
 if(!["Possum","Rat","Stoat","Mouse","Deer","Pig","Weka","Other wildlife","Empty image","Unsure"].includes(out.label)||!Number.isInteger(out.confidence)||out.confidence<0||out.confidence>100)throw Error("Invalid prediction");
-await put(db,{...row,aiPrediction:out.label,aiConfidence:out.confidence,aiNote:String(out.note||"").slice(0,240),aiModel:String(out.modelId||""),aiCheckedAt:new Date().toISOString(),updatedAt:new Date().toISOString()});done++;
+const next={...row,aiPrediction:out.label,aiConfidence:out.confidence,aiNote:String(out.note||"").slice(0,240),aiModel:String(out.modelId||""),aiCheckedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};await put(db,next);if(typeof window.KaitiakiNextApplyAIResult==="function")window.KaitiakiNextApplyAIResult(next);done++;
 }catch(err){failed++;say("Error: "+String(err.message||err));if(failed>=3){paused=true;break}}
 say(done.toLocaleString()+" / "+queue.length.toLocaleString()+" AI results saved · "+failed+" errors"+(paused?" · paused":""));await new Promise(resolve=>setTimeout(resolve,0))
 }
-say((paused?"Paused safely. ":"Completed. ")+done.toLocaleString()+" AI results saved, "+failed+" failed. Open Results after refreshing the page.");
+say((paused?"Paused safely. ":"Completed. ")+done.toLocaleString()+" AI results saved, "+failed+" failed. Open Results now — no refresh needed.");
 }finally{db.close();running=false;$("cloudStart").disabled=false;$("cloudPause").disabled=true;$("start").disabled=!$("photos").files.length&&!$("folder").files.length}
 };
 })();

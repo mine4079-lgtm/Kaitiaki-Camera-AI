@@ -133,6 +133,7 @@ const f=filesByKey.get(r.key);if(f){const img=document.createElement("img");cons
 const body=document.createElement("div");body.className="item-body";body.innerHTML="<strong>"+escapeHTML(r.name)+"</strong><span class='kind "+(r.verified?"good":"")+"'>"+escapeHTML(r.verified?r.label:(r.aiPrediction?r.aiPrediction+" · "+r.aiConfidence+"%":"Needs review"))+"</span><small>"+escapeHTML(r.path)+"</small>";b.append(body);b.addEventListener("click",()=>openReview(r.key));root.append(b)}
 $("more").hidden=visible.length>=data.length;$("more").textContent="Show more photos ("+visible.length+" / "+data.length+")"}
 function activateTab(name){activeTab=name;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("current",b.dataset.tab===name));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("current",v.id===name));render()}
+window.KaitiakiNextApplyAIResult=(next)=>{if(!next||!next.key)return;const i=rows.findIndex(r=>r.key===next.key);if(i>=0)rows[i]=next;else rows.push(next);rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();};
 document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>activateTab(b.dataset.tab)));
 document.querySelectorAll("[data-filter]").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.filter;limit=24;document.querySelectorAll("[data-filter]").forEach(x=>x.classList.toggle("active",x===b));render()}));
 $("seeResults").onclick=()=>activateTab("results");$("more").onclick=()=>{limit+=24;render()};
@@ -163,7 +164,7 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 (async()=>{try{db=await openDB();rows=await allItems();rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();$("status").textContent="Ready. "+rows.length.toLocaleString()+" saved image records available."}catch(err){$("status").textContent="Local storage unavailable: "+String(err.message||err)+". Use a normal, non-private browser tab.";$("start").disabled=true}})();
 })();
 </script>
-<script src="./cloud-ui.js?v=1"></script>
+<script src="./cloud-ui.js?v=2"></script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}))}</script>
 </body>
 </html>
