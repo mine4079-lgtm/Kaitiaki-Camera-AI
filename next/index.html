@@ -75,7 +75,7 @@ dialog::backdrop{background:#0c211dcc}
 <section class="view current" id="scan">
 <h2>Scan your camera images</h2>
 <p class="sub">A clean starting point for SD cards, HDD folders and individual photos.</p>
-<div class="notice"><strong>First build:</strong> This version imports and saves review progress, but does not yet identify animals automatically. We will connect and test the new AI separately. No simulated predictions are shown.</div>
+<div class="notice"><strong>Cloud AI:</strong> A private vision backend is needed to activate animal identification. Importing photos stays local; classification explicitly uploads selected photos to the AI provider. Confidence is an estimate, not proven accuracy.</div>
 <div class="panel">
 <h3>1. Choose your photos</h3>
 <p class="sub">Use Choose photos on your phone, or Choose folder on your laptop. Files stay on your device.</p>
@@ -84,10 +84,10 @@ dialog::backdrop{background:#0c211dcc}
 <input id="folder" type="file" accept="image/*" webkitdirectory directory multiple>
 <p id="chosen" class="sub" style="margin:14px 0 0">Nothing selected yet.</p>
 <div class="actions"><button id="start" class="btn" disabled>Import and save progress</button><button id="pause" class="btn light" disabled>Pause</button></div>
-<div class="progress"><div id="bar"></div></div><div id="status" role="status">Ready.</div>
+<div class="progress"><div id="bar"></div></div><div id="status" role="status">Ready.</div><div class="panel"><h3>2. Identify animals with AI</h3><p class="sub">Like PestScan: select photos, get a species, confidence and short note. Requires a private cloud connection.</p><label class="field">Private backend URL <input id="cloudEndpoint" type="url" placeholder="https://your-worker.workers.dev" autocomplete="off" style="display:block;width:100%;padding:11px;border:1px solid #cbdad3;border-radius:10px;margin-top:6px"></label><label class="field">Access token (not saved) <input id="cloudToken" type="password" autocomplete="off" placeholder="Private token" style="display:block;width:100%;padding:11px;border:1px solid #cbdad3;border-radius:10px;margin-top:6px"></label><div class="actions"><button class="btn light" id="cloudCheck">Check connection</button><button class="btn" id="cloudStart" disabled>Identify unscanned photos</button><button class="btn light" id="cloudPause" disabled>Pause AI</button></div><p class="sub" role="status" id="cloudStatus" style="margin:12px 0 0">Cloud AI not connected yet.</p></div>
 </div>
 <div class="statbar"><div class="stat"><b id="total">0</b><small>IMAGES SAVED</small></div><div class="stat"><b id="verified">0</b><small>VERIFIED</small></div><div class="stat"><b id="pending">0</b><small>TO REVIEW</small></div></div>
-<div class="panel"><h3>2. Continue where you left off</h3><p class="sub">Progress is saved locally every 50 photos. Re-select the same folder later to reconnect the image previews; already saved labels are retained.</p><div class="actions"><button id="export1" class="btn light">Export results CSV</button><button id="seeResults" class="btn light">See results</button></div></div>
+<div class="panel"><h3>3. Continue where you left off</h3><p class="sub">Progress is saved locally every 50 photos. Re-select the same folder later to reconnect the image previews; already saved labels are retained.</p><div class="actions"><button id="export1" class="btn light">Export results CSV</button><button id="seeResults" class="btn light">See results</button></div></div>
 </section>
 <section class="view" id="results">
 <h2>Your image results</h2>
@@ -100,7 +100,7 @@ dialog::backdrop{background:#0c211dcc}
 <h2>Learning, without the clutter</h2>
 <p class="sub">Every confirmed correction builds your verified dataset. New AI versions will be tested before you can activate one.</p>
 <div class="panel"><h3>Verified examples</h3><div id="breakdown" class="sub">No verified images yet.</div><button id="export3" class="btn light">Export verified CSV</button></div>
-<div class="notice green"><strong>Model status:</strong> New AI not trained yet. Production V4 and PestScan are completely separate and unchanged. We won't automatically train on unverified predictions.</div>
+<div class="notice green"><strong>Model status:</strong> Cloud vision requires private backend setup. Production V4 and PestScan remain unchanged. AI predictions are never human-verified training examples.</div>
 <div class="panel"><h3>Target species</h3><p class="sub">Possum · Rat · Stoat · Mouse · Deer · Pig · Weka, with separate Other wildlife, Empty image and Unsure labels.</p></div>
 </section>
 <p class="footer">Kaitiaki Next · local metadata only · nothing uploaded · source photos never edited.</p>
@@ -108,7 +108,7 @@ dialog::backdrop{background:#0c211dcc}
 <dialog id="reviewDialog" aria-label="Review image">
 <div class="dialog-title"><strong id="dialogName">Review photo</strong><button id="closeDialog" class="x" aria-label="Close">×</button></div>
 <img id="large" alt="Selected wildlife camera photo" hidden><div id="noPreview" hidden>Re-select the original folder or photo to view this image.</div>
-<div class="dialog-content"><p class="sub" id="dialogPath"></p><h3>Confirm actual label</h3><div id="choices" class="choices"></div><div class="dialog-actions"><button id="saveLabel" class="btn" disabled>Save confirmed label</button><button id="nextImage" class="btn light">Next image</button></div><p class="sub" id="dialogMessage" role="status" style="margin:10px 0 0"></p></div>
+<div class="dialog-content"><p class="sub" id="dialogPath"></p><div class="notice green" id="dialogAi" hidden></div><h3>Confirm actual label</h3><div id="choices" class="choices"></div><div class="dialog-actions"><button id="saveLabel" class="btn" disabled>Save confirmed label</button><button id="nextImage" class="btn light">Next image</button></div><p class="sub" id="dialogMessage" role="status" style="margin:10px 0 0"></p></div>
 </dialog>
 <script>
 (function(){
@@ -130,7 +130,7 @@ function filtered(){return rows.filter(r=>filter==="all"||(filter==="verified"?r
 function render(){updateStats();if(activeTab!=="results")return;clearThumbs();const data=filtered(),visible=data.slice(0,limit);const root=$("gallery");root.replaceChildren();if(!data.length){root.innerHTML='<div class="empty">No photos in this view yet.</div>'}
 for(const r of visible){const b=document.createElement("button");b.className="item";b.dataset.key=r.key;
 const f=filesByKey.get(r.key);if(f){const img=document.createElement("img");const src=URL.createObjectURL(f);thumbUrls.push(src);img.src=src;img.alt=r.name;img.loading="lazy";b.append(img)}else{const p=document.createElement("div");p.className="placeholder";p.textContent="Reconnect folder to view image";b.append(p)}
-const body=document.createElement("div");body.className="item-body";body.innerHTML="<strong>"+escapeHTML(r.name)+"</strong><span class='kind "+(r.verified?"good":"")+"'>"+escapeHTML(r.verified?r.label:"Needs review")+"</span><small>"+escapeHTML(r.path)+"</small>";b.append(body);b.addEventListener("click",()=>openReview(r.key));root.append(b)}
+const body=document.createElement("div");body.className="item-body";body.innerHTML="<strong>"+escapeHTML(r.name)+"</strong><span class='kind "+(r.verified?"good":"")+"'>"+escapeHTML(r.verified?r.label:(r.aiPrediction?r.aiPrediction+" · "+r.aiConfidence+"%":"Needs review"))+"</span><small>"+escapeHTML(r.path)+"</small>";b.append(body);b.addEventListener("click",()=>openReview(r.key));root.append(b)}
 $("more").hidden=visible.length>=data.length;$("more").textContent="Show more photos ("+visible.length+" / "+data.length+")"}
 function activateTab(name){activeTab=name;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("current",b.dataset.tab===name));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("current",v.id===name));render()}
 document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>activateTab(b.dataset.tab)));
@@ -149,7 +149,7 @@ if(fresh.length){await storeItems(fresh);rows.push(...fresh);added+=fresh.length
 $("status").textContent=paused?"Paused safely at "+done.toLocaleString()+" / "+total.toLocaleString()+". Press Import again to resume.":"Import complete. "+added.toLocaleString()+" new records; existing labels preserved. Go to Results to review.";
 }catch(err){$("status").textContent="Import stopped: "+String(err.message||err)+". Last completed checkpoint is saved."}finally{working=false;$("start").disabled=false;$("pause").disabled=true;render()}
 };
-function openReview(key){selectedKey=key;const r=rows.find(x=>x.key===key);if(!r)return;selectedLabel=r.verified?r.label:"";$("dialogName").textContent=r.name;$("dialogPath").textContent=r.path;$("dialogMessage").textContent=r.verified?"Saved label: "+r.label:"Choose what you actually see in the image.";$("saveLabel").disabled=!selectedLabel;
+function openReview(key){selectedKey=key;const r=rows.find(x=>x.key===key);if(!r)return;selectedLabel=r.verified?r.label:"";$("dialogName").textContent=r.name;$("dialogPath").textContent=r.path;const ai=$("dialogAi");ai.hidden=!r.aiPrediction;ai.textContent=r.aiPrediction?"AI suggests "+r.aiPrediction+" · "+r.aiConfidence+"% — "+(r.aiNote||"")+" (not verified)":"";$("dialogMessage").textContent=r.verified?"Saved label: "+r.label:"Choose what you actually see in the image.";$("saveLabel").disabled=!selectedLabel;
 if(largeUrl){URL.revokeObjectURL(largeUrl);largeUrl=null}const f=filesByKey.get(key);$("large").hidden=!f;$("noPreview").hidden=!!f;if(f){largeUrl=URL.createObjectURL(f);$("large").src=largeUrl}else{$("large").removeAttribute("src")}
 const c=$("choices");c.replaceChildren();for(const label of SPECIES){const b=document.createElement("button");b.textContent=label;b.className=selectedLabel===label?"selected":"";b.onclick=()=>{selectedLabel=label;c.querySelectorAll("button").forEach(x=>x.classList.toggle("selected",x===b));$("saveLabel").disabled=false};c.append(b)}
 $("reviewDialog").showModal()
@@ -158,11 +158,12 @@ $("closeDialog").onclick=()=>$("reviewDialog").close();$("reviewDialog").addEven
 $("saveLabel").onclick=async()=>{const r=rows.find(x=>x.key===selectedKey);if(!r||!selectedLabel)return;const next={...r,label:selectedLabel,verified:selectedLabel!=="Unsure",updatedAt:new Date().toISOString()};try{await storeItems([next]);rows[rows.indexOf(r)]=next;$("dialogMessage").textContent=next.verified?"Confirmed: "+selectedLabel:"Marked unsure for further review.";$("saveLabel").disabled=true;render()}catch(err){$("dialogMessage").textContent="Save failed: "+String(err.message||err)}};
 $("nextImage").onclick=()=>{const arr=filtered();const idx=arr.findIndex(r=>r.key===selectedKey);const next=arr[idx+1]||arr[0];if(next){$("reviewDialog").close();openReview(next.key)}};
 function csvCell(s){return '"'+String(s??"").replace(/"/g,'""')+'"'}
-function exportCSV(verifiedOnly){const data=verifiedOnly?rows.filter(r=>r.verified):rows;const head=["relative_path","file_name","file_size","file_last_modified","ai_prediction","ai_confidence","confirmed_label","human_verified","updated_at"];const content=[head.map(csvCell).join(",")].concat(data.map(r=>[r.path,r.name,r.size,new Date(r.lastModified).toISOString(),"","",r.label,r.verified?"yes":"no",r.updatedAt].map(csvCell).join(","))).join("\r\n");const url=URL.createObjectURL(new Blob(["\ufeff",content],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=verifiedOnly?"kaitiaki-next-verified.csv":"kaitiaki-next-results.csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)}
+function exportCSV(verifiedOnly){const data=verifiedOnly?rows.filter(r=>r.verified):rows;const head=["relative_path","file_name","file_size","file_last_modified","ai_prediction","ai_confidence","ai_note","ai_model","confirmed_label","human_verified","updated_at"];const content=[head.map(csvCell).join(",")].concat(data.map(r=>[r.path,r.name,r.size,new Date(r.lastModified).toISOString(),r.aiPrediction||"",r.aiConfidence??"",r.aiNote||"",r.aiModel||"",r.label,r.verified?"yes":"no",r.updatedAt].map(csvCell).join(","))).join("\r\n");const url=URL.createObjectURL(new Blob(["\ufeff",content],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=verifiedOnly?"kaitiaki-next-verified.csv":"kaitiaki-next-results.csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)}
 $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV(false);$("export3").onclick=() => exportCSV(true);
 (async()=>{try{db=await openDB();rows=await allItems();rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();$("status").textContent="Ready. "+rows.length.toLocaleString()+" saved image records available."}catch(err){$("status").textContent="Local storage unavailable: "+String(err.message||err)+". Use a normal, non-private browser tab.";$("start").disabled=true}})();
 })();
 </script>
+<script src="./cloud-ui.js?v=1"></script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}))}</script>
 </body>
 </html>
