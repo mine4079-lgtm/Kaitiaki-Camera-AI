@@ -1,5 +1,5 @@
 /* Kaitiaki Next: isolated offline shell. Photo bytes are never cached. */
-const CACHE="kaitiaki-next-shell-v2";
+const CACHE="kaitiaki-next-shell-v3";
 const SHELL=["./","./index.html","./manifest.webmanifest"];
 self.addEventListener("install",event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener("activate",event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith("kaitiaki-next-")&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
