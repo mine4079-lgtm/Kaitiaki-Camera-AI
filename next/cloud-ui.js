@@ -2,6 +2,7 @@
 (()=>{"use strict";
 const $=id=>document.getElementById(id),NAME="kaitiaki-next-v1",STORE="image-records",URL_KEY="kaitiaki-next-cloud-endpoint";
 let files=new Map(),running=false,paused=false;
+window.KaitiakiCloudIsRunning=()=>running;
 const getKey=f=>(f.webkitRelativePath||f.name)+"|"+f.size+"|"+f.lastModified;
 function say(m){$("cloudStatus").textContent=m}
 function dbOpen(){return new Promise((ok,no)=>{const req=indexedDB.open(NAME,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:"key"})};req.onsuccess=()=>ok(req.result);req.onerror=()=>no(req.error)})}
