@@ -120,6 +120,7 @@ let db, rows=[], selectedFiles=[], filesByKey=new Map(), activeTab="scan", filte
 const pathFor=f=>f.webkitRelativePath||f.name;
 const keyFor=f=>pathFor(f)+"|"+f.size+"|"+f.lastModified;
 const wait=()=>new Promise(resolve=>setTimeout(resolve,0));
+async function makePreview(file){const bmp=await createImageBitmap(file);try{const scale=Math.min(1,420/Math.max(bmp.width,bmp.height));const c=document.createElement("canvas");c.width=Math.max(1,Math.round(bmp.width*scale));c.height=Math.max(1,Math.round(bmp.height*scale));c.getContext("2d",{alpha:false}).drawImage(bmp,0,0,c.width,c.height);return await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(Error("Preview unavailable")),"image/jpeg",.68))}finally{bmp.close()}}
 function openDB(){return new Promise((resolve,reject)=>{const request=indexedDB.open(DB_NAME,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(STORE))request.result.createObjectStore(STORE,{keyPath:"key"})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
 function storeItems(items){return new Promise((resolve,reject)=>{const t=db.transaction(STORE,"readwrite");const s=t.objectStore(STORE);for(const x of items)s.put(x);t.oncomplete=resolve;t.onerror=()=>reject(t.error)})}
 function allItems(){return new Promise((resolve,reject)=>{const t=db.transaction(STORE,"readonly"),q=t.objectStore(STORE).getAll();q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
@@ -129,7 +130,7 @@ function clearThumbs(){for(const url of thumbUrls)URL.revokeObjectURL(url);thumb
 function filtered(){return rows.filter(r=>filter==="all"||(filter==="verified"?r.verified:!r.verified))}
 function render(){updateStats();if(activeTab!=="results")return;clearThumbs();const data=filtered(),visible=data.slice(0,limit);const root=$("gallery");root.replaceChildren();if(!data.length){root.innerHTML='<div class="empty">No photos in this view yet.</div>'}
 for(const r of visible){const b=document.createElement("button");b.className="item";b.dataset.key=r.key;
-const f=filesByKey.get(r.key);if(f){const img=document.createElement("img");const src=URL.createObjectURL(f);thumbUrls.push(src);img.src=src;img.alt=r.name;img.loading="lazy";b.append(img)}else{const p=document.createElement("div");p.className="placeholder";p.textContent="Reconnect folder to view image";b.append(p)}
+const f=filesByKey.get(r.key),savedPreview=!f&&r.preview instanceof Blob?r.preview:null;if(f||savedPreview){const img=document.createElement("img");const src=URL.createObjectURL(f||savedPreview);thumbUrls.push(src);img.src=src;img.alt=r.name;img.loading="lazy";b.append(img)}else{const p=document.createElement("div");p.className="placeholder";p.textContent="Reconnect folder to restore preview";b.append(p)}
 const body=document.createElement("div");body.className="item-body";body.innerHTML="<strong>"+escapeHTML(r.name)+"</strong><span class='kind "+(r.verified?"good":"")+"'>"+escapeHTML(r.verified?r.label:(r.aiPrediction?r.aiPrediction+" · "+r.aiConfidence+"%":"Needs review"))+"</span><small>"+escapeHTML(r.path)+"</small>";b.append(body);b.addEventListener("click",()=>openReview(r.key));root.append(b)}
 $("more").hidden=visible.length>=data.length;$("more").textContent="Show more photos ("+visible.length+" / "+data.length+")"}
 function activateTab(name){activeTab=name;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("current",b.dataset.tab===name));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("current",v.id===name));render()}
@@ -143,15 +144,15 @@ $("photos").addEventListener("change",e=>choose(e.target.files));$("folder").add
 $("pause").onclick=()=>{paused=true;$("status").textContent="Pausing after the current saved batch…"};
 $("start").onclick=async()=>{
 if(working||!selectedFiles.length)return;working=true;paused=false;$("start").disabled=true;$("pause").disabled=false;
-let done=0,added=0;const existing=new Map(rows.map(r=>[r.key,r]));const total=selectedFiles.length;
+let done=0,added=0,previews=0;const existing=new Map(rows.map(r=>[r.key,r]));const total=selectedFiles.length;
 try{
-for(let i=0;i<total;i+=BATCH){const chunk=selectedFiles.slice(i,i+BATCH),fresh=[];for(const f of chunk){const key=keyFor(f);if(existing.has(key))continue;const r={key,path:pathFor(f),name:f.name,size:f.size,lastModified:f.lastModified,label:"",verified:false,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};fresh.push(r);existing.set(key,r)}
-if(fresh.length){await storeItems(fresh);rows.push(...fresh);added+=fresh.length}done+=chunk.length;$("bar").style.width=Math.round(done/total*100)+"%";$("status").textContent=done.toLocaleString()+" / "+total.toLocaleString()+" checked · "+added.toLocaleString()+" newly saved · checkpoint saved";updateStats();await wait();if(paused)break}
+for(let i=0;i<total;i+=BATCH){const chunk=selectedFiles.slice(i,i+BATCH),fresh=[],updated=[];for(const f of chunk){const key=keyFor(f),current=existing.get(key);if(current){if(!(current.preview instanceof Blob)){try{const next={...current,preview:await makePreview(f)};updated.push(next);existing.set(key,next);const ri=rows.findIndex(x=>x.key===key);if(ri>=0)rows[ri]=next;previews++}catch{}}continue}const r={key,path:pathFor(f),name:f.name,size:f.size,lastModified:f.lastModified,label:"",verified:false,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};fresh.push(r);existing.set(key,r)}
+if(fresh.length||updated.length){await storeItems([...fresh,...updated]);if(fresh.length){rows.push(...fresh);added+=fresh.length}}done+=chunk.length;$("bar").style.width=Math.round(done/total*100)+"%";$("status").textContent=done.toLocaleString()+" / "+total.toLocaleString()+" checked · "+added.toLocaleString()+" newly saved · "+previews.toLocaleString()+" previews restored · checkpoint saved";updateStats();await wait();if(paused)break}
 $("status").textContent=paused?"Paused safely at "+done.toLocaleString()+" / "+total.toLocaleString()+". Press Import again to resume.":"Import complete. "+added.toLocaleString()+" new records; existing labels preserved. Go to Results to review.";
 }catch(err){$("status").textContent="Import stopped: "+String(err.message||err)+". Last completed checkpoint is saved."}finally{working=false;$("start").disabled=false;$("pause").disabled=true;render()}
 };
 function openReview(key){selectedKey=key;const r=rows.find(x=>x.key===key);if(!r)return;selectedLabel=r.verified?r.label:"";$("dialogName").textContent=r.name;$("dialogPath").textContent=r.path;const ai=$("dialogAi");ai.hidden=!r.aiPrediction;ai.textContent=r.aiPrediction?"AI suggests "+r.aiPrediction+" · "+r.aiConfidence+"% — "+(r.aiNote||"")+" (not verified)":"";$("dialogMessage").textContent=r.verified?"Saved label: "+r.label:"Choose what you actually see in the image.";$("saveLabel").disabled=!selectedLabel;
-if(largeUrl){URL.revokeObjectURL(largeUrl);largeUrl=null}const f=filesByKey.get(key);$("large").hidden=!f;$("noPreview").hidden=!!f;if(f){largeUrl=URL.createObjectURL(f);$("large").src=largeUrl}else{$("large").removeAttribute("src")}
+if(largeUrl){URL.revokeObjectURL(largeUrl);largeUrl=null}const f=filesByKey.get(key),savedPreview=!f&&r.preview instanceof Blob?r.preview:null,shown=f||savedPreview;$("large").hidden=!shown;$("noPreview").hidden=!!shown;if(shown){largeUrl=URL.createObjectURL(shown);$("large").src=largeUrl}else{$("large").removeAttribute("src")}
 const c=$("choices");c.replaceChildren();for(const label of SPECIES){const b=document.createElement("button");b.textContent=label;b.className=selectedLabel===label?"selected":"";b.onclick=()=>{selectedLabel=label;c.querySelectorAll("button").forEach(x=>x.classList.toggle("selected",x===b));$("saveLabel").disabled=false};c.append(b)}
 $("reviewDialog").showModal()
 }
@@ -164,7 +165,7 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 (async()=>{try{db=await openDB();rows=await allItems();rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();$("status").textContent="Ready. "+rows.length.toLocaleString()+" saved image records available."}catch(err){$("status").textContent="Local storage unavailable: "+String(err.message||err)+". Use a normal, non-private browser tab.";$("start").disabled=true}})();
 })();
 </script>
-<script src="./cloud-ui.js?v=2"></script>
+<script src="./cloud-ui.js?v=3"></script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}))}</script>
 </body>
 </html>
