@@ -30,8 +30,8 @@ try{
 const prepared=await prepareImage(files.get(row.key)),image=prepared.image;
 const res=await fetch(url,{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+key},body:JSON.stringify({image})});
 const out=await res.json();if(!res.ok)throw Error(out.error||"HTTP "+res.status);
-if(!["Possum","Rat","Stoat","Mouse","Deer","Pig","Weka","Other wildlife","Empty image","Unsure"].includes(out.label)||!Number.isInteger(out.confidence)||out.confidence<0||out.confidence>100)throw Error("Invalid prediction");
-const next={...row,preview:row.preview instanceof Blob?row.preview:prepared.preview,aiPrediction:out.label,aiConfidence:out.confidence,aiNote:String(out.note||"").slice(0,240),aiModel:String(out.modelId||""),aiCheckedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};await put(db,next);if(typeof window.KaitiakiNextApplyAIResult==="function")window.KaitiakiNextApplyAIResult(next);done++;
+const allowed=["Possum","Rat","Stoat","Mouse","Deer","Pig","Weka","Other wildlife","Empty image","Unsure"];if(!allowed.includes(out.label)||!Number.isInteger(out.confidence)||out.confidence<0||out.confidence>100||(out.second_choice!==null&&out.second_choice!==undefined&&!allowed.includes(out.second_choice)))throw Error("Invalid prediction");
+const next={...row,preview:row.preview instanceof Blob?row.preview:prepared.preview,aiPrediction:out.label,aiConfidence:out.confidence,aiSecondChoice:out.second_choice??null,aiNote:String(out.note||"").slice(0,300),aiModel:String(out.modelId||""),aiCheckedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};await put(db,next);if(typeof window.KaitiakiNextApplyAIResult==="function")window.KaitiakiNextApplyAIResult(next);done++;
 }catch(err){failed++;say("Error: "+String(err.message||err));if(failed>=3){paused=true;break}}
 say(done.toLocaleString()+" / "+queue.length.toLocaleString()+" AI results saved · "+failed+" errors"+(paused?" · paused":""));await new Promise(resolve=>setTimeout(resolve,0))
 }

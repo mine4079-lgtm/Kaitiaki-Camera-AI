@@ -3,12 +3,11 @@
   "main": "src/index.js",
   "compatibility_date": "2026-09-24",
   "vars": {
-    "ALLOWED_ORIGIN": "https://mine4079-lgtm.github.io",
-    "OPENAI_MODEL": "gpt-4.1-mini"
+    "ALLOWED_ORIGIN": "https://mine4079-lgtm.github.io"
   },
   "secrets": {
     "required": [
-      "OPENAI_API_KEY",
+      "GEMINI_API_KEY",
       "KAITIAKI_ACCESS_TOKEN"
     ]
   }
