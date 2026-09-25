@@ -14,7 +14,7 @@ function token(){const v=$("cloudToken").value.trim();if(!v)throw Error("Enter y
 $("cloudEndpoint").value=localStorage.getItem(URL_KEY)||"";
 $("cloudCheck").onclick=async()=>{try{const url=endpoint(),key=token(),res=await fetch(url,{cache:"no-store"}),data=await res.json();if(!res.ok||!data.ready)throw Error("Backend is not configured");localStorage.setItem(URL_KEY,url);$("cloudStart").disabled=false;say("Ready. Images only leave your device when you press Identify. Access token is not saved.");}catch(e){$("cloudStart").disabled=true;say("Connection unavailable: "+String(e.message||e))}};
 for(const id of ["cloudEndpoint","cloudToken"])$(id).oninput=()=>{$("cloudStart").disabled=true};
-for(const id of ["photos","folder"])$(id).addEventListener("change",e=>{files=new Map(Array.from(e.target.files||[]).map(f=>[getKey(f),f]));say(files.size.toLocaleString()+" images reconnected. Import them first, then press Identify.")});
+for(const id of ["photos","folder"])$(id).addEventListener("change",e=>{for(const f of Array.from(e.target.files||[]))files.set(getKey(f),f);say(files.size.toLocaleString()+" images connected across your current selections. Add more folders if needed, import them, then press Identify.")});
 $("cloudPause").onclick=()=>{paused=true;say("Pausing after current image…")};
 $("cloudStart").onclick=async()=>{
 if(running)return;let url,key;
