@@ -139,8 +139,8 @@ window.KaitiakiNextApplyAIResult=(next)=>{if(!next||!next.key)return;const i=row
 document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>activateTab(b.dataset.tab)));
 document.querySelectorAll("[data-filter]").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.filter;limit=24;document.querySelectorAll("[data-filter]").forEach(x=>x.classList.toggle("active",x===b));render()}));
 $("seeResults").onclick=()=>activateTab("results");$("more").onclick=()=>{limit+=24;render()};
-$("pickPhotos").onclick=()=>$("photos").click();$("pickFolder").onclick=()=>$("folder").click();
-function choose(list){if(working)return;selectedFiles=Array.from(list).filter(f=>f.type.startsWith("image/")||/\.(jpe?g|png|webp|gif|bmp)$/i.test(f.name));filesByKey=new Map(selectedFiles.map(f=>[keyFor(f),f]));$("chosen").textContent=selectedFiles.length.toLocaleString()+" image(s) selected. Existing saved labels will be kept.";$("start").disabled=!selectedFiles.length;render()}
+$("pickPhotos").onclick=()=>{$("photos").value="";$("photos").click()};$("pickFolder").onclick=()=>{$("folder").value="";$("folder").click()};
+function choose(list){if(working)return;const incoming=Array.from(list).filter(f=>f.type.startsWith("image/")||/\.(jpe?g|png|webp|gif|bmp)$/i.test(f.name));for(const f of incoming)filesByKey.set(keyFor(f),f);selectedFiles=Array.from(filesByKey.values());$("chosen").textContent=selectedFiles.length.toLocaleString()+" image(s) connected across your current selections. Tap Choose photos/folder again to add more. Existing saved labels will be kept.";$("start").disabled=!selectedFiles.length;render()}
 $("photos").addEventListener("change",e=>choose(e.target.files));$("folder").addEventListener("change",e=>choose(e.target.files));
 $("pause").onclick=()=>{paused=true;$("status").textContent="Pausing after the current saved batch…"};
 $("start").onclick=async()=>{
@@ -183,7 +183,7 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 (async()=>{try{db=await openDB();rows=await allItems();rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();$("status").textContent="Ready. "+rows.length.toLocaleString()+" saved image records available."}catch(err){$("status").textContent="Local storage unavailable: "+String(err.message||err)+". Use a normal, non-private browser tab.";$("start").disabled=true}})();
 })();
 </script>
-<script src="./cloud-ui.js?v=4"></script>
+<script src="./cloud-ui.js?v=5"></script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}))}</script>
 </body>
 </html>
