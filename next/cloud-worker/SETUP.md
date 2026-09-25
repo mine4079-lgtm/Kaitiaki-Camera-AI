@@ -1,31 +1,19 @@
-# Kaitiaki Next — PestScan-style cloud vision setup
+# Kaitiaki Next — private Gemini vision pilot
 
-The new `/next/` app is a static GitHub Pages frontend. It cannot directly call Base44's private `InvokeLLM` function and **must never contain API keys**. The private Cloudflare Worker in this folder is a ready-to-deploy bridge to an already-trained OpenAI vision model. It is NOT claimed to be Base44's same automatically selected model, so accuracy/confidence will differ.
+Only deploy this Worker when authorised to send project camera images to Google. The public frontend in /next/ is unchanged; existing original images remain untouched. This Worker sends one browser-resized image (up to 1280 px) per request to Gemini, and intentionally does not persist images. Provider data handling applies. Free-tier data may be used to improve provider products; assess your project's data policy before use.
 
-## What is implemented
-- Scan/Results/Learning clean interface, human-confirmed labels and CSV export.
-- Separate optional cloud connection and image upload after explicit consent.
-- JPEG conversion in browser (max dimension 1280) to control transferred data size.
-- One-image-at-a-time processing, result stored to IndexedDB after every success. Re-select same folder and press Identify to resume records with no AI result. Pause after current photo.
-- Predictions are visible in results and the full-photo review dialog, and exported in CSV. **AI never overwrites verified human labels.**
-- Separates seven target species from Other wildlife, Empty image and Unsure. The model's numeric confidence is subjective, not validated field accuracy.
+## Secure deployment
+1. In Google AI Studio, check the Gemini API project is on the intended free/paid tier and inspect its current rate limits. Do not enable paid billing just for this pilot.
+2. Create a separate long random access token. It is not the Gemini API key.
+3. Deploy from this directory with Wrangler (or import its source in Cloudflare Workers):
+   `cd next/cloud-worker && npx wrangler deploy`
+4. In Cloudflare Worker Settings → Variables and Secrets, securely add **GEMINI_API_KEY** and **KAITIAKI_ACCESS_TOKEN** as encrypted secrets. Do not commit them, paste them in chat, or send Gemini key to the browser.
+5. Confirm allowed origin is `https://mine4079-lgtm.github.io`. The published app's Scan tab accepts the resulting HTTPS Worker URL plus only the separate access token.
+6. Check connection, import five to ten authorised images, reconnect the same source images and select Identify. Check predicted labels in Results after refreshing. Human-verify all predictions and export CSV.
 
-## What is NOT ready
-Cloud classification will remain disabled until a private Worker is deployed and two secrets are configured. No API account/key or deployed endpoint is connected by default. The current browser page must be refreshed after a cloud run to populate the existing Results view.
-
-## Deployment (authorized work account only)
-1. Obtain authorization for sending work camera photos to the provider. Unlike local Kaitiaki V4, this sends resized images to the OpenAI API. This Worker does **not** publish or permanently store photos, though the provider's data handling applies.
-2. Create an OpenAI API project with billing and a suitable key. Do not paste API keys into GitHub, chat, HTML or screenshots.
-3. Create a Cloudflare account and deploy this directory's Worker with Wrangler: `cd next/cloud-worker && npx wrangler deploy`.
-4. Set secret `OPENAI_API_KEY` using `npx wrangler secret put OPENAI_API_KEY`.
-5. Generate a separate long random **access token**, and set `KAITIAKI_ACCESS_TOKEN` using `npx wrangler secret put KAITIAKI_ACCESS_TOKEN`. Do not reuse your OpenAI key. Treat this token like a password; this simple design is for a private pilot, not an open public multi-user application.
-6. Keep `ALLOWED_ORIGIN` set to `https://mine4079-lgtm.github.io` in wrangler.jsonc, and set model `OPENAI_MODEL` to a supported vision-capable model if needed.
-7. On the Scan page, paste only the **Worker URL** and the **separate access token**, press Check connection, then import a few photos and Identify. Never put the OpenAI key in the browser. A correct classification on a small handful is not enough to establish field accuracy.
-
-### Cost and scale safeguards
-Every image is sent as a separate model request with associated API charges. Start with 5–10 authorized images before any large folder, examine species errors and costs, then set a provider spending limit. An 8GB laptop and 27k photos should not be one unmonitored cloud job. The first pilot runs sequentially and checkpoints after each success; batch cost controls, shared team authentication and independent held-out validation are future work.
-
-### Operational limitation
-GitHub Pages serves the frontend. Neither the GitHub integration nor the Base44 connector has deployed a Cloudflare Worker or configured the required secrets. **The cloud model is not live** until your organization connects a backend.
-
-Reference: https://platform.openai.com/docs/guides/images-vision
+## Limits and cautions
+- The Worker uses `gemini-2.5-flash-lite` and returns the existing `label`, `confidence`, `note` and `modelId` contract. Model confidence is subjective, not field accuracy. Predictions never replace verified labels.
+- The Worker validates input, limits image payload, checks allowed origin and access token, and reports Google quota (429) errors. An origin restriction is not itself authentication. A shared access token is suitable only for a limited private pilot; it is not per-user authentication.
+- This pilot does **not** provide server-enforced cumulative request or spend caps. Don't run big folders unattended. Monitor project quotas and billing. For multi-user or large-volume deployment add durable per-account limits, token rotation, error backoff and audit controls.
+- This is online vision: no network, no new classification. Browser IndexedDB is local to browser/device, so export CSV backups. Re-select original folder to reattach images; do not clear website data.
+- Google documentation: https://ai.google.dev/gemini-api/docs/pricing and https://ai.google.dev/gemini-api/docs/rate-limits
