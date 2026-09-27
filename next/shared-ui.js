@@ -131,7 +131,7 @@ async function loadShared(kind){
     status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown.";
   }catch(e){
     root.innerHTML='<div class="empty">Shared database not connected yet.</div>';
-    status.textContent=String(e.message||e);
+    status.textContent="Shared database error: "+String(e.message||e);
   }
 }
 
