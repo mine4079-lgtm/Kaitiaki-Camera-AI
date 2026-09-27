@@ -85,7 +85,7 @@ async function loadShared(kind){
     const url=endpoint()+path+"?limit=150"+(team?"&team="+encodeURIComponent(team):"");
     const res=await fetch(url,{headers:headers()});
     const data=await res.json();
-    if(!res.ok)throw Error(data.error||"Shared database unavailable");
+    if(!res.ok||data.sharedReady!==true)throw Error(data.error||"Shared database not connected yet");
     root.replaceChildren();
     const records=data.records||[];
     if(!records.length){
