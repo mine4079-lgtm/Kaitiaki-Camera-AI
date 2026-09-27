@@ -1,8 +1,8 @@
-/* Kaitiaki Camera AI — Gemini classifier + optional shared team sightings backend.
+/* Kaitiaki Camera AI — Gemini classifier + shared team sightings backend.
  * Required Worker secrets: GEMINI_API_KEY and KAITIAKI_ACCESS_TOKEN.
- * Optional shared-team bindings:
- *   KAITIAKI_DB     -> Cloudflare D1 database
- *   KAITIAKI_IMAGES -> Cloudflare R2 bucket
+ * Shared-team binding:
+ *   KAITIAKI_DB -> Cloudflare D1 database
+ * Small shared thumbnails are stored directly in D1; R2 is not required.
  */
 const LABELS = [
   "Possum","Rat","Stoat","Mouse","Deer","Pig","Weka",
@@ -66,7 +66,7 @@ function int(value, fallback = 0) {
 }
 
 function sharedConfigured(env) {
-  return !!(env.KAITIAKI_DB && env.KAITIAKI_IMAGES);
+  return !!env.KAITIAKI_DB;
 }
 
 async function ensureSchema(env) {
@@ -90,7 +90,8 @@ async function ensureSchema(env) {
       human_verified INTEGER NOT NULL DEFAULT 0,
       needs_extra_review INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL,
-      image_key TEXT,
+      image_blob BLOB,
+      image_type TEXT,
       captured_at TEXT,
       verified_at TEXT,
       created_at TEXT NOT NULL,
@@ -154,17 +155,16 @@ async function handleTeamSync(request, env, origin) {
 
   const id = await hashId(sourceId);
   const status = classifySharedStatus(r);
-  let imageKey = null;
+  let imageBytes = null;
+  let imageType = null;
 
   if ((status === "sighting" || status === "review") && input.image) {
     const image = decodeImageData(input.image);
     if (!image || image.bytes.byteLength > 750 * 1024) {
       return reply({ error: "Invalid or oversized shared preview" }, 400, origin);
     }
-    imageKey = "team/" + id + ".jpg";
-    await env.KAITIAKI_IMAGES.put(imageKey, image.bytes, {
-      httpMetadata: { contentType: image.contentType }
-    });
+    imageBytes = image.bytes;
+    imageType = image.contentType;
   }
 
   const now = new Date().toISOString();
@@ -173,8 +173,8 @@ async function handleTeamSync(request, env, origin) {
       id, team_name, device_id, device_name, imported_by, reviewer_name,
       file_name, relative_path, ai_prediction, ai_confidence, ai_second_choice,
       ai_note, confirmed_label, human_verified, needs_extra_review, status,
-      image_key, captured_at, verified_at, created_at, updated_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      image_blob, image_type, captured_at, verified_at, created_at, updated_at
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET
       team_name=excluded.team_name,
       device_id=excluded.device_id,
@@ -191,7 +191,8 @@ async function handleTeamSync(request, env, origin) {
       human_verified=excluded.human_verified,
       needs_extra_review=excluded.needs_extra_review,
       status=excluded.status,
-      image_key=COALESCE(excluded.image_key, sightings.image_key),
+      image_blob=COALESCE(excluded.image_blob, sightings.image_blob),
+      image_type=COALESCE(excluded.image_type, sightings.image_type),
       captured_at=excluded.captured_at,
       verified_at=excluded.verified_at,
       updated_at=excluded.updated_at
@@ -212,7 +213,8 @@ async function handleTeamSync(request, env, origin) {
     r.verified ? 1 : 0,
     r.aiNeedsExtraReview ? 1 : 0,
     status,
-    imageKey,
+    imageBytes,
+    imageType,
     clean(r.capturedAt, 50),
     clean(r.verifiedAt, 50),
     clean(r.createdAt, 50) || now,
@@ -234,13 +236,23 @@ async function handleTeamList(request, env, origin, status) {
   let stmt;
   if (team) {
     stmt = env.KAITIAKI_DB.prepare(`
-      SELECT * FROM sightings
+      SELECT id, team_name, device_id, device_name, imported_by, reviewer_name,
+        file_name, relative_path, ai_prediction, ai_confidence, ai_second_choice,
+        ai_note, confirmed_label, human_verified, needs_extra_review, status,
+        CASE WHEN image_blob IS NULL THEN 0 ELSE 1 END AS has_image,
+        captured_at, verified_at, created_at, updated_at
+      FROM sightings
       WHERE status=? AND team_name=?
       ORDER BY updated_at DESC LIMIT ?
     `).bind(status, team, limit);
   } else {
     stmt = env.KAITIAKI_DB.prepare(`
-      SELECT * FROM sightings
+      SELECT id, team_name, device_id, device_name, imported_by, reviewer_name,
+        file_name, relative_path, ai_prediction, ai_confidence, ai_second_choice,
+        ai_note, confirmed_label, human_verified, needs_extra_review, status,
+        CASE WHEN image_blob IS NULL THEN 0 ELSE 1 END AS has_image,
+        captured_at, verified_at, created_at, updated_at
+      FROM sightings
       WHERE status=?
       ORDER BY updated_at DESC LIMIT ?
     `).bind(status, limit);
@@ -250,25 +262,23 @@ async function handleTeamList(request, env, origin, status) {
 }
 
 async function handleTeamImage(request, env, origin) {
-  if (!sharedConfigured(env)) return reply({ error: "Shared image store is not connected yet" }, 503, origin);
+  if (!sharedConfigured(env)) return reply({ error: "Shared database is not connected yet" }, 503, origin);
   await ensureSchema(env);
   const id = clean(new URL(request.url).searchParams.get("id"), 100);
   if (!id) return reply({ error: "Missing image id" }, 400, origin);
 
   const row = await env.KAITIAKI_DB.prepare(
-    "SELECT image_key FROM sightings WHERE id=?"
+    "SELECT image_blob, image_type FROM sightings WHERE id=?"
   ).bind(id).first();
-  if (!row?.image_key) return reply({ error: "Image not found" }, 404, origin);
+  if (!row?.image_blob) return reply({ error: "Image not found" }, 404, origin);
 
-  const object = await env.KAITIAKI_IMAGES.get(row.image_key);
-  if (!object) return reply({ error: "Image not found" }, 404, origin);
-
-  const headers = new Headers();
-  object.writeHttpMetadata(headers);
-  headers.set("cache-control", "private, max-age=300");
-  headers.set("access-control-allow-origin", origin);
-  headers.set("vary", "Origin");
-  return new Response(object.body, { headers });
+  const headers = new Headers({
+    "content-type": row.image_type || "image/jpeg",
+    "cache-control": "private, max-age=300",
+    "access-control-allow-origin": origin,
+    "vary": "Origin"
+  });
+  return new Response(row.image_blob, { headers });
 }
 
 async function handleClassification(request, env, origin) {
