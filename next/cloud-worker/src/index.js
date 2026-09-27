@@ -56,6 +56,16 @@ function authorised(request, env) {
     request.headers.get("Authorization") === "Bearer " + env.KAITIAKI_ACCESS_TOKEN;
 }
 
+async function teamPayload(request, env) {
+  let input;
+  try { input = JSON.parse(await request.text()); }
+  catch { return { error: "Invalid team request" }; }
+  if (!env.KAITIAKI_ACCESS_TOKEN || input?.token !== env.KAITIAKI_ACCESS_TOKEN) {
+    return { error: "Not authorised" };
+  }
+  return { input };
+}
+
 function clean(value, max = 300) {
   return typeof value === "string" ? value.slice(0, max) : "";
 }
@@ -144,17 +154,10 @@ function decodeImageData(dataUrl) {
   return { bytes, contentType: "image/" + match[1] };
 }
 
-async function handleTeamSync(request, env, origin) {
+async function handleTeamSync(input, env, origin) {
   if (!sharedConfigured(env)) {
     return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
   }
-  if (Number(request.headers.get("content-length") || 0) > MAX_SYNC_BODY) {
-    return reply({ error: "Shared record too large" }, 413, origin);
-  }
-
-  let input;
-  try { input = await request.json(); }
-  catch { return reply({ error: "Invalid JSON" }, 400, origin); }
 
   const r = input?.record || {};
   const sourceId = clean(r.syncId || r.key, 1000);
@@ -234,14 +237,13 @@ async function handleTeamSync(request, env, origin) {
   return reply({ ok: true, id, status, sharedReady: true }, 200, origin);
 }
 
-async function handleTeamList(request, env, origin, status) {
+async function handleTeamList(input, env, origin, status) {
   if (!sharedConfigured(env)) {
     return reply({ error: "Shared team database is not connected yet", sharedReady: false, records: [] }, 503, origin);
   }
   await ensureSchema(env);
-  const url = new URL(request.url);
-  const limit = Math.max(1, Math.min(200, int(url.searchParams.get("limit"), 100)));
-  const team = clean(url.searchParams.get("team"), 120);
+  const limit = Math.max(1, Math.min(200, int(input?.limit, 100)));
+  const team = clean(input?.team, 120);
 
   let stmt;
   if (team) {
@@ -271,10 +273,10 @@ async function handleTeamList(request, env, origin, status) {
   return reply({ sharedReady: true, records: result.results || [] }, 200, origin);
 }
 
-async function handleTeamImage(request, env, origin) {
+async function handleTeamImage(input, env, origin) {
   if (!sharedConfigured(env)) return reply({ error: "Shared database is not connected yet" }, 503, origin);
   await ensureSchema(env);
-  const id = clean(new URL(request.url).searchParams.get("id"), 100);
+  const id = clean(input?.id, 100);
   if (!id) return reply({ error: "Missing image id" }, 400, origin);
 
   const row = await env.KAITIAKI_DB.prepare(
@@ -417,22 +419,23 @@ export default {
       }, 200, origin);
     }
 
+    if (request.method === "POST" && url.pathname.startsWith("/team/")) {
+      if (Number(request.headers.get("content-length") || 0) > MAX_SYNC_BODY) {
+        return reply({ error: "Team request too large" }, 413, origin);
+      }
+      const parsed = await teamPayload(request, env);
+      if (parsed.error) return reply({ error: parsed.error }, parsed.error === "Not authorised" ? 401 : 400, origin);
+      if (url.pathname === "/team/sync") return handleTeamSync(parsed.input, env, origin);
+      if (url.pathname === "/team/sightings") return handleTeamList(parsed.input, env, origin, "sighting");
+      if (url.pathname === "/team/review") return handleTeamList(parsed.input, env, origin, "review");
+      if (url.pathname === "/team/image") return handleTeamImage(parsed.input, env, origin);
+      return reply({ error: "Not found" }, 404, origin);
+    }
+
     if (!authorised(request, env)) return reply({ error: "Not authorised" }, 401, origin);
 
     if (request.method === "POST" && (url.pathname === "/" || url.pathname === "/classify")) {
       return handleClassification(request, env, origin);
-    }
-    if (request.method === "POST" && url.pathname === "/team/sync") {
-      return handleTeamSync(request, env, origin);
-    }
-    if (request.method === "GET" && url.pathname === "/team/sightings") {
-      return handleTeamList(request, env, origin, "sighting");
-    }
-    if (request.method === "GET" && url.pathname === "/team/review") {
-      return handleTeamList(request, env, origin, "review");
-    }
-    if (request.method === "GET" && url.pathname === "/team/image") {
-      return handleTeamImage(request, env, origin);
     }
 
     return reply({ error: "Not found" }, 404, origin);
