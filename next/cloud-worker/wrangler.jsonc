@@ -5,6 +5,13 @@
   "vars": {
     "ALLOWED_ORIGIN": "https://mine4079-lgtm.github.io"
   },
+  "d1_databases": [
+    {
+      "binding": "KAITIAKI_DB",
+      "database_name": "kaitiaki-team-db",
+      "database_id": "4f175b10-c7ed-4b8b-a869-22cf8e2b5175"
+    }
+  ],
   "secrets": {
     "required": [
       "GEMINI_API_KEY",
