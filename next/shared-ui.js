@@ -8,6 +8,7 @@ const PERSIST_TOKEN_KEY="kaitiaki-next-device-token";
 const DEVICE_ID_KEY="kaitiaki-device-id";
 const TEAM_KEY="kaitiaki-team-name";
 const PENDING_KEY="kaitiaki-shared-pending";
+const SYNCED_KEY="kaitiaki-shared-synced-v1";
 const PESTS=["Possum","Rat","Stoat","Mouse","Deer","Pig"];
 let imageUrls=[];
 
@@ -22,12 +23,16 @@ function candidate(r){
   return (PESTS.includes(r.aiPrediction)&&Number(r.aiConfidence)>=85) || (!!r.aiPrediction&&Number(r.aiConfidence)<85);
 }
 function pending(){try{return new Set(JSON.parse(localStorage.getItem(PENDING_KEY)||"[]"))}catch{return new Set()}}
+function syncedMap(){try{return JSON.parse(localStorage.getItem(SYNCED_KEY)||"{}")}catch{return {}}}
+function markSynced(record){const m=syncedMap();m[record.key]=record.updatedAt||"";const entries=Object.entries(m).slice(-2500);localStorage.setItem(SYNCED_KEY,JSON.stringify(Object.fromEntries(entries)))}
+function needsSync(record){const m=syncedMap();return m[record.key]!==String(record.updatedAt||"")}
 function savePending(set){localStorage.setItem(PENDING_KEY,JSON.stringify([...set].slice(-2000)))}
 function markPending(key){const set=pending();set.add(key);savePending(set)}
 function clearPending(key){const set=pending();set.delete(key);savePending(set)}
 function blobToDataURL(blob){return new Promise((ok,no)=>{if(!(blob instanceof Blob)){ok(null);return}const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>no(r.error);r.readAsDataURL(blob)})}
 function openDB(){return new Promise((ok,no)=>{const q=indexedDB.open(DB_NAME,1);q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})}
 function getRow(db,key){return new Promise((ok,no)=>{const q=db.transaction(STORE,"readonly").objectStore(STORE).get(key);q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})}
+function getAllRows(db){return new Promise((ok,no)=>{const q=db.transaction(STORE,"readonly").objectStore(STORE).getAll();q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})}
 
 async function syncRecord(record,preview){
   if(!record?.key||!candidate(record))return;
@@ -38,6 +43,7 @@ async function syncRecord(record,preview){
     const res=await fetch(endpoint()+"/team/sync",{method:"POST",headers:{"content-type":"application/json",...headers()},body:JSON.stringify(body)});
     if(!res.ok)throw Error("sync "+res.status);
     clearPending(record.key);
+    markSynced(record);
   }catch{markPending(record.key)}
 }
 window.KaitiakiSharedSync=syncRecord;
@@ -55,8 +61,22 @@ async function flushPending(){
     }
   }finally{db?.close()}
 }
-window.addEventListener("online",()=>setTimeout(flushPending,500));
-setTimeout(flushPending,1200);
+window.addEventListener("online",()=>setTimeout(()=>{flushPending();catchUpExisting()},500));
+async function catchUpExisting(){
+  if(!navigator.onLine||!token())return;
+  try{
+    const ready=await fetch(endpoint(),{cache:"no-store"}).then(r=>r.json());
+    if(!ready.sharedReady)return;
+    const db=await openDB();
+    try{
+      const rows=await getAllRows(db);
+      for(const row of rows){
+        if(candidate(row)&&needsSync(row))await syncRecord(row,row.preview);
+      }
+    }finally{db.close()}
+  }catch{}
+}
+setTimeout(()=>{flushPending();catchUpExisting()},1200);
 
 function clearImages(){for(const u of imageUrls)URL.revokeObjectURL(u);imageUrls=[]}
 async function loadImage(id,img){
