@@ -1,6 +1,6 @@
 /* Cloud vision controls. Isolated from the human-review state machine. */
 (()=>{"use strict";
-const $=id=>document.getElementById(id),NAME="kaitiaki-next-v1",STORE="image-records",URL_KEY="kaitiaki-next-cloud-endpoint",TOKEN_KEY="kaitiaki-next-session-token";
+const $=id=>document.getElementById(id),NAME="kaitiaki-next-v1",STORE="image-records",URL_KEY="kaitiaki-next-cloud-endpoint",TOKEN_KEY="kaitiaki-next-session-token",PERSIST_TOKEN_KEY="kaitiaki-next-device-token",REMEMBER_KEY="kaitiaki-next-remember-token",DEFAULT_URL="https://kaitiaki-next-vision.monaghan666.workers.dev";
 let files=new Map(),running=false,paused=false;
 window.KaitiakiCloudIsRunning=()=>running;
 const getKey=f=>(f.webkitRelativePath||f.name)+"|"+f.size+"|"+f.lastModified;
@@ -12,15 +12,16 @@ function assessQuality(canvas){const max=96,scale=Math.min(1,max/Math.max(canvas
 async function prepareImage(file){const bmp=await createImageBitmap(file);try{const draw=max=>{const scale=Math.min(1,max/Math.max(bmp.width,bmp.height));const c=document.createElement("canvas");c.width=Math.max(1,Math.round(bmp.width*scale));c.height=Math.max(1,Math.round(bmp.height*scale));c.getContext("2d",{alpha:false}).drawImage(bmp,0,0,c.width,c.height);return c};const apiCanvas=draw(1280),previewCanvas=draw(420),quality=assessQuality(apiCanvas);const preview=await new Promise((ok,no)=>previewCanvas.toBlob(b=>b?ok(b):no(Error("Preview unavailable")),"image/jpeg",.68));return {image:apiCanvas.toDataURL("image/jpeg",.8),preview,quality}}finally{bmp.close()}}
 function endpoint(){const v=$("cloudEndpoint").value.trim().replace(/\/+$/,"");if(!/^https:\/\//.test(v))throw Error("Enter a secure HTTPS backend URL");return v}
 function token(){const v=$("cloudToken").value.trim();if(!v)throw Error("Enter your access token");return v}
-$("cloudEndpoint").value=localStorage.getItem(URL_KEY)||"";
-$("cloudToken").value=sessionStorage.getItem(TOKEN_KEY)||"";
+$("cloudEndpoint").value=localStorage.getItem(URL_KEY)||DEFAULT_URL;
+$("rememberToken").checked=localStorage.getItem(REMEMBER_KEY)==="yes";
+$("cloudToken").value=localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||"";
 async function checkConnection(){
   if(!navigator.onLine){$("cloudStart").disabled=true;say("Offline — import, review and CSV still work. AI identification needs internet.");return false}
   try{
     const url=endpoint(),key=token(),res=await fetch(url,{cache:"no-store"}),data=await res.json();
     if(!res.ok||!data.ready)throw Error("Backend is not configured");
     localStorage.setItem(URL_KEY,url);
-    sessionStorage.setItem(TOKEN_KEY,key);
+    if($("rememberToken").checked){localStorage.setItem(PERSIST_TOKEN_KEY,key);localStorage.setItem(REMEMBER_KEY,"yes");sessionStorage.removeItem(TOKEN_KEY)}else{sessionStorage.setItem(TOKEN_KEY,key);localStorage.removeItem(PERSIST_TOKEN_KEY);localStorage.removeItem(REMEMBER_KEY)}
     $("cloudStart").disabled=false;
     say("AI ready.");
     $("aiSettings").open=false;
@@ -33,7 +34,7 @@ async function checkConnection(){
   }
 }
 $("cloudCheck").onclick=checkConnection;
-for(const id of ["cloudEndpoint","cloudToken"])$(id).oninput=()=>{$("cloudStart").disabled=true;say("AI connection needs checking.")};
+for(const id of ["cloudEndpoint","cloudToken"])$(id).oninput=()=>{$("cloudStart").disabled=true;say("AI connection needs checking.")};$("rememberToken").onchange=()=>{if(!$("rememberToken").checked){localStorage.removeItem(PERSIST_TOKEN_KEY);localStorage.removeItem(REMEMBER_KEY)}else localStorage.setItem(REMEMBER_KEY,"yes")};
 for(const id of ["photos","folder"])$(id).addEventListener("change",e=>{for(const f of Array.from(e.target.files||[]))files.set(getKey(f),f);say(files.size.toLocaleString()+" images connected. Import them, then Identify unscanned photos.")});
 window.addEventListener("kaitiaki-clear-files",()=>{files.clear();say("Connected folders cleared. Saved results are unchanged.")});
 $("cloudPause").onclick=()=>{paused=true;say("Pausing after current image…")};
