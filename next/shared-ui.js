@@ -98,6 +98,8 @@ async function loadShared(kind){
   clearImages();
   if(!navigator.onLine){status.textContent="Offline — shared records need internet. Your local Review still works.";return}
   if(!token()){status.textContent="Connect AI once on this device to open shared team records.";return}
+  status.textContent="Checking shared database…";
+  try{const health=await fetch(endpoint(),{cache:"no-store"}).then(r=>r.json());if(!health.sharedReady)throw Error("Worker is online but D1 is not connected to it.")}catch(e){status.textContent="Shared connection problem: "+String(e.message||e);return}
   status.textContent="Loading shared team records…";
   try{
     const team=teamName();
