@@ -82,8 +82,9 @@ function clearImages(){for(const u of imageUrls)URL.revokeObjectURL(u);imageUrls
 async function loadImage(id,img){
   try{
     const res=await fetch(endpoint()+"/team/image",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({id})});
-    if(!res.ok)throw Error();
-    const blob=await res.blob(),url=URL.createObjectURL(blob);imageUrls.push(url);img.src=url;
+    const data=await res.json();
+    if(!res.ok||!data.imageData)throw Error(data.error||"Shared image unavailable");
+    img.src=data.imageData;
   }catch{
     const p=document.createElement("div");p.className="placeholder";p.textContent="Shared image unavailable";img.replaceWith(p);
   }
