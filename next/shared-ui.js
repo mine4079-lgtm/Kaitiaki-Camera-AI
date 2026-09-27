@@ -95,7 +95,7 @@ async function loadShared(kind){
     }
     for(const r of records){
       const card=document.createElement("article");card.className="item";
-      if(r.image_key){
+      if(r.has_image){
         const img=document.createElement("img");
         img.alt=(r.confirmed_label||r.ai_prediction||"Detection")+" trail-camera image";
         img.loading="lazy";card.append(img);loadImage(r.id,img);
