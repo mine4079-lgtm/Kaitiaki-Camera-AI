@@ -72,7 +72,8 @@ function sharedConfigured(env) {
 async function ensureSchema(env) {
   if (!env.KAITIAKI_DB) throw new Error("D1 binding missing");
   if (schemaReady) return;
-  await env.KAITIAKI_DB.exec(`
+
+  await env.KAITIAKI_DB.prepare(`
     CREATE TABLE IF NOT EXISTS sightings (
       id TEXT PRIMARY KEY,
       team_name TEXT,
@@ -96,12 +97,21 @@ async function ensureSchema(env) {
       verified_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_sightings_status_updated
-      ON sightings(status, updated_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_sightings_team_status
-      ON sightings(team_name, status, updated_at DESC);
-  `);
+    )
+  `).run();
+
+  const columns = await env.KAITIAKI_DB.prepare("PRAGMA table_info(sightings)").all();
+  const names = new Set((columns.results || []).map(row => row.name));
+  if (!names.has("image_blob")) await env.KAITIAKI_DB.prepare("ALTER TABLE sightings ADD COLUMN image_blob BLOB").run();
+  if (!names.has("image_type")) await env.KAITIAKI_DB.prepare("ALTER TABLE sightings ADD COLUMN image_type TEXT").run();
+
+  await env.KAITIAKI_DB.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_sightings_status_updated ON sightings(status, updated_at DESC)"
+  ).run();
+  await env.KAITIAKI_DB.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_sightings_team_status ON sightings(team_name, status, updated_at DESC)"
+  ).run();
+
   schemaReady = true;
 }
 
@@ -381,6 +391,7 @@ export default {
     const origin = request.headers.get("Origin") || "";
     const expected = env.ALLOWED_ORIGIN || "https://mine4079-lgtm.github.io";
     const url = new URL(request.url);
+    try {
 
     if (request.method === "OPTIONS") {
       return new Response(null, {
@@ -425,5 +436,12 @@ export default {
     }
 
     return reply({ error: "Not found" }, 404, origin);
+    } catch (error) {
+      return reply({
+        error: "Worker error",
+        detail: String(error?.message || error || "Unknown error"),
+        path: url.pathname
+      }, 500, origin === expected ? origin : "");
+    }
   }
 };
