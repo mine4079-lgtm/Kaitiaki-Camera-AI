@@ -69,8 +69,9 @@ dialog::backdrop{background:#0c211dcc}
 <main>
 <nav aria-label="Main sections">
 <button data-tab="scan" class="current">Scan</button>
-<button data-tab="results">Results</button>
-<button data-tab="learning">Learning</button>
+<button data-tab="sightings">Sightings</button>
+<button data-tab="results">Review</button>
+<button data-tab="learning">Team</button>
 </nav>
 <section class="view current" id="scan">
 <h2>Scan your camera images</h2>
@@ -89,9 +90,18 @@ dialog::backdrop{background:#0c211dcc}
 <div class="statbar"><div class="stat"><b id="total">0</b><small>IMAGES SAVED</small></div><div class="stat"><b id="verified">0</b><small>VERIFIED</small></div><div class="stat"><b id="pending">0</b><small>TO REVIEW</small></div></div>
 <div class="panel"><h3>3. Continue where you left off</h3><p class="sub">Progress is saved locally every 50 photos. Re-select the same folder later to reconnect the image previews; already saved labels are retained.</p><div class="actions"><button id="export1" class="btn light">Export results CSV</button><button id="seeResults" class="btn light">See results</button></div></div>
 </section>
+<section class="view" id="sightings">
+<h2>Team pest sightings</h2>
+<p class="sub">Likely pest detections from the whole team. High-confidence pest records appear here automatically; staff corrections update the shared record.</p>
+<div class="actions"><button id="refreshSightings" class="btn light">Refresh sightings</button></div>
+<p id="sharedSightingsStatus" class="sub" style="margin-top:12px">Shared database not connected yet.</p>
+<div id="sharedSightings" class="gallery"><div class="empty">No shared sightings loaded yet.</div></div>
+</section>
 <section class="view" id="results">
-<h2>Your image results</h2>
-<p class="sub">Tap a photo to confirm its actual species. Only human-confirmed labels are treated as verified.</p>
+<h2>Review what needs a person</h2>
+<p class="sub">AI handles the bulk sorting. Check uncertain, blurry or flagged images here and confirm only what needs human judgement.</p>
+<div class="panel"><h3>Shared team review</h3><p class="sub">Items the AI was unsure about across the team.</p><button id="refreshSharedReview" class="btn light">Refresh team review</button><p id="sharedReviewStatus" class="sub" style="margin:10px 0">Shared database not connected yet.</p><div id="sharedReview" class="gallery"><div class="empty">No shared review items loaded yet.</div></div></div>
+<h3>Local device review</h3>
 <div class="statbar"><div class="stat"><b id="r-total">0</b><small>IMAGES SAVED</small></div><div class="stat"><b id="r-verified">0</b><small>VERIFIED</small></div><div class="stat"><b id="r-pending">0</b><small>TO REVIEW</small></div></div>
 <div class="toolbar" role="group" aria-label="Filter images"><button class="active" data-filter="all">All</button><button data-filter="pending">To review</button><button data-filter="flagged">Flagged</button><button data-filter="verified">Verified</button><button id="export2">Export CSV</button></div>
 <div id="gallery" class="gallery"></div><button id="more" class="btn light" hidden>Show more photos</button>
@@ -142,7 +152,7 @@ for(const r of visible){const b=document.createElement("button");b.className="it
 const f=filesByKey.get(r.key),savedPreview=!f&&r.preview instanceof Blob?r.preview:null;if(f||savedPreview){const img=document.createElement("img");const src=URL.createObjectURL(f||savedPreview);thumbUrls.push(src);img.src=src;img.alt=r.name;img.loading="lazy";b.append(img)}else{const p=document.createElement("div");p.className="placeholder";p.textContent="Reconnect folder to restore preview";b.append(p)}
 const body=document.createElement("div");body.className="item-body";const shownLabel=r.verified?r.label:(r.aiPrediction?r.aiPrediction+" · "+r.aiConfidence+"%"+(r.aiNeedsExtraReview?" · CHECK":""):"Needs review");body.innerHTML="<strong>"+escapeHTML(r.name)+"</strong><span class='kind "+(r.verified?"good":"")+"'>"+escapeHTML(shownLabel)+"</span><small>"+escapeHTML(r.path)+"</small>";b.append(body);b.addEventListener("click",()=>openReview(r.key));root.append(b)}
 $("more").hidden=visible.length>=data.length;$("more").textContent="Show more photos ("+visible.length+" / "+data.length+")"}
-function activateTab(name){activeTab=name;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("current",b.dataset.tab===name));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("current",v.id===name));render()}
+function activateTab(name){activeTab=name;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("current",b.dataset.tab===name));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("current",v.id===name));render();if(name==="sightings")window.KaitiakiLoadSharedSightings?.();if(name==="results")window.KaitiakiLoadSharedReview?.()}
 window.KaitiakiNextApplyAIResult=(next)=>{if(!next||!next.key)return;const i=rows.findIndex(r=>r.key===next.key);if(i>=0)rows[i]=next;else rows.push(next);rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();};
 document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>activateTab(b.dataset.tab)));
 document.querySelectorAll("[data-filter]").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.filter;limit=24;document.querySelectorAll("[data-filter]").forEach(x=>x.classList.toggle("active",x===b));render()}));
@@ -167,7 +177,7 @@ const c=$("choices");c.replaceChildren();for(const label of SPECIES){const b=doc
 $("reviewDialog").showModal()
 }
 $("closeDialog").onclick=()=>$("reviewDialog").close();$("reviewDialog").addEventListener("close",()=>{if(largeUrl){URL.revokeObjectURL(largeUrl);largeUrl=null}});
-$("saveLabel").onclick=async()=>{const r=rows.find(x=>x.key===selectedKey);if(!r||!selectedLabel)return;const tc=teamContext();const next={...r,label:selectedLabel,verified:selectedLabel!=="Unsure",reviewedBy:tc.staffName,reviewedTeam:tc.teamName,reviewedDevice:tc.deviceName,reviewedDeviceId:tc.deviceId,verifiedAt:selectedLabel!=="Unsure"?new Date().toISOString():"",updatedAt:new Date().toISOString()};try{await storeItems([next]);rows[rows.indexOf(r)]=next;$("dialogMessage").textContent=next.verified?"Confirmed: "+selectedLabel:"Marked unsure for further review.";$("saveLabel").disabled=true;render()}catch(err){$("dialogMessage").textContent="Save failed: "+String(err.message||err)}};
+$("saveLabel").onclick=async()=>{const r=rows.find(x=>x.key===selectedKey);if(!r||!selectedLabel)return;const tc=teamContext();const next={...r,label:selectedLabel,verified:selectedLabel!=="Unsure",reviewedBy:tc.staffName,reviewedTeam:tc.teamName,reviewedDevice:tc.deviceName,reviewedDeviceId:tc.deviceId,verifiedAt:selectedLabel!=="Unsure"?new Date().toISOString():"",updatedAt:new Date().toISOString()};try{await storeItems([next]);rows[rows.indexOf(r)]=next;window.KaitiakiSharedSync?.(next,next.preview);$("dialogMessage").textContent=next.verified?"Confirmed: "+selectedLabel:"Marked unsure for further review.";$("saveLabel").disabled=true;render()}catch(err){$("dialogMessage").textContent="Save failed: "+String(err.message||err)}};
 $("nextImage").onclick=()=>{const arr=filtered();const idx=arr.findIndex(r=>r.key===selectedKey);const next=arr[idx+1]||arr[0];if(next){$("reviewDialog").close();openReview(next.key)}};
 $("deleteRecord").onclick=async()=>{
  const key=selectedKey,r=rows.find(x=>x.key===key);
@@ -192,7 +202,8 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 (async()=>{try{db=await openDB();rows=await allItems();rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();$("status").textContent="Ready. "+rows.length.toLocaleString()+" saved image records available."}catch(err){$("status").textContent="Local storage unavailable: "+String(err.message||err)+". Use a normal, non-private browser tab.";$("start").disabled=true}})();
 })();
 </script>
-<script src="./cloud-ui.js?v=10"></script>
+<script src="./cloud-ui.js?v=11"></script>
+<script src="./shared-ui.js?v=1"></script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}))}</script>
 </body>
 </html>
