@@ -284,13 +284,22 @@ async function handleTeamImage(input, env, origin) {
   ).bind(id).first();
   if (!row?.image_blob) return reply({ error: "Image not found" }, 404, origin);
 
+  const bytes = Array.isArray(row.image_blob)
+    ? Uint8Array.from(row.image_blob)
+    : row.image_blob instanceof Uint8Array
+      ? row.image_blob
+      : row.image_blob instanceof ArrayBuffer
+        ? new Uint8Array(row.image_blob)
+        : null;
+  if (!bytes) return reply({ error: "Invalid stored image" }, 500, origin);
+
   const headers = new Headers({
     "content-type": row.image_type || "image/jpeg",
     "cache-control": "private, max-age=300",
     "access-control-allow-origin": origin,
     "vary": "Origin"
   });
-  return new Response(row.image_blob, { headers });
+  return new Response(bytes, { headers });
 }
 
 async function handleClassification(request, env, origin) {
