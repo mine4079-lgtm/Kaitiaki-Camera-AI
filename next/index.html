@@ -12,7 +12,7 @@
 header{background:#0b6655;color:white;padding:20px max(18px,calc((100vw - 1100px)/2));display:flex;align-items:center;gap:12px}
 .logo{height:42px;width:42px;display:grid;place-items:center;border-radius:13px;background:white;color:#0b6655;font-size:23px;font-weight:900}
 header h1{font-size:20px;margin:0}header p{font-size:12px;opacity:.85;margin:3px 0 0}
-.tag{margin-left:auto;background:#ffffff24;border:1px solid #ffffff48;border-radius:20px;font-size:11px;padding:6px 10px;font-weight:800}
+.tag{margin-left:auto;background:#ffffff24;border:1px solid #ffffff48;border-radius:20px;font-size:11px;padding:6px 10px;font-weight:800}.tag.offline{background:#fff1c7;color:#6c4c13;border-color:#ffe29a}
 main{max-width:1100px;margin:auto;padding:20px 16px 92px}
 nav{display:flex;gap:7px;margin-bottom:22px;max-width:450px;background:#e7eeeb;border-radius:15px;padding:5px}
 nav button{flex:1;border:0;padding:12px 5px;background:transparent;color:#526660;border-radius:11px;font-weight:800}
@@ -65,7 +65,7 @@ dialog::backdrop{background:#0c211dcc}
 </style>
 </head>
 <body>
-<header><div class="logo">K</div><div><h1>Kaitiaki Camera AI</h1><p>Trail-camera sorting and review</p></div><span class="tag">FIELD APP</span></header>
+<header><div class="logo">K</div><div><h1>Kaitiaki Camera AI</h1><p>Trail-camera sorting and review</p></div><span class="tag" id="netState">FIELD APP</span></header>
 <main>
 <nav aria-label="Main sections">
 <button data-tab="scan" class="current">Scan</button>
@@ -120,6 +120,8 @@ let db, rows=[], selectedFiles=[], filesByKey=new Map(), activeTab="scan", filte
 const pathFor=f=>f.webkitRelativePath||f.name;
 const keyFor=f=>pathFor(f)+"|"+f.size+"|"+f.lastModified;
 const wait=()=>new Promise(resolve=>setTimeout(resolve,0));
+function updateNetworkState(){const online=navigator.onLine;const tag=$("netState");tag.textContent=online?"ONLINE":"OFFLINE";tag.classList.toggle("offline",!online);if(!online&&$("cloudStatus"))$("cloudStatus").textContent="Offline — import, review and CSV still work. AI identification needs internet."}
+window.addEventListener("online",updateNetworkState);window.addEventListener("offline",updateNetworkState);updateNetworkState();
 async function makePreview(file){const bmp=await createImageBitmap(file);try{const scale=Math.min(1,420/Math.max(bmp.width,bmp.height));const c=document.createElement("canvas");c.width=Math.max(1,Math.round(bmp.width*scale));c.height=Math.max(1,Math.round(bmp.height*scale));c.getContext("2d",{alpha:false}).drawImage(bmp,0,0,c.width,c.height);return await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(Error("Preview unavailable")),"image/jpeg",.68))}finally{bmp.close()}}
 function openDB(){return new Promise((resolve,reject)=>{const request=indexedDB.open(DB_NAME,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(STORE))request.result.createObjectStore(STORE,{keyPath:"key"})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
 function storeItems(items){return new Promise((resolve,reject)=>{const t=db.transaction(STORE,"readwrite");const s=t.objectStore(STORE);for(const x of items)s.put(x);t.oncomplete=resolve;t.onerror=()=>reject(t.error)})}
@@ -184,7 +186,7 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 (async()=>{try{db=await openDB();rows=await allItems();rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();$("status").textContent="Ready. "+rows.length.toLocaleString()+" saved image records available."}catch(err){$("status").textContent="Local storage unavailable: "+String(err.message||err)+". Use a normal, non-private browser tab.";$("start").disabled=true}})();
 })();
 </script>
-<script src="./cloud-ui.js?v=8"></script>
+<script src="./cloud-ui.js?v=9"></script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}))}</script>
 </body>
 </html>

@@ -15,6 +15,7 @@ function token(){const v=$("cloudToken").value.trim();if(!v)throw Error("Enter y
 $("cloudEndpoint").value=localStorage.getItem(URL_KEY)||"";
 $("cloudToken").value=sessionStorage.getItem(TOKEN_KEY)||"";
 async function checkConnection(){
+  if(!navigator.onLine){$("cloudStart").disabled=true;say("Offline — import, review and CSV still work. AI identification needs internet.");return false}
   try{
     const url=endpoint(),key=token(),res=await fetch(url,{cache:"no-store"}),data=await res.json();
     if(!res.ok||!data.ready)throw Error("Backend is not configured");
@@ -37,7 +38,7 @@ for(const id of ["photos","folder"])$(id).addEventListener("change",e=>{for(cons
 window.addEventListener("kaitiaki-clear-files",()=>{files.clear();say("Connected folders cleared. Saved results are unchanged.")});
 $("cloudPause").onclick=()=>{paused=true;say("Pausing after current image…")};
 $("cloudStart").onclick=async()=>{
-if(running)return;let url,key;
+if(running)return;if(!navigator.onLine){say("Offline — AI identification needs internet. Your local work is still available.");return}let url,key;
 try{url=endpoint();key=token()}catch(e){$("aiSettings").open=true;say(e.message);return}
 if($("cloudStart").disabled){if(!await checkConnection())return}
 const db=await dbOpen();const rows=await getAll(db),queue=rows.filter(r=>files.has(r.key)&&!r.aiPrediction);
@@ -59,5 +60,5 @@ say(done.toLocaleString()+" / "+queue.length.toLocaleString()+" AI results saved
 say((paused?"Paused safely. ":"Done. ")+done.toLocaleString()+" results saved, "+failed+" failed. Open Results to review.");
 }finally{db.close();running=false;$("cloudStart").disabled=false;$("cloudPause").disabled=true;$("start").disabled=!$("photos").files.length&&!$("folder").files.length}
 };
-if($("cloudEndpoint").value&&$("cloudToken").value){checkConnection()}else{$("aiSettings").open=true}
+if(navigator.onLine&&$("cloudEndpoint").value&&$("cloudToken").value){checkConnection()}else if(!navigator.onLine){$("cloudStart").disabled=true;say("Offline — import, review and CSV still work. AI identification needs internet.")}else{$("aiSettings").open=true}
 })();
