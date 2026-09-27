@@ -154,6 +154,15 @@ function decodeImageData(dataUrl) {
   return { bytes, contentType: "image/" + match[1] };
 }
 
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
 async function handleTeamSync(input, env, origin) {
   if (!sharedConfigured(env)) {
     return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
@@ -293,13 +302,10 @@ async function handleTeamImage(input, env, origin) {
         : null;
   if (!bytes) return reply({ error: "Invalid stored image" }, 500, origin);
 
-  const headers = new Headers({
-    "content-type": row.image_type || "image/jpeg",
-    "cache-control": "private, max-age=300",
-    "access-control-allow-origin": origin,
-    "vary": "Origin"
-  });
-  return new Response(bytes, { headers });
+  const type = row.image_type || "image/jpeg";
+  return reply({
+    imageData: "data:" + type + ";base64," + bytesToBase64(bytes)
+  }, 200, origin);
 }
 
 async function handleClassification(request, env, origin) {
