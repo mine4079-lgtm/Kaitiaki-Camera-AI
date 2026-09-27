@@ -103,7 +103,7 @@ dialog::backdrop{background:#0c211dcc}
 <div class="notice green"><strong>Model status:</strong> Gemini assists with sorting. Your confirmed labels remain the trusted record and are never overwritten by AI.</div>
 <div class="panel"><h3>Target species</h3><p class="sub">Possum · Rat · Stoat · Mouse · Deer · Pig · Weka, with separate Other wildlife, Empty image and Unsure labels.</p></div>
 </section>
-<p class="footer">Kaitiaki Next · local metadata only · nothing uploaded · source photos never edited.</p>
+<p class="footer">Kaitiaki Camera AI · local records · AI uploads only when you press Identify · source photos never edited.</p>
 </main>
 <dialog id="reviewDialog" aria-label="Review image">
 <div class="dialog-title"><strong id="dialogName">Review photo</strong><button id="closeDialog" class="x" aria-label="Close">×</button></div>
@@ -141,7 +141,8 @@ document.querySelectorAll("[data-filter]").forEach(b=>b.addEventListener("click"
 $("seeResults").onclick=()=>activateTab("results");$("more").onclick=()=>{limit+=24;render()};
 $("pickPhotos").onclick=()=>{$("photos").value="";$("photos").click()};$("pickFolder").onclick=()=>{$("folder").value="";$("folder").click()};
 function choose(list){if(working)return;const incoming=Array.from(list).filter(f=>f.type.startsWith("image/")||/\.(jpe?g|png|webp|gif|bmp)$/i.test(f.name));for(const f of incoming)filesByKey.set(keyFor(f),f);selectedFiles=Array.from(filesByKey.values());$("chosen").textContent=selectedFiles.length.toLocaleString()+" image(s) connected. Add more folders any time; existing labels are kept.";$("start").disabled=!selectedFiles.length;$("clearSelection").disabled=!selectedFiles.length;render()}
-$("photos").addEventListener("change",e=>choose(e.target.files));$("folder").addEventListener("change",e=>choose(e.target.files));\n$("clearSelection").onclick=()=>{if(working||window.KaitiakiCloudIsRunning?.())return;selectedFiles=[];filesByKey.clear();$("photos").value="";$("folder").value="";$("chosen").textContent="Nothing selected yet.";$("start").disabled=true;$("clearSelection").disabled=true;window.dispatchEvent(new CustomEvent("kaitiaki-clear-files"));render()};
+$("photos").addEventListener("change",e=>choose(e.target.files));$("folder").addEventListener("change",e=>choose(e.target.files));
+$("clearSelection").onclick=()=>{if(working||window.KaitiakiCloudIsRunning?.())return;selectedFiles=[];filesByKey.clear();$("photos").value="";$("folder").value="";$("chosen").textContent="Nothing selected yet.";$("start").disabled=true;$("clearSelection").disabled=true;window.dispatchEvent(new CustomEvent("kaitiaki-clear-files"));render()};
 $("pause").onclick=()=>{paused=true;$("status").textContent="Pausing after the current saved batch…"};
 $("start").onclick=async()=>{
 if(working||!selectedFiles.length)return;working=true;paused=false;$("start").disabled=true;$("pause").disabled=false;
