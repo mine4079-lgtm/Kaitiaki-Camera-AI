@@ -16,7 +16,7 @@ function endpoint(){return (localStorage.getItem(URL_KEY)||"https://kaitiaki-nex
 function token(){return localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||""}
 function deviceId(){return localStorage.getItem(DEVICE_ID_KEY)||""}
 function teamName(){return localStorage.getItem(TEAM_KEY)||""}
-function headers(){const t=token();return t?{authorization:"Bearer "+t}:{}}
+function teamBody(extra={}){return JSON.stringify({token:token(),...extra})}
 function candidate(r){
   if(r.verified)return true;
   if(r.aiPrediction==="Unsure"||r.aiNeedsExtraReview)return true;
@@ -40,7 +40,7 @@ async function syncRecord(record,preview){
   try{
     const image=await blobToDataURL(preview||record.preview);
     const body={record:{...record,syncId:(record.deviceId||deviceId()||"device")+"|"+record.key},image};
-    const res=await fetch(endpoint()+"/team/sync",{method:"POST",headers:{"content-type":"application/json",...headers()},body:JSON.stringify(body)});
+    const res=await fetch(endpoint()+"/team/sync",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody(body)});
     if(!res.ok)throw Error("sync "+res.status);
     clearPending(record.key);
     markSynced(record);
@@ -81,7 +81,7 @@ setTimeout(()=>{flushPending();catchUpExisting()},1200);
 function clearImages(){for(const u of imageUrls)URL.revokeObjectURL(u);imageUrls=[]}
 async function loadImage(id,img){
   try{
-    const res=await fetch(endpoint()+"/team/image?id="+encodeURIComponent(id),{headers:headers()});
+    const res=await fetch(endpoint()+"/team/image",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({id})});
     if(!res.ok)throw Error();
     const blob=await res.blob(),url=URL.createObjectURL(blob);imageUrls.push(url);img.src=url;
   }catch{
@@ -104,8 +104,8 @@ async function loadShared(kind){
   try{
     const team=teamName();
     const path=kind==="sighting"?"/team/sightings":"/team/review";
-    const url=endpoint()+path+"?limit=150"+(team?"&team="+encodeURIComponent(team):"");
-    const res=await fetch(url,{headers:headers()});
+    const url=endpoint()+path;
+    const res=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:150,team})});
     const data=await res.json();
     if(!res.ok||data.sharedReady!==true)throw Error(data.error||"Shared database not connected yet");
     root.replaceChildren();
