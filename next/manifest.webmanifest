@@ -1,6 +1,6 @@
 {
-  "name": "Kaitiaki Next",
-  "short_name": "Kaitiaki Next",
+  "name": "Kaitiaki Camera AI",
+  "short_name": "Kaitiaki",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f4f7f5",
