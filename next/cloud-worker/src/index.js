@@ -23,8 +23,11 @@ const GUIDE =
   LABELS.join(", ") +
   ". Identify only what is visibly present. Other wildlife includes birds " +
   "(including kereru and kiwi), cats, dogs, and all non-target animals; " +
-  "never call animals an empty image. Empty image is only when there is no " +
-  "visible animal. Use Unsure only when no single label fits confidently. " +
+  "never call animals an empty image. Empty image is only when the frame is clear enough " +
+  "to rule out an animal and no animal or animal-like shape is visible. If the image is " +
+  "blurry, dark, partially obscured, motion-smeared, or contains an animal-like shape that " +
+  "cannot be identified confidently, use Unsure rather than Empty image. Use Unsure only " +
+  "when no single species label fits confidently. " +
   "\n\nDistinguishing features:\n" +
   "- Possum vs Rat: possums are larger (cat-sized), with a bushier tail, " +
   "rounder ears and a blunter face. Rats are smaller, with a thin scaly " +
