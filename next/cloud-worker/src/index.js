@@ -121,6 +121,9 @@ async function ensureSchema(env) {
   await env.KAITIAKI_DB.prepare(
     "CREATE INDEX IF NOT EXISTS idx_sightings_team_status ON sightings(team_name, status, updated_at DESC)"
   ).run();
+  await env.KAITIAKI_DB.prepare(
+    "UPDATE sightings SET status='ignored', needs_extra_review=0 WHERE ai_prediction='Empty image' AND status='review'"
+  ).run();
 
   await env.KAITIAKI_DB.prepare(`
     CREATE TABLE IF NOT EXISTS camera_checks (
@@ -173,6 +176,7 @@ function classifySharedStatus(r) {
   const flagged = !!r.aiNeedsExtraReview;
 
   if (verified) return PEST_LABELS.includes(confirmed) ? "sighting" : "resolved";
+  if (ai === "Empty image") return "ignored";
   if (ai === "Unsure" || flagged || (ai && confidence < 95)) return "review";
   if (PEST_LABELS.includes(ai) && confidence >= 95) return "sighting";
   return "ignored";

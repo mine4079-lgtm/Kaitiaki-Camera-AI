@@ -108,7 +108,7 @@ async function loadShared(kind){
     const data=await res.json();
     if(!res.ok||data.sharedReady!==true)throw Error(data.error||"Shared database not connected yet");
     root.replaceChildren();
-    const records=data.records||[];
+    const records=(data.records||[]).filter(r=>r.ai_prediction!=="Empty image");
     if(!records.length){
       root.innerHTML='<div class="empty">No shared '+(kind==="sighting"?"pest sightings":"review items")+' yet.</div>';
       status.textContent="Up to date.";
