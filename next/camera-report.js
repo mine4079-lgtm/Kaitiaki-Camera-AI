@@ -142,6 +142,7 @@ function allRows(db){return new Promise((ok,no)=>{const q=db.transaction(STORE,"
 function effectiveLabel(r){return r.verified?r.label:(r.aiPrediction||"")}
 function isSkipped(r){return !!r.aiSkipped||r.aiPrediction==="Empty image"}
 function dateOnly(v){return v?String(v).slice(0,10):""}
+function presenceFromCount(n){n=Number(n)||0;return n===0?"None":n<=9?"Low":n<=15?"Medium":"High"}
 
 async function finishCheck(){
   const c=current();if(!c){$("cameraCheckStatusText").textContent="Start a camera check first.";return}
@@ -163,11 +164,13 @@ async function finishCheck(){
     }
     const dates=linked.map(r=>r.capturedAt).filter(Boolean).map(v=>new Date(v)).filter(d=>!Number.isNaN(d.getTime())).sort((a,b)=>a-b);
     const checkedTimes=processed.map(r=>r.aiCheckedAt||r.verifiedAt||r.updatedAt).filter(Boolean).sort();
-    let presence=$("cameraPresence").value||c.approxPresence||"";
-    if(!presence&&possums.length===0)presence="None";
+    const possumDates=possums.map(r=>new Date(r.capturedAt||r.lastModified||0)).filter(d=>!Number.isNaN(d.getTime())).sort((a,b)=>a-b);
+    const latestPossumDate=possumDates.length?dateOnly(possumDates.at(-1).toISOString()):"";
+    let presence="";
     const noteParts=Object.entries(species).filter(([k])=>k!=="Possum").sort((a,b)=>b[1]-a[1]).map(([k,n])=>k+" "+n);
     const t=team(),now=new Date().toISOString();
     const totalForYear=monthly.reduce((a,n)=>a+n,0);
+    presence=presenceFromCount(totalForYear);
     const report={
       ...c,
       zone:$("cameraZone").value.trim()||c.zone,block:$("cameraBlock").value.trim()||c.block,status:$("cameraStatus").value||c.status,
@@ -176,7 +179,7 @@ async function finishCheck(){
       classifiedDate:dateOnly(checkedTimes.at(-1)||now),
       firstImageDate:dates.length?dateOnly(dates[0].toISOString()):"",
       lastImageDate:dates.length?dateOnly(dates.at(-1).toISOString()):"",
-      approxPresence:presence,reportYear:year,monthlyPossum:monthly,totalPossum:totalForYear,
+      approxPresence:presence,latestPossumDate,reportYear:year,monthlyPossum:monthly,totalPossum:totalForYear,
       speciesCounts:species,imagesProcessed:processed.length,meaningfulCount:meaningful.length,
       skippedCount:processed.filter(isSkipped).length,humanCount:species.Human||0,unsureCount:species.Unsure||0,
       notes:noteParts.join("; "),issuesNotes:$("cameraIssues").value.trim()||c.issuesNotes||"",
@@ -187,6 +190,27 @@ async function finishCheck(){
     $("cameraCheckStatusText").textContent="Camera check saved: "+report.cameraNo+" · "+report.meaningfulCount+" meaningful detections · "+report.skippedCount+" empty/vegetation frames skipped.";
   }catch(e){$("cameraCheckStatusText").textContent="Could not finish camera check: "+String(e.message||e)}
   finally{btn.disabled=false}
+}
+
+async function backfillExistingChecks(){
+  const checks=localChecks();if(!checks.length)return;
+  let db,rows=[];try{db=await openDB();rows=await allRows(db)}catch{return}finally{db?.close()}
+  let changed=false;
+  for(const c of checks){
+    const linked=rows.filter(r=>r.cameraCheckId===c.id&&r.aiPrediction);
+    if(!linked.length)continue;
+    const meaningful=linked.filter(r=>!isSkipped(r));
+    const possums=meaningful.filter(r=>effectiveLabel(r)==="Possum");
+    const year=Number(c.reportYear||String(c.checkedDate||today()).slice(0,4))||new Date().getFullYear();
+    const monthly=Array(12).fill(0),dates=[];
+    for(const r of possums){const d=new Date(r.capturedAt||r.lastModified||0);if(!Number.isNaN(d.getTime())){dates.push(d);if(d.getFullYear()===year)monthly[d.getMonth()]++}}
+    dates.sort((a,b)=>a-b);const total=monthly.reduce((a,n)=>a+n,0);
+    const latest=dates.length?dateOnly(dates.at(-1).toISOString()):"";
+    if(c.latestPossumDate!==latest||c.approxPresence!==presenceFromCount(total)||Number(c.totalPossum)!==total){
+      c.latestPossumDate=latest;c.approxPresence=presenceFromCount(total);c.totalPossum=total;c.monthlyPossum=monthly;c.updatedAt=new Date().toISOString();saveLocalCheck(c);syncCheck(c);changed=true;
+    }
+  }
+  if(changed)renderReport();
 }
 
 async function syncCheck(check){
@@ -226,7 +250,7 @@ async function renderReport(){
   const body=$("cameraReportBody");body.replaceChildren();
   for(const c of yearChecks.slice(0,250)){
     const tr=document.createElement("tr");
-    tr.innerHTML="<td>"+esc(c.cameraNo)+"</td><td>"+esc(c.zone)+"</td><td>"+esc(c.block)+"</td><td>"+esc(c.checkNo)+"</td><td>"+esc(c.checkedDate)+"</td><td>"+esc(c.servicedBy)+"</td><td>"+esc(c.totalPossum)+"</td><td>"+esc(c.approxPresence||"")+"</td><td>"+esc(c.notes||"")+"</td><td>"+esc(c.issuesNotes||"")+"</td>";
+    tr.innerHTML="<td>"+esc(c.cameraNo)+"</td><td>"+esc(c.zone)+"</td><td>"+esc(c.block)+"</td><td>"+esc(c.checkNo)+"</td><td>"+esc(c.checkedDate)+"</td><td>"+esc(c.servicedBy)+"</td><td>"+esc(c.totalPossum)+"</td><td>"+esc(c.approxPresence||presenceFromCount(c.totalPossum))+"</td><td>"+esc(c.latestPossumDate||"")+"</td><td>"+esc(c.notes||"")+"</td><td>"+esc(c.issuesNotes||"")+"</td>";
     body.append(tr);
     if(c.cameraNo)saveRegister(c.cameraNo,{zone:c.zone||"",block:c.block||"",status:c.status||"Active"});
   }
@@ -235,11 +259,11 @@ async function renderReport(){
 async function exportReport(){
   const checks=await mergedChecks(),year=Number($("reportYear")?.value)||new Date().getFullYear();
   const data=checks.filter(c=>Number(c.reportYear)===year);
-  const head=["Camera No'","Zones","Blocks","Status","Check No'","Checked date (in the field)","Serviced by","Classified date","Date of first image (if matching expected FIRST date)","Date of last image (if matching expected LAST date)","Approx possum presence","Classified by",...MONTHS.map(m=>m+" "+year),"Total "+year,"Notes","Issues notes"];
+  const head=["Camera No'","Zones","Blocks","Status","Check No'","Checked date (in the field)","Serviced by","Classified date","Date of first image (if matching expected FIRST date)","Date of last image (if matching expected LAST date)","Approx possum presence","Most recent possum sighting","Classified by",...MONTHS.map(m=>m+" "+year),"Total "+year,"Notes","Issues notes"];
   const lines=[head.map(csv).join(",")];
   for(const c of data){
     const months=Array.from({length:12},(_,i)=>Number(c.monthlyPossum?.[i])||0);
-    lines.push([c.cameraNo,c.zone,c.block,c.status,c.checkNo,c.checkedDate,c.servicedBy,c.classifiedDate,c.firstImageDate,c.lastImageDate,c.approxPresence,c.classifiedBy,...months,c.totalPossum,c.notes,c.issuesNotes].map(csv).join(","));
+    lines.push([c.cameraNo,c.zone,c.block,c.status,c.checkNo,c.checkedDate,c.servicedBy,c.classifiedDate,c.firstImageDate,c.lastImageDate,c.approxPresence||presenceFromCount(c.totalPossum),c.latestPossumDate||"",c.classifiedBy,...months,c.totalPossum,c.notes,c.issuesNotes].map(csv).join(","));
   }
   const url=URL.createObjectURL(new Blob(["\ufeff",lines.join("\r\n")],{type:"text/csv;charset=utf-8"}));
   const a=document.createElement("a");a.href=url;a.download="Kaitiaki_Camera_Check_Data_"+year+".csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
@@ -257,5 +281,5 @@ $("refreshReport")?.addEventListener("click",renderReport);
 $("exportCameraReport")?.addEventListener("click",exportReport);
 $("reportYear")?.addEventListener("change",renderReport);
 window.KaitiakiLoadCameraReport=renderReport;
-fillCameraList();renderCurrent();initYears();if($("cameraCheckedDate")&&!$("cameraCheckedDate").value)$("cameraCheckedDate").value=today();
+fillCameraList();renderCurrent();initYears();if($("cameraCheckedDate")&&!$("cameraCheckedDate").value)$("cameraCheckedDate").value=today();setTimeout(backfillExistingChecks,500);
 })();
