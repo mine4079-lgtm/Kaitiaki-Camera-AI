@@ -16,6 +16,7 @@ function token(){return localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.
 function deviceId(){return localStorage.getItem(DEVICE_ID_KEY)||""}
 function teamBody(extra={}){return JSON.stringify({token:token(),...extra})}
 function candidate(r){
+  if(r.aiSkipped||(r.aiPrediction==="Empty image"&&Number(r.aiConfidence)>=95&&!r.aiNeedsExtraReview))return false;
   if(r.verified)return true;
   if(r.aiPrediction==="Unsure"||r.aiNeedsExtraReview)return true;
   return (PESTS.includes(r.aiPrediction)&&Number(r.aiConfidence)>=85) || (!!r.aiPrediction&&Number(r.aiConfidence)<85);
