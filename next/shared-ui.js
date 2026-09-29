@@ -6,7 +6,6 @@ const URL_KEY="kaitiaki-next-cloud-endpoint";
 const TOKEN_KEY="kaitiaki-next-session-token";
 const PERSIST_TOKEN_KEY="kaitiaki-next-device-token";
 const DEVICE_ID_KEY="kaitiaki-device-id";
-const TEAM_KEY="kaitiaki-team-name";
 const PENDING_KEY="kaitiaki-shared-pending";
 const SYNCED_KEY="kaitiaki-shared-synced-v1";
 const PESTS=["Possum","Rat","Stoat","Mouse","Deer","Pig"];
@@ -15,7 +14,6 @@ let imageUrls=[];
 function endpoint(){return (localStorage.getItem(URL_KEY)||"https://kaitiaki-next-vision.monaghan666.workers.dev").replace(/\/+$/,"")}
 function token(){return localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||""}
 function deviceId(){return localStorage.getItem(DEVICE_ID_KEY)||""}
-function teamName(){return localStorage.getItem(TEAM_KEY)||""}
 function teamBody(extra={}){return JSON.stringify({token:token(),...extra})}
 function candidate(r){
   if(r.verified)return true;
@@ -103,10 +101,9 @@ async function loadShared(kind){
   try{const health=await fetch(endpoint(),{cache:"no-store"}).then(r=>r.json());if(!health.sharedReady)throw Error("Worker is online but D1 is not connected to it.")}catch(e){status.textContent="Shared connection problem: "+String(e.message||e);return}
   status.textContent="Loading shared team records…";
   try{
-    const team=teamName();
     const path=kind==="sighting"?"/team/sightings":"/team/review";
     const url=endpoint()+path;
-    const res=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:150,team})});
+    const res=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:150})});
     const data=await res.json();
     if(!res.ok||data.sharedReady!==true)throw Error(data.error||"Shared database not connected yet");
     root.replaceChildren();
