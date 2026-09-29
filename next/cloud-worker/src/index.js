@@ -141,6 +141,7 @@ async function ensureSchema(env) {
       classified_date TEXT,
       first_image_date TEXT,
       last_image_date TEXT,
+      latest_possum_date TEXT,
       approx_presence TEXT,
       classified_by TEXT,
       report_year INTEGER,
@@ -158,6 +159,9 @@ async function ensureSchema(env) {
       updated_at TEXT NOT NULL
     )
   `).run();
+  const cameraColumns = await env.KAITIAKI_DB.prepare("PRAGMA table_info(camera_checks)").all();
+  const cameraNames = new Set((cameraColumns.results || []).map(row => row.name));
+  if (!cameraNames.has("latest_possum_date")) await env.KAITIAKI_DB.prepare("ALTER TABLE camera_checks ADD COLUMN latest_possum_date TEXT").run();
   await env.KAITIAKI_DB.prepare(
     "CREATE INDEX IF NOT EXISTS idx_camera_checks_camera_date ON camera_checks(camera_no, checked_date DESC)"
   ).run();
@@ -370,11 +374,11 @@ async function handleCameraCheckSync(input, env, origin) {
   await env.KAITIAKI_DB.prepare(`
     INSERT INTO camera_checks (
       id, team_name, device_id, device_name, camera_no, zone, block_name, camera_status,
-      check_no, checked_date, serviced_by, classified_date, first_image_date, last_image_date,
+      check_no, checked_date, serviced_by, classified_date, first_image_date, last_image_date, latest_possum_date,
       approx_presence, classified_by, report_year, monthly_possum_json, species_json,
       total_possum, images_processed, meaningful_count, skipped_count, human_count, unsure_count,
       notes, issues_notes, created_at, updated_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET
       team_name=excluded.team_name,
       device_id=excluded.device_id,
@@ -389,6 +393,7 @@ async function handleCameraCheckSync(input, env, origin) {
       classified_date=excluded.classified_date,
       first_image_date=excluded.first_image_date,
       last_image_date=excluded.last_image_date,
+      latest_possum_date=excluded.latest_possum_date,
       approx_presence=excluded.approx_presence,
       classified_by=excluded.classified_by,
       report_year=excluded.report_year,
@@ -418,6 +423,7 @@ async function handleCameraCheckSync(input, env, origin) {
     clean(c.classifiedDate, 30),
     clean(c.firstImageDate, 30),
     clean(c.lastImageDate, 30),
+    clean(c.latestPossumDate, 30),
     clean(c.approxPresence, 40),
     clean(c.classifiedBy, 120),
     Math.max(2000, Math.min(2100, int(c.reportYear, new Date().getFullYear()))),
@@ -446,7 +452,7 @@ async function handleCameraChecks(input, env, origin) {
   const limit = Math.max(1, Math.min(1000, int(input?.limit, 500)));
   const result = await env.KAITIAKI_DB.prepare(`
     SELECT id, team_name, device_id, device_name, camera_no, zone, block_name, camera_status,
-      check_no, checked_date, serviced_by, classified_date, first_image_date, last_image_date,
+      check_no, checked_date, serviced_by, classified_date, first_image_date, last_image_date, latest_possum_date,
       approx_presence, classified_by, report_year, monthly_possum_json, species_json,
       total_possum, images_processed, meaningful_count, skipped_count, human_count, unsure_count,
       notes, issues_notes, created_at, updated_at
@@ -470,6 +476,7 @@ async function handleCameraChecks(input, env, origin) {
     classifiedDate: row.classified_date || "",
     firstImageDate: row.first_image_date || "",
     lastImageDate: row.last_image_date || "",
+    latestPossumDate: row.latest_possum_date || "",
     approxPresence: row.approx_presence || "",
     classifiedBy: row.classified_by || "",
     reportYear: row.report_year || new Date().getFullYear(),
