@@ -61,7 +61,7 @@ function suggestCheckNo(cameraNo){
   const n=localChecks().filter(c=>String(c.cameraNo||"").toUpperCase()===cameraNo.toUpperCase()).reduce((m,c)=>Math.max(m,Number(c.checkNo)||0),0)+1;
   if(!$("cameraCheckNo").value||Number($("cameraCheckNo").value)<=1)$("cameraCheckNo").value=String(n);
 }
-function startCheck(){
+async function startCheck(){
   const cameraNo=$("cameraNo").value.trim().toUpperCase();
   if(!cameraNo){$("cameraCheckStatusText").textContent="Enter the camera number first.";return}
   const t=team();
@@ -80,7 +80,11 @@ function startCheck(){
   };
   saveRegister(cameraNo,{zone:c.zone,block:c.block,status:c.status});
   saveCurrent(c);
-  $("cameraCheckStatusText").textContent="Camera check started for "+cameraNo+". New imports will be attached to this check.";
+  let attached=0;
+  try{attached=await window.KaitiakiAttachConnectedToCameraCheck?.(window.KaitiakiCameraCheckContext?.()||{})||0}catch{}
+  $("cameraCheckStatusText").textContent=attached
+    ?"Camera check started for "+cameraNo+". "+attached+" already imported image"+(attached===1?"":"s")+" attached to this check."
+    :"Camera check started for "+cameraNo+". New imports will be attached automatically. If these photos were imported earlier, reconnect that same SD card/folder once and press Start camera check again.";
 }
 function cancelCheck(){
   if(!current())return;
@@ -136,7 +140,7 @@ window.KaitiakiExtractCaptureDate=extractCaptureDate;
 function openDB(){return new Promise((ok,no)=>{const q=indexedDB.open(DB_NAME,1);q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})}
 function allRows(db){return new Promise((ok,no)=>{const q=db.transaction(STORE,"readonly").objectStore(STORE).getAll();q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})}
 function effectiveLabel(r){return r.verified?r.label:(r.aiPrediction||"")}
-function isSkipped(r){return !!r.aiSkipped||(r.aiPrediction==="Empty image"&&Number(r.aiConfidence)>=95&&!r.aiNeedsExtraReview)}
+function isSkipped(r){return !!r.aiSkipped||r.aiPrediction==="Empty image"}
 function dateOnly(v){return v?String(v).slice(0,10):""}
 
 async function finishCheck(){
