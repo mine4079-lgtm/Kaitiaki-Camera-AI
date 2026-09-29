@@ -133,8 +133,8 @@ function classifySharedStatus(r) {
   const flagged = !!r.aiNeedsExtraReview;
 
   if (verified) return PEST_LABELS.includes(confirmed) ? "sighting" : "resolved";
-  if (ai === "Unsure" || flagged || (ai && confidence < 85)) return "review";
-  if (PEST_LABELS.includes(ai) && confidence >= 85) return "sighting";
+  if (ai === "Unsure" || flagged || (ai && confidence < 95)) return "review";
+  if (PEST_LABELS.includes(ai) && confidence >= 95) return "sighting";
   return "ignored";
 }
 
