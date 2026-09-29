@@ -1,6 +1,6 @@
 /* Kaitiaki Camera AI offline shell. Source photo bytes are never cached. */
-const CACHE="kaitiaki-next-shell-v21";
-const SHELL=["./","./index.html","./cloud-ui.js","./shared-ui.js","./manifest.webmanifest"];
+const CACHE="kaitiaki-next-shell-v22";
+const SHELL=["./","./index.html","./cloud-ui.js","./shared-ui.js","./camera-report.js","./manifest.webmanifest"];
 
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));

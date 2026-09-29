@@ -122,6 +122,46 @@ async function ensureSchema(env) {
     "CREATE INDEX IF NOT EXISTS idx_sightings_team_status ON sightings(team_name, status, updated_at DESC)"
   ).run();
 
+  await env.KAITIAKI_DB.prepare(`
+    CREATE TABLE IF NOT EXISTS camera_checks (
+      id TEXT PRIMARY KEY,
+      team_name TEXT,
+      device_id TEXT,
+      device_name TEXT,
+      camera_no TEXT NOT NULL,
+      zone TEXT,
+      block_name TEXT,
+      camera_status TEXT,
+      check_no INTEGER,
+      checked_date TEXT,
+      serviced_by TEXT,
+      classified_date TEXT,
+      first_image_date TEXT,
+      last_image_date TEXT,
+      approx_presence TEXT,
+      classified_by TEXT,
+      report_year INTEGER,
+      monthly_possum_json TEXT,
+      species_json TEXT,
+      total_possum INTEGER NOT NULL DEFAULT 0,
+      images_processed INTEGER NOT NULL DEFAULT 0,
+      meaningful_count INTEGER NOT NULL DEFAULT 0,
+      skipped_count INTEGER NOT NULL DEFAULT 0,
+      human_count INTEGER NOT NULL DEFAULT 0,
+      unsure_count INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      issues_notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `).run();
+  await env.KAITIAKI_DB.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_camera_checks_camera_date ON camera_checks(camera_no, checked_date DESC)"
+  ).run();
+  await env.KAITIAKI_DB.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_camera_checks_updated ON camera_checks(updated_at DESC)"
+  ).run();
+
   schemaReady = true;
 }
 
@@ -308,6 +348,143 @@ async function handleTeamImage(input, env, origin) {
   }, 200, origin);
 }
 
+async function handleCameraCheckSync(input, env, origin) {
+  if (!sharedConfigured(env)) {
+    return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
+  }
+  const c = input?.check || {};
+  const id = clean(c.id, 160);
+  const cameraNo = clean(c.cameraNo, 80);
+  if (!id || !cameraNo) return reply({ error: "Camera check id and camera number are required" }, 400, origin);
+
+  await ensureSchema(env);
+  const now = new Date().toISOString();
+  const monthly = Array.isArray(c.monthlyPossum) ? c.monthlyPossum.slice(0, 12).map(v => Math.max(0, int(v))) : Array(12).fill(0);
+  while (monthly.length < 12) monthly.push(0);
+  const species = c.speciesCounts && typeof c.speciesCounts === "object" ? c.speciesCounts : {};
+
+  await env.KAITIAKI_DB.prepare(`
+    INSERT INTO camera_checks (
+      id, team_name, device_id, device_name, camera_no, zone, block_name, camera_status,
+      check_no, checked_date, serviced_by, classified_date, first_image_date, last_image_date,
+      approx_presence, classified_by, report_year, monthly_possum_json, species_json,
+      total_possum, images_processed, meaningful_count, skipped_count, human_count, unsure_count,
+      notes, issues_notes, created_at, updated_at
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET
+      team_name=excluded.team_name,
+      device_id=excluded.device_id,
+      device_name=excluded.device_name,
+      camera_no=excluded.camera_no,
+      zone=excluded.zone,
+      block_name=excluded.block_name,
+      camera_status=excluded.camera_status,
+      check_no=excluded.check_no,
+      checked_date=excluded.checked_date,
+      serviced_by=excluded.serviced_by,
+      classified_date=excluded.classified_date,
+      first_image_date=excluded.first_image_date,
+      last_image_date=excluded.last_image_date,
+      approx_presence=excluded.approx_presence,
+      classified_by=excluded.classified_by,
+      report_year=excluded.report_year,
+      monthly_possum_json=excluded.monthly_possum_json,
+      species_json=excluded.species_json,
+      total_possum=excluded.total_possum,
+      images_processed=excluded.images_processed,
+      meaningful_count=excluded.meaningful_count,
+      skipped_count=excluded.skipped_count,
+      human_count=excluded.human_count,
+      unsure_count=excluded.unsure_count,
+      notes=excluded.notes,
+      issues_notes=excluded.issues_notes,
+      updated_at=excluded.updated_at
+  `).bind(
+    id,
+    clean(c.teamName, 120),
+    clean(c.deviceId, 120),
+    clean(c.deviceName, 120),
+    cameraNo,
+    clean(c.zone, 120),
+    clean(c.block, 120),
+    clean(c.status, 40),
+    Math.max(0, int(c.checkNo)),
+    clean(c.checkedDate, 30),
+    clean(c.servicedBy, 120),
+    clean(c.classifiedDate, 30),
+    clean(c.firstImageDate, 30),
+    clean(c.lastImageDate, 30),
+    clean(c.approxPresence, 40),
+    clean(c.classifiedBy, 120),
+    Math.max(2000, Math.min(2100, int(c.reportYear, new Date().getFullYear()))),
+    JSON.stringify(monthly),
+    JSON.stringify(species),
+    Math.max(0, int(c.totalPossum)),
+    Math.max(0, int(c.imagesProcessed)),
+    Math.max(0, int(c.meaningfulCount)),
+    Math.max(0, int(c.skippedCount)),
+    Math.max(0, int(c.humanCount)),
+    Math.max(0, int(c.unsureCount)),
+    clean(c.notes, 1000),
+    clean(c.issuesNotes, 1000),
+    clean(c.createdAt, 50) || now,
+    clean(c.updatedAt, 50) || now
+  ).run();
+
+  return reply({ ok: true, id, sharedReady: true }, 200, origin);
+}
+
+async function handleCameraChecks(input, env, origin) {
+  if (!sharedConfigured(env)) {
+    return reply({ error: "Shared team database is not connected yet", sharedReady: false, checks: [] }, 503, origin);
+  }
+  await ensureSchema(env);
+  const limit = Math.max(1, Math.min(1000, int(input?.limit, 500)));
+  const result = await env.KAITIAKI_DB.prepare(`
+    SELECT id, team_name, device_id, device_name, camera_no, zone, block_name, camera_status,
+      check_no, checked_date, serviced_by, classified_date, first_image_date, last_image_date,
+      approx_presence, classified_by, report_year, monthly_possum_json, species_json,
+      total_possum, images_processed, meaningful_count, skipped_count, human_count, unsure_count,
+      notes, issues_notes, created_at, updated_at
+    FROM camera_checks
+    ORDER BY checked_date DESC, updated_at DESC
+    LIMIT ?
+  `).bind(limit).all();
+
+  const checks = (result.results || []).map(row => ({
+    id: row.id,
+    teamName: row.team_name || "",
+    deviceId: row.device_id || "",
+    deviceName: row.device_name || "",
+    cameraNo: row.camera_no || "",
+    zone: row.zone || "",
+    block: row.block_name || "",
+    status: row.camera_status || "",
+    checkNo: row.check_no || 0,
+    checkedDate: row.checked_date || "",
+    servicedBy: row.serviced_by || "",
+    classifiedDate: row.classified_date || "",
+    firstImageDate: row.first_image_date || "",
+    lastImageDate: row.last_image_date || "",
+    approxPresence: row.approx_presence || "",
+    classifiedBy: row.classified_by || "",
+    reportYear: row.report_year || new Date().getFullYear(),
+    monthlyPossum: (() => { try { return JSON.parse(row.monthly_possum_json || "[]"); } catch { return []; } })(),
+    speciesCounts: (() => { try { return JSON.parse(row.species_json || "{}"); } catch { return {}; } })(),
+    totalPossum: row.total_possum || 0,
+    imagesProcessed: row.images_processed || 0,
+    meaningfulCount: row.meaningful_count || 0,
+    skippedCount: row.skipped_count || 0,
+    humanCount: row.human_count || 0,
+    unsureCount: row.unsure_count || 0,
+    notes: row.notes || "",
+    issuesNotes: row.issues_notes || "",
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || ""
+  }));
+  return reply({ sharedReady: true, checks }, 200, origin);
+}
+
 async function handleClassification(request, env, origin) {
   if (!env.GEMINI_API_KEY || !env.KAITIAKI_ACCESS_TOKEN) {
     return reply({ error: "Server not configured" }, 503, origin);
@@ -444,6 +621,8 @@ export default {
       if (url.pathname === "/team/sightings") return handleTeamList(parsed.input, env, origin, "sighting");
       if (url.pathname === "/team/review") return handleTeamList(parsed.input, env, origin, "review");
       if (url.pathname === "/team/image") return handleTeamImage(parsed.input, env, origin);
+      if (url.pathname === "/team/camera-check-sync") return handleCameraCheckSync(parsed.input, env, origin);
+      if (url.pathname === "/team/camera-checks") return handleCameraChecks(parsed.input, env, origin);
       return reply({ error: "Not found" }, 404, origin);
     }
 
