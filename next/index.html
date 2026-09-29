@@ -143,7 +143,7 @@ dialog::backdrop{background:#0c211dcc}
 <p id="reportStatus" class="sub" style="margin-top:10px">Open Reports to load camera checks.</p>
 <div class="statbar"><div class="stat"><b id="reportChecks">0</b><small>CAMERA CHECKS</small></div><div class="stat"><b id="reportPossums">0</b><small>POSSUM IMAGES</small></div><div class="stat"><b id="reportDetections">0</b><small>MEANINGFUL DETECTIONS</small></div><div class="stat"><b id="reportSkipped">0</b><small>EMPTY / VEGE SKIPPED</small></div></div>
 <div class="panel"><h3>Monthly possum detections</h3><p class="sub">Counts are based on images classified as Possum and the image date available to Kaitiaki.</p><div id="monthlyBars" class="month-bars"></div></div>
-<div class="panel"><h3>Camera checks</h3><div class="report-scroll"><table class="report-table"><thead><tr><th>Camera</th><th>Zone</th><th>Block</th><th>Check</th><th>Checked</th><th>Serviced by</th><th>Possums</th><th>Presence</th><th>Other detections</th><th>Issues</th></tr></thead><tbody id="cameraReportBody"></tbody></table></div></div>
+<div class="panel"><h3>Camera checks</h3><div class="report-scroll"><table class="report-table"><thead><tr><th>Camera</th><th>Zone</th><th>Block</th><th>Check</th><th>Checked</th><th>Serviced by</th><th>Possums</th><th>Presence</th><th>Last possum</th><th>Other detections</th><th>Issues</th></tr></thead><tbody id="cameraReportBody"></tbody></table></div></div>
 </section>
 <section class="view" id="learning">
 <h2>Learning, without the clutter</h2>
@@ -275,7 +275,7 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 </script>
 <script src="./cloud-ui.js?v=15"></script>
 <script src="./shared-ui.js?v=7"></script>
-<script src="./camera-report.js?v=2"></script>
+<script src="./camera-report.js?v=3"></script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=24").catch(()=>{}))}</script>
 </body>
 </html>
