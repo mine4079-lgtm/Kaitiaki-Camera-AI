@@ -65,6 +65,7 @@ function startCheck(){
   const cameraNo=$("cameraNo").value.trim().toUpperCase();
   if(!cameraNo){$("cameraCheckStatusText").textContent="Enter the camera number first.";return}
   const t=team();
+  if(!t.staffName){$("cameraCheckStatusText").textContent="Set your name once in Team before starting a camera check.";return}
   const c={
     id:uuid(),cameraNo,
     zone:$("cameraZone").value.trim(),block:$("cameraBlock").value.trim(),
@@ -162,12 +163,16 @@ async function finishCheck(){
     if(!presence&&possums.length===0)presence="None";
     const noteParts=Object.entries(species).filter(([k])=>k!=="Possum").sort((a,b)=>b[1]-a[1]).map(([k,n])=>k+" "+n);
     const t=team(),now=new Date().toISOString();
+    const totalForYear=monthly.reduce((a,n)=>a+n,0);
     const report={
-      ...c,servicedBy:c.servicedBy||t.staffName||"",classifiedBy:t.staffName||c.servicedBy||"",
+      ...c,
+      zone:$("cameraZone").value.trim()||c.zone,block:$("cameraBlock").value.trim()||c.block,status:$("cameraStatus").value||c.status,
+      checkNo:Math.max(1,Number($("cameraCheckNo").value)||c.checkNo||1),checkedDate:$("cameraCheckedDate").value||c.checkedDate,
+      servicedBy:c.servicedBy||t.staffName||"",classifiedBy:t.staffName||c.servicedBy||"",
       classifiedDate:dateOnly(checkedTimes.at(-1)||now),
       firstImageDate:dates.length?dateOnly(dates[0].toISOString()):"",
       lastImageDate:dates.length?dateOnly(dates.at(-1).toISOString()):"",
-      approxPresence:presence,reportYear:year,monthlyPossum:monthly,totalPossum:possums.length,
+      approxPresence:presence,reportYear:year,monthlyPossum:monthly,totalPossum:totalForYear,
       speciesCounts:species,imagesProcessed:processed.length,meaningfulCount:meaningful.length,
       skippedCount:processed.filter(isSkipped).length,humanCount:species.Human||0,unsureCount:species.Unsure||0,
       notes:noteParts.join("; "),issuesNotes:$("cameraIssues").value.trim()||c.issuesNotes||"",
@@ -248,5 +253,5 @@ $("refreshReport")?.addEventListener("click",renderReport);
 $("exportCameraReport")?.addEventListener("click",exportReport);
 $("reportYear")?.addEventListener("change",renderReport);
 window.KaitiakiLoadCameraReport=renderReport;
-fillCameraList();renderCurrent();initYears();
+fillCameraList();renderCurrent();initYears();if($("cameraCheckedDate")&&!$("cameraCheckedDate").value)$("cameraCheckedDate").value=today();
 })();
