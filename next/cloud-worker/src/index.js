@@ -6,7 +6,7 @@
  */
 const LABELS = [
   "Possum","Rat","Stoat","Mouse","Deer","Pig","Weka",
-  "Other wildlife","Empty image","Unsure"
+  "Other wildlife","Human","Empty image","Unsure"
 ];
 const PEST_LABELS = ["Possum","Rat","Stoat","Mouse","Deer","Pig"];
 const MAX_IMAGE_BASE64 = 8 * 1024 * 1024 * 1.5;
@@ -17,10 +17,10 @@ let schemaReady = false;
 const GUIDE =
   "Classify this New Zealand trail camera photograph using exactly one label: " +
   LABELS.join(", ") +
-  ". Identify only what is visibly present. Other wildlife includes birds " +
+  ". Identify only what is visibly present. Use Human when a person is visible. Other wildlife includes birds " +
   "(including kereru and kiwi), cats, dogs, and all non-target animals; " +
-  "never call animals an empty image. Empty image is only when the frame is clear enough " +
-  "to rule out an animal and no animal or animal-like shape is visible. If the image is " +
+  "never call animals or people an empty image. Empty image is only when the frame is clear enough " +
+  "to rule out an animal or person and no animal, person, or animal-like shape is visible. Vegetation-only, wind-triggered, shadow-only, branch-only, and empty-ground frames are Empty image. If the image is " +
   "blurry, dark, partially obscured, motion-smeared, or contains an animal-like shape that " +
   "cannot be identified confidently, use Unsure rather than Empty image. Use Unsure only " +
   "when no single species label fits confidently. " +
@@ -398,8 +398,8 @@ async function handleClassification(request, env, origin) {
     second_choice: secondChoice,
     note: result.note.slice(0, 300),
     modelId: MODEL,
-    requiresHumanConfirmation: true,
-    review: result.label === "Unsure" || result.confidence < 85
+    requiresHumanConfirmation: result.label === "Unsure" || result.confidence < 95,
+    review: result.label === "Unsure" || result.confidence < 95
   }, 200, origin);
 }
 
