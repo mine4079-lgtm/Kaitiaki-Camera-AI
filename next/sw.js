@@ -1,5 +1,5 @@
 /* Kaitiaki Camera AI offline shell. Source photo bytes are never cached. */
-const CACHE="kaitiaki-next-shell-v23";
+const CACHE="kaitiaki-next-shell-v24";
 const SHELL=["./","./index.html","./cloud-ui.js","./shared-ui.js","./camera-report.js","./manifest.webmanifest"];
 
 self.addEventListener("install",event=>{
@@ -19,6 +19,16 @@ self.addEventListener("fetch",event=>{
   const url=new URL(event.request.url);
   if(url.origin!==self.location.origin)return;
 
+  if(event.request.mode==="navigate"){
+    event.respondWith(
+      fetch(event.request,{cache:"no-store"}).then(response=>{
+        if(response.ok)caches.open(CACHE).then(cache=>cache.put("./index.html",response.clone())).catch(()=>{});
+        return response;
+      }).catch(()=>caches.match("./index.html").then(cached=>cached||caches.match("./")))
+    );
+    return;
+  }
+
   const isShell=SHELL.some(p=>new URL(p,self.registration.scope).href===event.request.url);
   if(isShell){
     event.respondWith(
@@ -29,16 +39,6 @@ self.addEventListener("fetch",event=>{
         }).catch(()=>cached);
         return cached||fresh;
       })
-    );
-    return;
-  }
-
-  if(event.request.mode==="navigate"){
-    event.respondWith(
-      fetch(event.request).then(response=>{
-        if(response.ok)caches.open(CACHE).then(cache=>cache.put("./index.html",response.clone())).catch(()=>{});
-        return response;
-      }).catch(()=>caches.match("./index.html"))
     );
   }
 });
