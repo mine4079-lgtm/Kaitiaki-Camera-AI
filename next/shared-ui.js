@@ -198,6 +198,7 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
       return !Number.isNaN(d.getTime())&&d.getFullYear()===reportYear;
     }).sort((a,b)=>String(a.capturedAt||"").localeCompare(String(b.capturedAt||"")));
     if(local.length){
+      if(Number(check.totalPossum)!==local.length)return "mismatch";
       const records=local.map((r,i)=>({
         id:"local-"+i+"-"+r.key,
         camera_no:r.cameraNo||check.cameraNo,
@@ -233,6 +234,7 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
       return !Number.isNaN(d.getTime())&&d.getFullYear()===reportYear;
     });
     if(!records.length)return false;
+    if(Number(check.totalPossum)!==records.length)return "mismatch";
     openSharedGallery(records,0,"sighting");return true;
   }catch{return false}
 };
