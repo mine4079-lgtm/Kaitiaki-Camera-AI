@@ -10,7 +10,7 @@ const PENDING_KEY="kaitiaki-shared-pending";
 const SYNCED_KEY="kaitiaki-shared-synced-v3";
 const PESTS=["Possum","Rat","Stoat","Mouse","Deer","Pig"];
 let imageUrls=[];
-let galleryRecords=[],galleryIndex=0,galleryKind="sighting",localGalleryUrl=null;
+let galleryRecords=[],galleryIndex=0,galleryKind="sighting",localGalleryUrl=null,galleryWarning="";
 
 function endpoint(){return (localStorage.getItem(URL_KEY)||"https://kaitiaki-next-vision.monaghan666.workers.dev").replace(/\/+$/,"")}
 function token(){return localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||""}
@@ -112,7 +112,7 @@ async function showGalleryRecord(){
   $("sharedMetaWho").textContent=confirmerText(r,galleryKind);
   $("sharedMetaAi").textContent=(r.ai_prediction||"No AI result")+(r.ai_confidence!=null?" · "+r.ai_confidence+"%":"")+(r.ai_second_choice?" · second: "+r.ai_second_choice:"");
   $("sharedMetaFile").textContent=r.file_name||"";
-  $("sharedMetaNote").textContent=r.ai_note||"No description available.";
+  $("sharedMetaNote").textContent=(galleryWarning?galleryWarning+"\n\n":"")+(r.ai_note||"No description available.");
   $("sharedPosition").textContent=(galleryIndex+1)+" of "+galleryRecords.length;
   $("sharedPrev").disabled=galleryRecords.length<2;
   $("sharedNext").disabled=galleryRecords.length<2;
@@ -127,8 +127,8 @@ async function showGalleryRecord(){
     }catch{if(galleryRecords[galleryIndex]?.id===r.id)img.alt="Shared image unavailable"}
   }
 }
-function openSharedGallery(records,index,kind){
-  galleryRecords=records;galleryIndex=index;galleryKind=kind;
+function openSharedGallery(records,index,kind,warning=""){
+  galleryRecords=records;galleryIndex=index;galleryKind=kind;galleryWarning=warning;
   $("sharedImageDialog")?.showModal();showGalleryRecord();
 }
 $("closeSharedDialog")?.addEventListener("click",()=>{$("sharedImageDialog")?.close();if(localGalleryUrl){URL.revokeObjectURL(localGalleryUrl);localGalleryUrl=null}});
@@ -198,7 +198,7 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
       return !Number.isNaN(d.getTime())&&d.getFullYear()===reportYear;
     }).sort((a,b)=>String(a.capturedAt||"").localeCompare(String(b.capturedAt||"")));
     if(local.length){
-      if(Number(check.totalPossum)!==local.length)return "mismatch";
+      const mismatch=Number(check.totalPossum)!==local.length;
       const records=local.map((r,i)=>({
         id:"local-"+i+"-"+r.key,
         camera_no:r.cameraNo||check.cameraNo,
@@ -217,7 +217,8 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
         has_image:r.preview instanceof Blob?1:0,
         _localPreview:r.preview instanceof Blob?r.preview:null
       }));
-      openSharedGallery(records,0,"sighting");return true;
+      const warning=mismatch?"Report count: "+check.totalPossum+" possum images. "+local.length+" saved image links were found for this older check, so some may belong to another SD-card run.":"";
+      openSharedGallery(records,0,"sighting",warning);return mismatch?"mismatch-opened":true;
     }
   }catch{}
 
@@ -234,8 +235,9 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
       return !Number.isNaN(d.getTime())&&d.getFullYear()===reportYear;
     });
     if(!records.length)return false;
-    if(Number(check.totalPossum)!==records.length)return "mismatch";
-    openSharedGallery(records,0,"sighting");return true;
+    const mismatch=Number(check.totalPossum)!==records.length;
+    const warning=mismatch?"Report count: "+check.totalPossum+" possum images. "+records.length+" shared image links were found for this older check, so some may belong to another SD-card run.":"";
+    openSharedGallery(records,0,"sighting",warning);return mismatch?"mismatch-opened":true;
   }catch{return false}
 };
 
