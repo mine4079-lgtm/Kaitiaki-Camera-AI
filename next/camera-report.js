@@ -258,7 +258,7 @@ async function renderReport(){
     tr.innerHTML="<td>"+esc(c.cameraNo)+"</td><td>"+esc(c.zone)+"</td><td>"+esc(c.block)+"</td><td>"+esc(c.checkNo)+"</td><td>"+esc(c.checkedDate)+"</td><td>"+esc(c.servicedBy)+"</td><td>"+possumCell+"</td><td>"+esc(c.approxPresence||presenceFromCount(c.totalPossum))+"</td><td>"+esc(c.latestPossumDate||"")+"</td><td>"+esc(c.notes||"")+"</td><td>"+esc(c.issuesNotes||"")+"</td>";
     tr.querySelector(".report-drilldown")?.addEventListener("click",async()=>{
       const opened=await window.KaitiakiOpenCameraCheckGallery?.(c);
-      if(opened==="mismatch")status.textContent=c.cameraNo+" has an older image-link mismatch: report says "+c.totalPossum+" possum images, but the saved image links no longer match that exact check. The report count is kept; the misleading gallery is blocked.";
+      if(opened==="mismatch-opened")status.textContent=c.cameraNo+" opened with an older image-link warning. Report count remains "+c.totalPossum+" possum images; the gallery may include extra saved links from another SD-card run.";
       else if(!opened)status.textContent="No exact saved possum previews found for "+c.cameraNo+" in this camera check. The count is still "+c.totalPossum+" possum image detections, not individual possums.";
     });
     body.append(tr);
