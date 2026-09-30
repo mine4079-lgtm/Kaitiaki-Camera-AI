@@ -222,6 +222,7 @@ window.KaitiakiAttachConnectedToCameraCheck=async(context)=>{
   for(let i=0;i<rows.length;i++){
     const r=rows[i];
     if(!keys.has(r.key))continue;
+    if(r.cameraCheckId&&r.cameraCheckId!==context.cameraCheckId)continue;
     const next={...r,
       cameraCheckId:context.cameraCheckId,
       cameraNo:context.cameraNo||r.cameraNo||"",
@@ -249,7 +250,9 @@ $("deleteSelected").onclick=async()=>{if(!multiSelect||!selectedMany.size||worki
 $("pickPhotos").onclick=()=>{$("photos").value="";$("photos").click()};$("pickFolder").onclick=()=>{$("folder").value="";$("folder").click()};
 function choose(list){if(working)return;const incoming=Array.from(list).filter(f=>f.type.startsWith("image/")||/\.(jpe?g|png|webp|gif|bmp)$/i.test(f.name));for(const f of incoming)filesByKey.set(keyFor(f),f);selectedFiles=Array.from(filesByKey.values());$("chosen").textContent=selectedFiles.length.toLocaleString()+" image(s) connected. Add more folders any time; existing labels are kept.";$("start").disabled=!selectedFiles.length;$("clearSelection").disabled=!selectedFiles.length;render()}
 $("photos").addEventListener("change",e=>choose(e.target.files));$("folder").addEventListener("change",e=>choose(e.target.files));
-$("clearSelection").onclick=()=>{if(working||window.KaitiakiCloudIsRunning?.())return;selectedFiles=[];filesByKey.clear();$("photos").value="";$("folder").value="";$("chosen").textContent="Nothing selected yet.";$("start").disabled=true;$("clearSelection").disabled=true;window.dispatchEvent(new CustomEvent("kaitiaki-clear-files"));render()};
+function clearConnectedFiles(){selectedFiles=[];filesByKey.clear();$("photos").value="";$("folder").value="";$("chosen").textContent="Nothing selected yet.";$("start").disabled=true;$("clearSelection").disabled=true;window.dispatchEvent(new CustomEvent("kaitiaki-clear-files"));render()}
+window.KaitiakiClearConnectedFiles=()=>{if(working||window.KaitiakiCloudIsRunning?.())return false;clearConnectedFiles();return true};
+$("clearSelection").onclick=()=>{if(working||window.KaitiakiCloudIsRunning?.())return;clearConnectedFiles()};
 $("pause").onclick=()=>{paused=true;$("status").textContent="Pausing after the current saved batch…"};
 $("start").onclick=async()=>{
 if(working||!selectedFiles.length)return;working=true;paused=false;$("start").disabled=true;$("pause").disabled=false;
@@ -292,8 +295,8 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 })();
 </script>
 <script src="./cloud-ui.js?v=15"></script>
-<script src="./shared-ui.js?v=14"></script>
-<script src="./camera-report.js?v=5"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=24").catch(()=>{}))}</script>
+<script src="./shared-ui.js?v=15"></script>
+<script src="./camera-report.js?v=6"></script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=36").catch(()=>{}))}</script>
 </body>
 </html>
