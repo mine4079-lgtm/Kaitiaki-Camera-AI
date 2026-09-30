@@ -56,6 +56,7 @@ dialog::backdrop{background:#0c211dcc}
 .dialog-title strong{overflow-wrap:anywhere}.x{border:0;border-radius:50%;font-size:22px;background:#edf1ef;width:35px;height:35px;flex:0 0 35px}
 #large{display:block;width:100%;max-height:48vh;object-fit:contain;background:#19201e}
 #noPreview{padding:38px 14px;text-align:center;background:#edf1ef;color:#56685f}
+#sharedLarge{display:block;width:100%;max-height:58vh;object-fit:contain;background:#19201e}.shared-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}.shared-meta div{background:#f4f7f5;border-radius:10px;padding:9px}.shared-meta b{display:block;font-size:11px;color:#68756f;margin-bottom:3px}.shared-meta span{font-size:13px;color:#18382f}.shared-note{white-space:pre-wrap}
 .dialog-content{padding:17px}.choices{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:14px 0}
 .choices button{border:1px solid #dce8e2;border-radius:11px;background:white;padding:12px 6px;font-weight:750}
 .choices button.selected{background:#e0f3eb;color:#0b6655;border:2px solid #0b6655;padding:11px 5px}
@@ -154,6 +155,23 @@ dialog::backdrop{background:#0c211dcc}
 </section>
 <p class="footer">Kaitiaki Camera AI · local records · AI uploads only when you press Identify · source photos never edited.<br>© 2026 Thomas Monaghan. All rights reserved.</p>
 </main>
+<dialog id="sharedImageDialog" aria-label="Shared camera image">
+<div class="dialog-title"><strong id="sharedDialogTitle">Shared image</strong><button id="closeSharedDialog" class="x" aria-label="Close">×</button></div>
+<img id="sharedLarge" alt="Shared trail-camera image">
+<div class="dialog-content">
+<div class="shared-meta">
+<div><b>Camera</b><span id="sharedMetaCamera">—</span></div>
+<div><b>Captured</b><span id="sharedMetaCaptured">—</span></div>
+<div><b>Classification</b><span id="sharedMetaClass">—</span></div>
+<div><b>Confirmed by</b><span id="sharedMetaWho">—</span></div>
+<div><b>AI suggestion</b><span id="sharedMetaAi">—</span></div>
+<div><b>File</b><span id="sharedMetaFile">—</span></div>
+</div>
+<div class="notice green shared-note" id="sharedMetaNote">No description available.</div>
+<div class="dialog-actions"><button id="sharedPrev" class="btn light">Previous</button><button id="sharedNext" class="btn">Next</button></div>
+<p class="sub" id="sharedPosition" style="margin:10px 0 0"></p>
+</div>
+</dialog>
 <dialog id="reviewDialog" aria-label="Review image">
 <div class="dialog-title"><strong id="dialogName">Review photo</strong><button id="closeDialog" class="x" aria-label="Close">×</button></div>
 <img id="large" alt="Selected wildlife camera photo" hidden><div id="noPreview" hidden>Re-select the original folder or photo to view this image.</div>
@@ -274,7 +292,7 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 })();
 </script>
 <script src="./cloud-ui.js?v=15"></script>
-<script src="./shared-ui.js?v=9"></script>
+<script src="./shared-ui.js?v=10"></script>
 <script src="./camera-report.js?v=4"></script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=24").catch(()=>{}))}</script>
 </body>

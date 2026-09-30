@@ -10,6 +10,7 @@ const PENDING_KEY="kaitiaki-shared-pending";
 const SYNCED_KEY="kaitiaki-shared-synced-v2";
 const PESTS=["Possum","Rat","Stoat","Mouse","Deer","Pig"];
 let imageUrls=[];
+let galleryRecords=[],galleryIndex=0,galleryKind="sighting";
 
 function endpoint(){return (localStorage.getItem(URL_KEY)||"https://kaitiaki-next-vision.monaghan666.workers.dev").replace(/\/+$/,"")}
 function token(){return localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||""}
@@ -90,6 +91,47 @@ async function loadImage(id,img){
 }
 function esc(s){return String(s??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]))}
 function niceDate(v){if(!v)return"";try{return new Date(v).toLocaleString()}catch{return v}}
+function recordLabel(r){return r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction}
+function confirmationText(r,kind){
+  if(r.human_verified)return "Human confirmed";
+  if(kind==="sighting")return "AI accepted";
+  return "Needs human review";
+}
+function confirmerText(r,kind){
+  if(r.human_verified)return r.reviewer_name||"Team member";
+  if(kind==="sighting")return r.imported_by?("AI accepted · imported by "+r.imported_by):"AI accepted";
+  return r.imported_by?("Imported by "+r.imported_by):"Not confirmed yet";
+}
+async function showGalleryRecord(){
+  const dlg=$("sharedImageDialog");if(!dlg||!galleryRecords.length)return;
+  const r=galleryRecords[galleryIndex],label=recordLabel(r)||"Needs review";
+  $("sharedDialogTitle").textContent=(r.camera_no?r.camera_no+" · ":"")+label;
+  $("sharedMetaCamera").textContent=r.camera_no||"Not recorded";
+  $("sharedMetaCaptured").textContent=niceDate(r.captured_at)||"Not recorded";
+  $("sharedMetaClass").textContent=confirmationText(r,galleryKind)+(label?" · "+label:"");
+  $("sharedMetaWho").textContent=confirmerText(r,galleryKind);
+  $("sharedMetaAi").textContent=(r.ai_prediction||"No AI result")+(r.ai_confidence!=null?" · "+r.ai_confidence+"%":"")+(r.ai_second_choice?" · second: "+r.ai_second_choice:"");
+  $("sharedMetaFile").textContent=r.file_name||"";
+  $("sharedMetaNote").textContent=r.ai_note||"No description available.";
+  $("sharedPosition").textContent=(galleryIndex+1)+" of "+galleryRecords.length;
+  $("sharedPrev").disabled=galleryRecords.length<2;
+  $("sharedNext").disabled=galleryRecords.length<2;
+  const img=$("sharedLarge");img.removeAttribute("src");img.alt=label+" trail-camera image";
+  if(r.has_image){
+    try{
+      const res=await fetch(endpoint()+"/team/image",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({id:r.id})});
+      const data=await res.json();if(!res.ok||!data.imageData)throw Error();
+      if(galleryRecords[galleryIndex]?.id===r.id)img.src=data.imageData;
+    }catch{if(galleryRecords[galleryIndex]?.id===r.id)img.alt="Shared image unavailable"}
+  }
+}
+function openSharedGallery(records,index,kind){
+  galleryRecords=records;galleryIndex=index;galleryKind=kind;
+  $("sharedImageDialog")?.showModal();showGalleryRecord();
+}
+$("closeSharedDialog")?.addEventListener("click",()=>$("sharedImageDialog")?.close());
+$("sharedPrev")?.addEventListener("click",()=>{if(!galleryRecords.length)return;galleryIndex=(galleryIndex-1+galleryRecords.length)%galleryRecords.length;showGalleryRecord()});
+$("sharedNext")?.addEventListener("click",()=>{if(!galleryRecords.length)return;galleryIndex=(galleryIndex+1)%galleryRecords.length;showGalleryRecord()});
 
 async function loadShared(kind){
   const root=$(kind==="sighting"?"sharedSightings":"sharedReview");
@@ -116,8 +158,8 @@ async function loadShared(kind){
       status.textContent="Up to date.";
       return;
     }
-    for(const r of records){
-      const card=document.createElement("article");card.className="item";
+    for(const [recordIndex,r] of records.entries()){
+      const card=document.createElement("button");card.type="button";card.className="item";card.addEventListener("click",()=>openSharedGallery(records,recordIndex,kind));
       if(r.has_image){
         const img=document.createElement("img");
         img.alt=(r.confirmed_label||r.ai_prediction||"Detection")+" trail-camera image";
@@ -128,7 +170,7 @@ async function loadShared(kind){
       const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;
       const who=r.reviewer_name||r.imported_by||"";
       const body=document.createElement("div");body.className="item-body";
-      body.innerHTML="<strong>"+esc(r.camera_no||label||"Needs review")+"</strong><span class='kind "+(r.human_verified?"good":"")+"'>"+esc(r.human_verified?"Confirmed":(r.ai_confidence!=null?(label||"AI")+" · "+r.ai_confidence+"%":(label||"AI result")))+"</span><small>"+esc(r.file_name)+"</small><small>"+esc(niceDate(r.verified_at||r.updated_at))+(who?" · "+esc(who):"")+"</small>";
+      const confirm=confirmationText(r,kind);body.innerHTML="<strong>"+esc(r.camera_no||label||"Needs review")+"</strong><span class='kind "+(r.human_verified?"good":"")+"'>"+esc(confirm+(r.ai_confidence!=null&&!r.human_verified?" · "+r.ai_confidence+"%":""))+"</span><small>"+esc(label||"")+(r.file_name?" · "+esc(r.file_name):"")+"</small><small>"+esc(niceDate(r.captured_at||r.verified_at||r.updated_at))+(who?" · "+esc(who):"")+"</small>";
       card.append(body);root.append(card);
     }
     status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown.";
