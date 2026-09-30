@@ -211,6 +211,10 @@ async function backfillExistingChecks(){
     }
   }
   if(changed)renderReport();
+  if(navigator.onLine&&token()){
+    const latest=localChecks();
+    for(const check of latest)await syncCheck(check);
+  }
 }
 
 async function syncCheck(check){
