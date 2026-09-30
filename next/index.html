@@ -168,7 +168,7 @@ dialog::backdrop{background:#0c211dcc}
 <div><b>File</b><span id="sharedMetaFile">—</span></div>
 </div>
 <div class="notice green shared-note" id="sharedMetaNote">No description available.</div>
-<div class="dialog-actions"><button id="sharedPrev" class="btn light">Previous</button><button id="sharedNext" class="btn">Next</button></div>
+<div class="dialog-actions"><button id="sharedPrev" class="btn light">Previous</button><button id="sharedNext" class="btn">Next</button><button id="sharedRepair" class="btn light" hidden>Repair check links</button></div>
 <p class="sub" id="sharedPosition" style="margin:10px 0 0"></p>
 </div>
 </dialog>
@@ -295,8 +295,8 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 })();
 </script>
 <script src="./cloud-ui.js?v=15"></script>
-<script src="./shared-ui.js?v=16"></script>
+<script src="./shared-ui.js?v=17"></script>
 <script src="./camera-report.js?v=7"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=37").catch(()=>{}))}</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=38").catch(()=>{}))}</script>
 </body>
 </html>
