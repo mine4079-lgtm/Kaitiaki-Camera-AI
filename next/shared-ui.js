@@ -138,36 +138,42 @@ $("sharedNext")?.addEventListener("click",()=>{if(!galleryRecords.length)return;
 
 
 async function repairCameraCheckLinks(check){
-  if(!check?.id||!check.firstImageDate||!check.lastImageDate)return {ok:false,message:"This older check does not have a saved first/last image date, so Kaitiaki will not guess."};
+  if(!check?.id||!check.latestPossumDate)return {ok:false,message:"Repair stopped safely: this check has no saved Last possum date to use as a reliable cutoff."};
   const expected=Number(check.totalPossum)||0,year=Number(check.reportYear)||new Date().getFullYear();
-  const start=new Date(check.firstImageDate+"T00:00:00").getTime();
-  const end=new Date(check.lastImageDate+"T23:59:59.999").getTime();
-  if(!Number.isFinite(start)||!Number.isFinite(end))return {ok:false,message:"The saved camera-check dates could not be read safely."};
+  const cutoff=new Date(check.latestPossumDate+"T23:59:59.999").getTime();
+  if(!Number.isFinite(cutoff))return {ok:false,message:"Repair stopped safely: the saved Last possum date could not be read."};
+
   const db=await openDB();let rows=[];try{rows=await getAllRows(db)}finally{db.close()}
   const linked=rows.filter(r=>r.cameraCheckId===check.id);
-  const inWindow=linked.filter(r=>{
-    const d=new Date(r.capturedAt||r.lastModified||0);
-    return !Number.isNaN(d.getTime())&&d.getTime()>=start&&d.getTime()<=end;
-  });
-  const possums=inWindow.filter(r=>{
+  const possums=linked.filter(r=>{
     const label=r.verified?r.label:r.aiPrediction;
     if(label!=="Possum")return false;
     const d=new Date(r.capturedAt||r.lastModified||0);
-    return !Number.isNaN(d.getTime())&&d.getFullYear()===year;
-  });
+    return !Number.isNaN(d.getTime())&&d.getFullYear()===year&&d.getTime()<=cutoff;
+  }).sort((x,y)=>String(x.capturedAt||"").localeCompare(String(y.capturedAt||"")));
+
   if(possums.length!==expected){
-    return {ok:false,message:"Repair stopped safely. The original saved date window contains "+possums.length+" possum images, but the report expects "+expected+". Nothing was changed."};
+    return {ok:false,message:"Repair stopped safely: using Last possum "+check.latestPossumDate+" gives "+possums.length+" possum images, but the report expects "+expected+". Nothing was changed."};
   }
-  const keep=new Set(inWindow.map(r=>r.key));
-  const extras=linked.filter(r=>!keep.has(r.key));
-  if(!extras.length)return {ok:true,message:"This check already matches its saved date window.",removed:0};
+
+  const keepKeys=new Set(possums.map(r=>r.key));
+  const extras=linked.filter(r=>{
+    const label=r.verified?r.label:r.aiPrediction;
+    if(label!=="Possum")return false;
+    const d=new Date(r.capturedAt||r.lastModified||0);
+    return !Number.isNaN(d.getTime())&&d.getFullYear()===year&&!keepKeys.has(r.key);
+  });
+
+  if(!extras.length)return {ok:true,message:"This check already matches the report count of "+expected+" possum images.",removed:0};
+
   const now=new Date().toISOString();
   const updates=extras.map(r=>({...r,cameraCheckId:"",checkNo:"",checkedDate:"",servicedBy:"",updatedAt:now}));
   const db2=await openDB();try{
     await new Promise((ok,no)=>{const t=db2.transaction(STORE,"readwrite"),st=t.objectStore(STORE);for(const r of updates)st.put(r);t.oncomplete=ok;t.onerror=()=>no(t.error)});
   }finally{db2.close()}
+
   for(const r of updates)syncRecord(r,r.preview);
-  return {ok:true,message:"Repaired "+check.cameraNo+". "+extras.length+" extra image link"+(extras.length===1?" was":"s were")+" removed from this check. No images or classifications were deleted.",removed:extras.length};
+  return {ok:true,message:"Repaired "+check.cameraNo+". Kept the "+expected+" possum images up to "+check.latestPossumDate+" and unlinked "+extras.length+" extra possum record"+(extras.length===1?"":"s")+". No images or classifications were deleted.",removed:extras.length};
 }
 $("sharedRepair")?.addEventListener("click",async()=>{
   const btn=$("sharedRepair"),check=galleryRepairCheck;if(!btn||!check)return;
@@ -175,15 +181,18 @@ $("sharedRepair")?.addEventListener("click",async()=>{
   try{
     const result=await repairCameraCheckLinks(check);
     galleryWarning=result.message;
+    $("sharedMetaNote").textContent=result.message+"\n\n"+(galleryRecords[galleryIndex]?.ai_note||"No description available.");
+    alert(result.message);
     if(result.ok&&result.removed>0){
-      const reopened=await window.KaitiakiOpenCameraCheckGallery(check);
-      if(reopened)return;
+      $("sharedImageDialog")?.close();
+      galleryRepairCheck=null;
+      setTimeout(()=>window.KaitiakiOpenCameraCheckGallery(check),50);
+    }else if(result.ok){
+      btn.hidden=true;
     }
-    $("sharedMetaNote").textContent=galleryWarning+"\n\n"+(galleryRecords[galleryIndex]?.ai_note||"No description available.");
-    if(result.ok)btn.hidden=true;
   }catch(e){
-    galleryWarning="Repair failed safely: "+String(e.message||e)+". Nothing was deleted.";
-    $("sharedMetaNote").textContent=galleryWarning;
+    const message="Repair failed safely: "+String(e.message||e)+". Nothing was deleted.";
+    galleryWarning=message;$("sharedMetaNote").textContent=message;alert(message);
   }finally{btn.disabled=false;btn.textContent="Repair check links"}
 });
 
