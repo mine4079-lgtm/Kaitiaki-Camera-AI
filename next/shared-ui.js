@@ -7,7 +7,7 @@ const TOKEN_KEY="kaitiaki-next-session-token";
 const PERSIST_TOKEN_KEY="kaitiaki-next-device-token";
 const DEVICE_ID_KEY="kaitiaki-device-id";
 const PENDING_KEY="kaitiaki-shared-pending";
-const SYNCED_KEY="kaitiaki-shared-synced-v1";
+const SYNCED_KEY="kaitiaki-shared-synced-v2";
 const PESTS=["Possum","Rat","Stoat","Mouse","Deer","Pig"];
 let imageUrls=[];
 
@@ -126,7 +126,7 @@ async function loadShared(kind){
       const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;
       const who=r.reviewer_name||r.imported_by||"";
       const body=document.createElement("div");body.className="item-body";
-      body.innerHTML="<strong>"+esc(label||"Needs review")+"</strong><span class='kind "+(r.human_verified?"good":"")+"'>"+esc(r.human_verified?"Confirmed":(r.ai_confidence!=null?"AI · "+r.ai_confidence+"%":"AI result"))+"</span><small>"+esc(r.file_name)+"</small><small>"+esc(niceDate(r.verified_at||r.updated_at))+(who?" · "+esc(who):"")+"</small>";
+      body.innerHTML="<strong>"+esc(r.camera_no||label||"Needs review")+"</strong><span class='kind "+(r.human_verified?"good":"")+"'>"+esc(r.human_verified?"Confirmed":(r.ai_confidence!=null?(label||"AI")+" · "+r.ai_confidence+"%":(label||"AI result")))+"</span><small>"+esc(r.file_name)+"</small><small>"+esc(niceDate(r.verified_at||r.updated_at))+(who?" · "+esc(who):"")+"</small>";
       card.append(body);root.append(card);
     }
     status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown.";

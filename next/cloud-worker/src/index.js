@@ -92,6 +92,7 @@ async function ensureSchema(env) {
       imported_by TEXT,
       reviewer_name TEXT,
       file_name TEXT NOT NULL,
+      camera_no TEXT,
       relative_path TEXT,
       ai_prediction TEXT,
       ai_confidence INTEGER,
@@ -112,6 +113,7 @@ async function ensureSchema(env) {
 
   const columns = await env.KAITIAKI_DB.prepare("PRAGMA table_info(sightings)").all();
   const names = new Set((columns.results || []).map(row => row.name));
+  if (!names.has("camera_no")) await env.KAITIAKI_DB.prepare("ALTER TABLE sightings ADD COLUMN camera_no TEXT").run();
   if (!names.has("image_blob")) await env.KAITIAKI_DB.prepare("ALTER TABLE sightings ADD COLUMN image_blob BLOB").run();
   if (!names.has("image_type")) await env.KAITIAKI_DB.prepare("ALTER TABLE sightings ADD COLUMN image_type TEXT").run();
 
@@ -241,10 +243,10 @@ async function handleTeamSync(input, env, origin) {
   await env.KAITIAKI_DB.prepare(`
     INSERT INTO sightings (
       id, team_name, device_id, device_name, imported_by, reviewer_name,
-      file_name, relative_path, ai_prediction, ai_confidence, ai_second_choice,
+      file_name, camera_no, relative_path, ai_prediction, ai_confidence, ai_second_choice,
       ai_note, confirmed_label, human_verified, needs_extra_review, status,
       image_blob, image_type, captured_at, verified_at, created_at, updated_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET
       team_name=excluded.team_name,
       device_id=excluded.device_id,
@@ -252,6 +254,7 @@ async function handleTeamSync(input, env, origin) {
       imported_by=excluded.imported_by,
       reviewer_name=excluded.reviewer_name,
       file_name=excluded.file_name,
+      camera_no=excluded.camera_no,
       relative_path=excluded.relative_path,
       ai_prediction=excluded.ai_prediction,
       ai_confidence=excluded.ai_confidence,
@@ -274,6 +277,7 @@ async function handleTeamSync(input, env, origin) {
     clean(r.importedBy, 120),
     clean(r.reviewedBy, 120),
     fileName,
+    clean(r.cameraNo, 80),
     clean(r.path, 1000),
     clean(r.aiPrediction, 40),
     int(r.aiConfidence),
@@ -306,7 +310,7 @@ async function handleTeamList(input, env, origin, status) {
   if (team) {
     stmt = env.KAITIAKI_DB.prepare(`
       SELECT id, team_name, device_id, device_name, imported_by, reviewer_name,
-        file_name, relative_path, ai_prediction, ai_confidence, ai_second_choice,
+        file_name, camera_no, relative_path, ai_prediction, ai_confidence, ai_second_choice,
         ai_note, confirmed_label, human_verified, needs_extra_review, status,
         CASE WHEN image_blob IS NULL THEN 0 ELSE 1 END AS has_image,
         captured_at, verified_at, created_at, updated_at
@@ -317,7 +321,7 @@ async function handleTeamList(input, env, origin, status) {
   } else {
     stmt = env.KAITIAKI_DB.prepare(`
       SELECT id, team_name, device_id, device_name, imported_by, reviewer_name,
-        file_name, relative_path, ai_prediction, ai_confidence, ai_second_choice,
+        file_name, camera_no, relative_path, ai_prediction, ai_confidence, ai_second_choice,
         ai_note, confirmed_label, human_verified, needs_extra_review, status,
         CASE WHEN image_blob IS NULL THEN 0 ELSE 1 END AS has_image,
         captured_at, verified_at, created_at, updated_at
