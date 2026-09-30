@@ -189,10 +189,13 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
   try{
     const db=await openDB();
     let rows=[];try{rows=await getAllRows(db)}finally{db.close()}
+    const reportYear=Number(check.reportYear)||new Date().getFullYear();
     const local=rows.filter(r=>{
       if(r.cameraCheckId!==check.id)return false;
       const label=r.verified?r.label:r.aiPrediction;
-      return label==="Possum";
+      if(label!=="Possum")return false;
+      const d=new Date(r.capturedAt||r.lastModified||0);
+      return !Number.isNaN(d.getTime())&&d.getFullYear()===reportYear;
     }).sort((a,b)=>String(a.capturedAt||"").localeCompare(String(b.capturedAt||"")));
     if(local.length){
       const records=local.map((r,i)=>({
@@ -222,9 +225,12 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
   try{
     const res=await fetch(endpoint()+"/team/sightings",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:500,cameraCheckId:check.id,cameraNo:check.cameraNo})});
     const data=await res.json();if(!res.ok||data.sharedReady!==true)throw Error();
+    const reportYear=Number(check.reportYear)||new Date().getFullYear();
     const records=(data.records||[]).filter(r=>{
       const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;
-      return label==="Possum";
+      if(label!=="Possum"||!r.captured_at)return false;
+      const d=new Date(r.captured_at);
+      return !Number.isNaN(d.getTime())&&d.getFullYear()===reportYear;
     });
     if(!records.length)return false;
     openSharedGallery(records,0,"sighting");return true;
