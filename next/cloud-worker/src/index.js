@@ -303,32 +303,26 @@ async function handleTeamList(input, env, origin, status) {
     return reply({ error: "Shared team database is not connected yet", sharedReady: false, records: [] }, 503, origin);
   }
   await ensureSchema(env);
-  const limit = Math.max(1, Math.min(200, int(input?.limit, 100)));
+  const limit = Math.max(1, Math.min(500, int(input?.limit, 100)));
   const team = clean(input?.team, 120);
+  const cameraNo = clean(input?.cameraNo, 80);
 
+  const select = `
+      SELECT id, team_name, device_id, device_name, imported_by, reviewer_name,
+        file_name, camera_no, relative_path, ai_prediction, ai_confidence, ai_second_choice,
+        ai_note, confirmed_label, human_verified, needs_extra_review, status,
+        CASE WHEN image_blob IS NULL THEN 0 ELSE 1 END AS has_image,
+        captured_at, verified_at, created_at, updated_at
+      FROM sightings`;
   let stmt;
-  if (team) {
-    stmt = env.KAITIAKI_DB.prepare(`
-      SELECT id, team_name, device_id, device_name, imported_by, reviewer_name,
-        file_name, camera_no, relative_path, ai_prediction, ai_confidence, ai_second_choice,
-        ai_note, confirmed_label, human_verified, needs_extra_review, status,
-        CASE WHEN image_blob IS NULL THEN 0 ELSE 1 END AS has_image,
-        captured_at, verified_at, created_at, updated_at
-      FROM sightings
-      WHERE status=? AND team_name=?
-      ORDER BY updated_at DESC LIMIT ?
-    `).bind(status, team, limit);
+  if (team && cameraNo) {
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND team_name=? AND camera_no=? ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, team, cameraNo, limit);
+  } else if (team) {
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND team_name=? ORDER BY updated_at DESC LIMIT ?").bind(status, team, limit);
+  } else if (cameraNo) {
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND camera_no=? ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, cameraNo, limit);
   } else {
-    stmt = env.KAITIAKI_DB.prepare(`
-      SELECT id, team_name, device_id, device_name, imported_by, reviewer_name,
-        file_name, camera_no, relative_path, ai_prediction, ai_confidence, ai_second_choice,
-        ai_note, confirmed_label, human_verified, needs_extra_review, status,
-        CASE WHEN image_blob IS NULL THEN 0 ELSE 1 END AS has_image,
-        captured_at, verified_at, created_at, updated_at
-      FROM sightings
-      WHERE status=?
-      ORDER BY updated_at DESC LIMIT ?
-    `).bind(status, limit);
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? ORDER BY updated_at DESC LIMIT ?").bind(status, limit);
   }
   const result = await stmt.all();
   return reply({ sharedReady: true, records: result.results || [] }, 200, origin);

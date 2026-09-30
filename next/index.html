@@ -67,7 +67,7 @@ dialog::backdrop{background:#0c211dcc}
 .report-scroll{overflow:auto;border:1px solid #dbe6e1;border-radius:12px;background:#fff}
 .report-table{width:100%;border-collapse:collapse;min-width:980px;font-size:12px}
 .report-table th,.report-table td{padding:9px 10px;border-bottom:1px solid #e5ece8;text-align:left;vertical-align:top}
-.report-table th{position:sticky;top:0;background:#eef7f3;color:#17483e;z-index:1}
+.report-table th{position:sticky;top:0;background:#eef7f3;color:#17483e;z-index:1}.report-drilldown{border:0;background:#e2f6e8;color:#0b6655;font-weight:900;border-radius:8px;padding:5px 9px;text-decoration:underline}
 .month-bars{display:grid;grid-template-columns:repeat(12,minmax(32px,1fr));gap:6px;align-items:end;min-height:140px;margin-top:12px}
 .monthbar{text-align:center;font-size:10px;color:#5d6f67}
 .monthbar div{height:92px;display:flex;align-items:flex-end;justify-content:center;background:#f2f6f4;border-radius:7px;overflow:hidden;margin:4px 0}
@@ -144,7 +144,7 @@ dialog::backdrop{background:#0c211dcc}
 <p id="reportStatus" class="sub" style="margin-top:10px">Open Reports to load camera checks.</p>
 <div class="statbar"><div class="stat"><b id="reportChecks">0</b><small>CAMERA CHECKS</small></div><div class="stat"><b id="reportPossums">0</b><small>POSSUM IMAGES</small></div><div class="stat"><b id="reportDetections">0</b><small>MEANINGFUL DETECTIONS</small></div><div class="stat"><b id="reportSkipped">0</b><small>EMPTY / VEGE SKIPPED</small></div></div>
 <div class="panel"><h3>Monthly possum detections</h3><p class="sub">Counts are based on images classified as Possum and the image date available to Kaitiaki.</p><div id="monthlyBars" class="month-bars"></div></div>
-<div class="panel"><h3>Camera checks</h3><div class="report-scroll"><table class="report-table"><thead><tr><th>Camera</th><th>Zone</th><th>Block</th><th>Check</th><th>Checked</th><th>Serviced by</th><th>Possums</th><th>Presence</th><th>Last possum</th><th>Other detections</th><th>Issues</th></tr></thead><tbody id="cameraReportBody"></tbody></table></div></div>
+<div class="panel"><h3>Camera checks</h3><p class="sub">Possum counts are image detections, not individual animals. Tap a possum-image count to view the saved detections for that camera check.</p><div class="report-scroll"><table class="report-table"><thead><tr><th>Camera</th><th>Zone</th><th>Block</th><th>Check</th><th>Checked</th><th>Serviced by</th><th>Possum images</th><th>Presence</th><th>Last possum</th><th>Other detections</th><th>Issues</th></tr></thead><tbody id="cameraReportBody"></tbody></table></div></div>
 </section>
 <section class="view" id="learning">
 <h2>Learning, without the clutter</h2>
@@ -292,8 +292,8 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 })();
 </script>
 <script src="./cloud-ui.js?v=15"></script>
-<script src="./shared-ui.js?v=10"></script>
-<script src="./camera-report.js?v=4"></script>
+<script src="./shared-ui.js?v=11"></script>
+<script src="./camera-report.js?v=5"></script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=24").catch(()=>{}))}</script>
 </body>
 </html>

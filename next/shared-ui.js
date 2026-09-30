@@ -180,6 +180,25 @@ async function loadShared(kind){
   }
 }
 
+window.KaitiakiOpenCameraCheckGallery=async(check)=>{
+  if(!check?.cameraNo)return false;
+  if(!navigator.onLine||!token())return false;
+  try{
+    const res=await fetch(endpoint()+"/team/sightings",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:500,cameraNo:check.cameraNo})});
+    const data=await res.json();if(!res.ok||data.sharedReady!==true)throw Error();
+    const start=check.firstImageDate?new Date(check.firstImageDate+"T00:00:00").getTime():-Infinity;
+    const end=check.lastImageDate?new Date(check.lastImageDate+"T23:59:59").getTime():Infinity;
+    const records=(data.records||[]).filter(r=>{
+      const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;
+      if(label!=="Possum")return false;
+      const t=r.captured_at?new Date(r.captured_at).getTime():NaN;
+      return Number.isNaN(t)||(t>=start&&t<=end);
+    });
+    if(!records.length)return false;
+    openSharedGallery(records,0,"sighting");return true;
+  }catch{return false}
+};
+
 window.KaitiakiLoadSharedSightings=()=>loadShared("sighting");
 window.KaitiakiLoadSharedReview=()=>loadShared("review");
 $("refreshSightings")?.addEventListener("click",window.KaitiakiLoadSharedSightings);

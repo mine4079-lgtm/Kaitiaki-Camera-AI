@@ -254,7 +254,12 @@ async function renderReport(){
   const body=$("cameraReportBody");body.replaceChildren();
   for(const c of yearChecks.slice(0,250)){
     const tr=document.createElement("tr");
-    tr.innerHTML="<td>"+esc(c.cameraNo)+"</td><td>"+esc(c.zone)+"</td><td>"+esc(c.block)+"</td><td>"+esc(c.checkNo)+"</td><td>"+esc(c.checkedDate)+"</td><td>"+esc(c.servicedBy)+"</td><td>"+esc(c.totalPossum)+"</td><td>"+esc(c.approxPresence||presenceFromCount(c.totalPossum))+"</td><td>"+esc(c.latestPossumDate||"")+"</td><td>"+esc(c.notes||"")+"</td><td>"+esc(c.issuesNotes||"")+"</td>";
+    const possumCell=Number(c.totalPossum)>0?"<button class='report-drilldown' type='button' title='Open possum images'>"+esc(c.totalPossum)+"</button>":"0";
+    tr.innerHTML="<td>"+esc(c.cameraNo)+"</td><td>"+esc(c.zone)+"</td><td>"+esc(c.block)+"</td><td>"+esc(c.checkNo)+"</td><td>"+esc(c.checkedDate)+"</td><td>"+esc(c.servicedBy)+"</td><td>"+possumCell+"</td><td>"+esc(c.approxPresence||presenceFromCount(c.totalPossum))+"</td><td>"+esc(c.latestPossumDate||"")+"</td><td>"+esc(c.notes||"")+"</td><td>"+esc(c.issuesNotes||"")+"</td>";
+    tr.querySelector(".report-drilldown")?.addEventListener("click",async()=>{
+      const opened=await window.KaitiakiOpenCameraCheckGallery?.(c);
+      if(!opened)status.textContent="No shared possum previews found for "+c.cameraNo+" in this camera check. The count is still "+c.totalPossum+" possum image detections, not individual possums.";
+    });
     body.append(tr);
     if(c.cameraNo)saveRegister(c.cameraNo,{zone:c.zone||"",block:c.block||"",status:c.status||"Active"});
   }
