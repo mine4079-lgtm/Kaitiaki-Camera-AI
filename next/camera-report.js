@@ -186,8 +186,8 @@ async function finishCheck(){
       updatedAt:now
     };
     saveLocalCheck(report);await syncCheck(report);
-    saveCurrent(null);renderReport();
-    $("cameraCheckStatusText").textContent="Camera check saved: "+report.cameraNo+" · "+report.meaningfulCount+" meaningful detections · "+report.skippedCount+" empty/vegetation frames skipped.";
+    saveCurrent(null);window.KaitiakiClearConnectedFiles?.();renderReport();
+    $("cameraCheckStatusText").textContent="Camera check saved: "+report.cameraNo+" · "+report.meaningfulCount+" meaningful detections · "+report.skippedCount+" empty/vegetation frames skipped. Connected SD/folder cleared for the next camera.";
   }catch(e){$("cameraCheckStatusText").textContent="Could not finish camera check: "+String(e.message||e)}
   finally{btn.disabled=false}
 }
@@ -258,7 +258,8 @@ async function renderReport(){
     tr.innerHTML="<td>"+esc(c.cameraNo)+"</td><td>"+esc(c.zone)+"</td><td>"+esc(c.block)+"</td><td>"+esc(c.checkNo)+"</td><td>"+esc(c.checkedDate)+"</td><td>"+esc(c.servicedBy)+"</td><td>"+possumCell+"</td><td>"+esc(c.approxPresence||presenceFromCount(c.totalPossum))+"</td><td>"+esc(c.latestPossumDate||"")+"</td><td>"+esc(c.notes||"")+"</td><td>"+esc(c.issuesNotes||"")+"</td>";
     tr.querySelector(".report-drilldown")?.addEventListener("click",async()=>{
       const opened=await window.KaitiakiOpenCameraCheckGallery?.(c);
-      if(!opened)status.textContent="No shared possum previews found for "+c.cameraNo+" in this camera check. The count is still "+c.totalPossum+" possum image detections, not individual possums.";
+      if(opened==="mismatch")status.textContent=c.cameraNo+" has an older image-link mismatch: report says "+c.totalPossum+" possum images, but the saved image links no longer match that exact check. The report count is kept; the misleading gallery is blocked.";
+      else if(!opened)status.textContent="No exact saved possum previews found for "+c.cameraNo+" in this camera check. The count is still "+c.totalPossum+" possum image detections, not individual possums.";
     });
     body.append(tr);
     if(c.cameraNo)saveRegister(c.cameraNo,{zone:c.zone||"",block:c.block||"",status:c.status||"Active"});
