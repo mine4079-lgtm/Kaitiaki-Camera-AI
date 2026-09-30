@@ -93,6 +93,9 @@ async function ensureSchema(env) {
       reviewer_name TEXT,
       file_name TEXT NOT NULL,
       camera_no TEXT,
+      camera_check_id TEXT,
+      check_no INTEGER,
+      checked_date TEXT,
       relative_path TEXT,
       ai_prediction TEXT,
       ai_confidence INTEGER,
@@ -114,6 +117,9 @@ async function ensureSchema(env) {
   const columns = await env.KAITIAKI_DB.prepare("PRAGMA table_info(sightings)").all();
   const names = new Set((columns.results || []).map(row => row.name));
   if (!names.has("camera_no")) await env.KAITIAKI_DB.prepare("ALTER TABLE sightings ADD COLUMN camera_no TEXT").run();
+  if (!names.has("camera_check_id")) await env.KAITIAKI_DB.prepare("ALTER TABLE sightings ADD COLUMN camera_check_id TEXT").run();
+  if (!names.has("check_no")) await env.KAITIAKI_DB.prepare("ALTER TABLE sightings ADD COLUMN check_no INTEGER").run();
+  if (!names.has("checked_date")) await env.KAITIAKI_DB.prepare("ALTER TABLE sightings ADD COLUMN checked_date TEXT").run();
   if (!names.has("image_blob")) await env.KAITIAKI_DB.prepare("ALTER TABLE sightings ADD COLUMN image_blob BLOB").run();
   if (!names.has("image_type")) await env.KAITIAKI_DB.prepare("ALTER TABLE sightings ADD COLUMN image_type TEXT").run();
 
@@ -243,10 +249,10 @@ async function handleTeamSync(input, env, origin) {
   await env.KAITIAKI_DB.prepare(`
     INSERT INTO sightings (
       id, team_name, device_id, device_name, imported_by, reviewer_name,
-      file_name, camera_no, relative_path, ai_prediction, ai_confidence, ai_second_choice,
+      file_name, camera_no, camera_check_id, check_no, checked_date, relative_path, ai_prediction, ai_confidence, ai_second_choice,
       ai_note, confirmed_label, human_verified, needs_extra_review, status,
       image_blob, image_type, captured_at, verified_at, created_at, updated_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET
       team_name=excluded.team_name,
       device_id=excluded.device_id,
@@ -255,6 +261,9 @@ async function handleTeamSync(input, env, origin) {
       reviewer_name=excluded.reviewer_name,
       file_name=excluded.file_name,
       camera_no=excluded.camera_no,
+      camera_check_id=excluded.camera_check_id,
+      check_no=excluded.check_no,
+      checked_date=excluded.checked_date,
       relative_path=excluded.relative_path,
       ai_prediction=excluded.ai_prediction,
       ai_confidence=excluded.ai_confidence,
@@ -278,6 +287,9 @@ async function handleTeamSync(input, env, origin) {
     clean(r.reviewedBy, 120),
     fileName,
     clean(r.cameraNo, 80),
+    clean(r.cameraCheckId, 160),
+    Math.max(0, int(r.checkNo)),
+    clean(r.checkedDate, 30),
     clean(r.path, 1000),
     clean(r.aiPrediction, 40),
     int(r.aiConfidence),
@@ -306,16 +318,19 @@ async function handleTeamList(input, env, origin, status) {
   const limit = Math.max(1, Math.min(500, int(input?.limit, 100)));
   const team = clean(input?.team, 120);
   const cameraNo = clean(input?.cameraNo, 80);
+  const cameraCheckId = clean(input?.cameraCheckId, 160);
 
   const select = `
       SELECT id, team_name, device_id, device_name, imported_by, reviewer_name,
-        file_name, camera_no, relative_path, ai_prediction, ai_confidence, ai_second_choice,
+        file_name, camera_no, camera_check_id, check_no, checked_date, relative_path, ai_prediction, ai_confidence, ai_second_choice,
         ai_note, confirmed_label, human_verified, needs_extra_review, status,
         CASE WHEN image_blob IS NULL THEN 0 ELSE 1 END AS has_image,
         captured_at, verified_at, created_at, updated_at
       FROM sightings`;
   let stmt;
-  if (team && cameraNo) {
+  if (cameraCheckId) {
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND camera_check_id=? ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, cameraCheckId, limit);
+  } else if (team && cameraNo) {
     stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND team_name=? AND camera_no=? ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, team, cameraNo, limit);
   } else if (team) {
     stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND team_name=? ORDER BY updated_at DESC LIMIT ?").bind(status, team, limit);
