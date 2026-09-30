@@ -108,7 +108,9 @@ async function loadShared(kind){
     const data=await res.json();
     if(!res.ok||data.sharedReady!==true)throw Error(data.error||"Shared database not connected yet");
     root.replaceChildren();
-    const records=(data.records||[]).filter(r=>r.ai_prediction!=="Empty image");
+    const speciesSelect=$(kind==="sighting"?"sharedSightingsSpecies":"sharedReviewSpecies");
+    const chosenSpecies=speciesSelect?.value||"all";
+    const records=(data.records||[]).filter(r=>{if(r.ai_prediction==="Empty image")return false;const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;return chosenSpecies==="all"||label===chosenSpecies});
     if(!records.length){
       root.innerHTML='<div class="empty">No shared '+(kind==="sighting"?"pest sightings":"review items")+' yet.</div>';
       status.textContent="Up to date.";
@@ -140,4 +142,6 @@ window.KaitiakiLoadSharedSightings=()=>loadShared("sighting");
 window.KaitiakiLoadSharedReview=()=>loadShared("review");
 $("refreshSightings")?.addEventListener("click",window.KaitiakiLoadSharedSightings);
 $("refreshSharedReview")?.addEventListener("click",window.KaitiakiLoadSharedReview);
+$("sharedSightingsSpecies")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
+$("sharedReviewSpecies")?.addEventListener("change",window.KaitiakiLoadSharedReview);
 })();
