@@ -138,46 +138,43 @@ $("sharedNext")?.addEventListener("click",()=>{if(!galleryRecords.length)return;
 
 
 async function repairCameraCheckLinks(check){
-  if(!check?.id||!check.latestPossumDate)return {ok:false,message:"Repair stopped safely: this check has no saved Last possum date to use as a reliable cutoff."};
+  if(!check?.id)return {ok:false,message:"Repair stopped: this camera check has no saved ID."};
   const expected=Number(check.totalPossum)||0,year=Number(check.reportYear)||new Date().getFullYear();
-  const cutoff=new Date(check.latestPossumDate+"T23:59:59.999").getTime();
-  if(!Number.isFinite(cutoff))return {ok:false,message:"Repair stopped safely: the saved Last possum date could not be read."};
+  if(expected<1)return {ok:false,message:"Repair stopped: this report does not have a possum-image count to keep."};
 
   const db=await openDB();let rows=[];try{rows=await getAllRows(db)}finally{db.close()}
-  const linked=rows.filter(r=>r.cameraCheckId===check.id);
-  const possums=linked.filter(r=>{
+  const linkedPossums=rows.filter(r=>{
+    if(r.cameraCheckId!==check.id)return false;
     const label=r.verified?r.label:r.aiPrediction;
     if(label!=="Possum")return false;
     const d=new Date(r.capturedAt||r.lastModified||0);
-    return !Number.isNaN(d.getTime())&&d.getFullYear()===year&&d.getTime()<=cutoff;
-  }).sort((x,y)=>String(x.capturedAt||"").localeCompare(String(y.capturedAt||"")));
-
-  if(possums.length!==expected){
-    return {ok:false,message:"Repair stopped safely: using Last possum "+check.latestPossumDate+" gives "+possums.length+" possum images, but the report expects "+expected+". Nothing was changed."};
-  }
-
-  const keepKeys=new Set(possums.map(r=>r.key));
-  const extras=linked.filter(r=>{
-    const label=r.verified?r.label:r.aiPrediction;
-    if(label!=="Possum")return false;
-    const d=new Date(r.capturedAt||r.lastModified||0);
-    return !Number.isNaN(d.getTime())&&d.getFullYear()===year&&!keepKeys.has(r.key);
+    return !Number.isNaN(d.getTime())&&d.getFullYear()===year;
+  }).sort((a,b)=>{
+    const ad=new Date(a.capturedAt||a.lastModified||0).getTime();
+    const bd=new Date(b.capturedAt||b.lastModified||0).getTime();
+    return ad-bd||String(a.key).localeCompare(String(b.key));
   });
 
-  if(!extras.length)return {ok:true,message:"This check already matches the report count of "+expected+" possum images.",removed:0};
+  if(linkedPossums.length<=expected){
+    return {ok:true,message:check.cameraNo+" already has "+linkedPossums.length+" linked possum image"+(linkedPossums.length===1?"":"s")+". Nothing to remove.",removed:0};
+  }
 
+  const keep=new Set(linkedPossums.slice(0,expected).map(r=>r.key));
+  const extras=linkedPossums.filter(r=>!keep.has(r.key));
   const now=new Date().toISOString();
   const updates=extras.map(r=>({...r,cameraCheckId:"",checkNo:"",checkedDate:"",servicedBy:"",updatedAt:now}));
+
   const db2=await openDB();try{
     await new Promise((ok,no)=>{const t=db2.transaction(STORE,"readwrite"),st=t.objectStore(STORE);for(const r of updates)st.put(r);t.oncomplete=ok;t.onerror=()=>no(t.error)});
   }finally{db2.close()}
 
   for(const r of updates)syncRecord(r,r.preview);
-  return {ok:true,message:"Repaired "+check.cameraNo+". Kept the "+expected+" possum images up to "+check.latestPossumDate+" and unlinked "+extras.length+" extra possum record"+(extras.length===1?"":"s")+". No images or classifications were deleted.",removed:extras.length};
+  return {ok:true,message:"Repaired "+check.cameraNo+". Kept "+expected+" possum images and unlinked "+extras.length+" extras. No image previews or classifications were deleted.",removed:extras.length};
 }
+
 $("sharedRepair")?.addEventListener("click",async()=>{
   const btn=$("sharedRepair"),check=galleryRepairCheck;if(!btn||!check)return;
-  btn.disabled=true;btn.textContent="Repairing…";
+  btn.disabled=true;btn.textContent="Keeping report count…";
   try{
     const result=await repairCameraCheckLinks(check);
     galleryWarning=result.message;
@@ -193,7 +190,7 @@ $("sharedRepair")?.addEventListener("click",async()=>{
   }catch(e){
     const message="Repair failed safely: "+String(e.message||e)+". Nothing was deleted.";
     galleryWarning=message;$("sharedMetaNote").textContent=message;alert(message);
-  }finally{btn.disabled=false;btn.textContent="Repair check links"}
+  }finally{btn.disabled=false;btn.textContent="Keep report count"}
 });
 
 async function loadShared(kind){
