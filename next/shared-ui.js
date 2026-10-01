@@ -193,6 +193,17 @@ $("sharedRepair")?.addEventListener("click",async()=>{
   }finally{btn.disabled=false;btn.textContent="Keep report count"}
 });
 
+function fillSharedCameraFilter(kind,records){
+  const select=$(kind==="sighting"?"sharedSightingsCamera":"sharedReviewCamera");if(!select)return "all";
+  const current=select.value||"all";
+  const cameras=[...new Set(records.map(r=>String(r.camera_no||"").trim().toUpperCase()).filter(Boolean))].sort();
+  select.replaceChildren();
+  const all=document.createElement("option");all.value="all";all.textContent="All cameras";select.append(all);
+  for(const cam of cameras){const o=document.createElement("option");o.value=cam;o.textContent=cam;select.append(o)}
+  select.value=cameras.includes(current)?current:"all";
+  return select.value;
+}
+
 async function loadShared(kind){
   const root=$(kind==="sighting"?"sharedSightings":"sharedReview");
   const status=$(kind==="sighting"?"sharedSightingsStatus":"sharedReviewStatus");
@@ -212,7 +223,9 @@ async function loadShared(kind){
     root.replaceChildren();
     const speciesSelect=$(kind==="sighting"?"sharedSightingsSpecies":"sharedReviewSpecies");
     const chosenSpecies=speciesSelect?.value||"all";
-    const records=(data.records||[]).filter(r=>{if(r.ai_prediction==="Empty image")return false;const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;return chosenSpecies==="all"||label===chosenSpecies});
+    const baseRecords=(data.records||[]).filter(r=>r.ai_prediction!=="Empty image");
+    const chosenCamera=fillSharedCameraFilter(kind,baseRecords);
+    const records=baseRecords.filter(r=>{const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;const speciesOK=chosenSpecies==="all"||label===chosenSpecies;const cameraOK=chosenCamera==="all"||String(r.camera_no||"").trim().toUpperCase()===chosenCamera;return speciesOK&&cameraOK});
     if(!records.length){
       root.innerHTML='<div class="empty">No shared '+(kind==="sighting"?"pest sightings":"review items")+' yet.</div>';
       status.textContent="Up to date.";
@@ -305,4 +318,6 @@ $("refreshSightings")?.addEventListener("click",window.KaitiakiLoadSharedSightin
 $("refreshSharedReview")?.addEventListener("click",window.KaitiakiLoadSharedReview);
 $("sharedSightingsSpecies")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
 $("sharedReviewSpecies")?.addEventListener("change",window.KaitiakiLoadSharedReview);
+$("sharedSightingsCamera")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
+$("sharedReviewCamera")?.addEventListener("change",window.KaitiakiLoadSharedReview);
 })();
