@@ -124,17 +124,17 @@ dialog::backdrop{background:#0c211dcc}
 <section class="view" id="sightings">
 <h2>Team pest sightings</h2>
 <p class="sub">Likely pest detections from the whole team. High-confidence pest records appear here automatically; staff corrections update the shared record.</p>
-<div class="actions"><label class="field" style="margin:0">Species <select id="sharedSightingsSpecies"><option value="all">All pests</option><option>Possum</option><option>Rat</option><option>Stoat</option><option>Mouse</option><option>Deer</option><option>Pig</option></select></label><button id="refreshSightings" class="btn light">Refresh sightings</button></div>
+<div class="actions"><label class="field" style="margin:0">Species <select id="sharedSightingsSpecies"><option value="all">All pests</option><option>Possum</option><option>Rat</option><option>Stoat</option><option>Mouse</option><option>Deer</option><option>Pig</option></select></label><label class="field" style="margin:0">Camera <select id="sharedSightingsCamera"><option value="all">All cameras</option></select></label><button id="refreshSightings" class="btn light">Refresh sightings</button></div>
 <p id="sharedSightingsStatus" class="sub" style="margin-top:12px">Shared database not connected yet.</p>
 <div id="sharedSightings" class="gallery"><div class="empty">No shared sightings loaded yet.</div></div>
 </section>
 <section class="view" id="results">
 <h2>Review what needs a person</h2>
 <p class="sub">AI handles the sorting. Clear empty/vegetation frames are skipped. Only Unsure, under-95% confidence, or quality-flagged detections appear here for a person to check.</p>
-<div class="panel"><h3>Shared team review</h3><p class="sub">Items the AI was unsure about across the team.</p><div class="actions"><label class="field" style="margin:0">Species <select id="sharedReviewSpecies"><option value="all">All species</option><option>Possum</option><option>Rat</option><option>Stoat</option><option>Mouse</option><option>Deer</option><option>Pig</option><option>Weka</option><option>Other wildlife</option><option>Human</option><option>Unsure</option></select></label><button id="refreshSharedReview" class="btn light">Refresh team review</button></div><p id="sharedReviewStatus" class="sub" style="margin:10px 0">Shared database not connected yet.</p><div id="sharedReview" class="gallery"><div class="empty">No shared review items loaded yet.</div></div></div>
+<div class="panel"><h3>Shared team review</h3><p class="sub">Items the AI was unsure about across the team.</p><div class="actions"><label class="field" style="margin:0">Species <select id="sharedReviewSpecies"><option value="all">All species</option><option>Possum</option><option>Rat</option><option>Stoat</option><option>Mouse</option><option>Deer</option><option>Pig</option><option>Weka</option><option>Other wildlife</option><option>Human</option><option>Unsure</option></select></label><label class="field" style="margin:0">Camera <select id="sharedReviewCamera"><option value="all">All cameras</option></select></label><button id="refreshSharedReview" class="btn light">Refresh team review</button></div><p id="sharedReviewStatus" class="sub" style="margin:10px 0">Shared database not connected yet.</p><div id="sharedReview" class="gallery"><div class="empty">No shared review items loaded yet.</div></div></div>
 <h3>Local device review</h3>
 <div class="statbar"><div class="stat"><b id="r-total">0</b><small>IMAGES SAVED</small></div><div class="stat"><b id="r-verified">0</b><small>COMPLETED</small></div><div class="stat"><b id="r-pending">0</b><small>TO REVIEW</small></div></div>
-<div class="toolbar" role="group" aria-label="Filter images"><select id="speciesFilter" aria-label="Species filter"><option value="all">All species</option><option>Possum</option><option>Rat</option><option>Stoat</option><option>Mouse</option><option>Deer</option><option>Pig</option><option>Weka</option><option>Other wildlife</option><option>Human</option><option>Unsure</option></select><button class="active" data-filter="all">All</button><button data-filter="pending">To review</button><button data-filter="flagged">Flagged</button><button data-filter="verified">Completed</button><button id="selectMany">Select multiple</button><button id="selectVisible" hidden>Select visible</button><button id="deleteSelected" class="danger" hidden disabled>Delete selected (0)</button><button id="cancelSelect" hidden>Cancel</button><button id="export2">Export CSV</button></div>
+<div class="toolbar" role="group" aria-label="Filter images"><select id="cameraFilter" aria-label="Camera filter"><option value="all">All cameras</option></select><select id="speciesFilter" aria-label="Species filter"><option value="all">All species</option><option>Possum</option><option>Rat</option><option>Stoat</option><option>Mouse</option><option>Deer</option><option>Pig</option><option>Weka</option><option>Other wildlife</option><option>Human</option><option>Unsure</option></select><button class="active" data-filter="all">All</button><button data-filter="pending">To review</button><button data-filter="flagged">Flagged</button><button data-filter="verified">Completed</button><button id="selectMany">Select multiple</button><button id="selectVisible" hidden>Select visible</button><button id="deleteSelected" class="danger" hidden disabled>Delete selected (0)</button><button id="cancelSelect" hidden>Cancel</button><button id="export2">Export CSV</button></div>
 <div id="gallery" class="gallery"></div><button id="more" class="btn light" hidden>Show more photos</button>
 </section>
 <section class="view" id="reports">
@@ -183,7 +183,7 @@ dialog::backdrop{background:#0c211dcc}
 const SPECIES=["Possum","Rat","Stoat","Mouse","Deer","Pig","Weka","Other wildlife","Human","Unsure"];
 const DB_NAME="kaitiaki-next-v1"; const STORE="image-records"; const BATCH=50;
 const $=id=>document.getElementById(id);
-let db, rows=[], selectedFiles=[], filesByKey=new Map(), activeTab="scan", filter="all", speciesFilter="all", limit=24, paused=false, working=false, selectedKey=null, selectedLabel="", largeUrl=null, thumbUrls=[], multiSelect=false, selectedMany=new Set();
+let db, rows=[], selectedFiles=[], filesByKey=new Map(), activeTab="scan", filter="all", cameraFilter="all",speciesFilter="all", limit=24, paused=false, working=false, selectedKey=null, selectedLabel="", largeUrl=null, thumbUrls=[], multiSelect=false, selectedMany=new Set();
 const pathFor=f=>f.webkitRelativePath||f.name;
 const keyFor=f=>pathFor(f)+"|"+f.size+"|"+f.lastModified;
 const wait=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -205,9 +205,18 @@ function isSkipped(r){return !!r.aiSkipped||r.aiPrediction==="Empty image"}
 function updateStats(){const accepted=rows.filter(r=>!isSkipped(r)&&(r.verified||r.aiAutoAccepted)).length;for(const id of ["total","r-total"])$(id).textContent=rows.length.toLocaleString();for(const id of ["verified","r-verified"])$(id).textContent=accepted.toLocaleString();for(const id of ["pending","r-pending"])$(id).textContent=rows.filter(r=>!isSkipped(r)&&!r.verified&&!r.aiAutoAccepted).length.toLocaleString();let summary={};for(const r of rows){if(r.verified)summary[r.label]=(summary[r.label]||0)+1}const parts=Object.entries(summary).sort((a,b)=>b[1]-a[1]).map(([name,n])=>name+": "+n.toLocaleString());$("breakdown").textContent=parts.length?parts.join(" · "):"No verified images yet."}
 function escapeHTML(str){return String(str).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]))}
 function clearThumbs(){for(const url of thumbUrls)URL.revokeObjectURL(url);thumbUrls=[]}
-function filtered(){return rows.filter(r=>{if(isSkipped(r))return false;const label=r.verified?r.label:(r.aiPrediction||"");const speciesOK=speciesFilter==="all"||label===speciesFilter;const statusOK=filter==="all"||(filter==="verified"?(r.verified||r.aiAutoAccepted):filter==="flagged"?!!r.aiNeedsExtraReview:(!r.verified&&!r.aiAutoAccepted));return speciesOK&&statusOK})}
+function filtered(){return rows.filter(r=>{if(isSkipped(r))return false;const label=r.verified?r.label:(r.aiPrediction||"");const cameraOK=cameraFilter==="all"||String(r.cameraNo||"").toUpperCase()===cameraFilter;const speciesOK=speciesFilter==="all"||label===speciesFilter;const statusOK=filter==="all"||(filter==="verified"?(r.verified||r.aiAutoAccepted):filter==="flagged"?!!r.aiNeedsExtraReview:(!r.verified&&!r.aiAutoAccepted));return cameraOK&&speciesOK&&statusOK})}
 function updateMultiControls(){const n=selectedMany.size;$("selectMany").hidden=multiSelect;$("selectVisible").hidden=!multiSelect;$("deleteSelected").hidden=!multiSelect;$("cancelSelect").hidden=!multiSelect;$("deleteSelected").disabled=!n;$("deleteSelected").textContent="Delete selected ("+n+")"}
-function render(){updateStats();if(activeTab!=="results")return;updateMultiControls();clearThumbs();const data=filtered(),visible=data.slice(0,limit);const root=$("gallery");root.replaceChildren();if(!data.length){root.innerHTML='<div class="empty">No photos in this view yet.</div>'}
+function refreshCameraFilter(){
+  const select=$("cameraFilter");if(!select)return;
+  const current=cameraFilter;
+  const cameras=[...new Set(rows.map(r=>String(r.cameraNo||"").trim().toUpperCase()).filter(Boolean))].sort();
+  select.replaceChildren();
+  const all=document.createElement("option");all.value="all";all.textContent="All cameras";select.append(all);
+  for(const cam of cameras){const o=document.createElement("option");o.value=cam;o.textContent=cam;select.append(o)}
+  select.value=cameras.includes(current)?current:"all";cameraFilter=select.value;
+}
+function render(){refreshCameraFilter();updateStats();if(activeTab!=="results")return;updateMultiControls();clearThumbs();const data=filtered(),visible=data.slice(0,limit);const root=$("gallery");root.replaceChildren();if(!data.length){root.innerHTML='<div class="empty">No photos in this view yet.</div>'}
 for(const r of visible){const b=document.createElement("button");b.className="item"+(selectedMany.has(r.key)?" multi-selected":"");b.dataset.key=r.key;if(multiSelect){const tick=document.createElement("span");tick.className="select-tick";tick.textContent=selectedMany.has(r.key)?"✓":"";b.append(tick)}
 const f=filesByKey.get(r.key),savedPreview=r.preview instanceof Blob?r.preview:null,shown=savedPreview||f;if(shown){const img=document.createElement("img");const src=URL.createObjectURL(shown);thumbUrls.push(src);img.src=src;img.alt=r.name;img.loading="lazy";b.append(img)}else{const p=document.createElement("div");p.className="placeholder";p.textContent="Reconnect folder to restore preview";b.append(p)}
 const body=document.createElement("div");body.className="item-body";const shownLabel=r.verified?r.label:(r.aiAutoAccepted?"AI accepted · "+r.aiPrediction+" · "+r.aiConfidence+"%":(r.aiPrediction?r.aiPrediction+" · "+r.aiConfidence+"%"+(r.aiNeedsExtraReview?" · CHECK":""):"Needs review"));body.innerHTML="<strong>"+escapeHTML(r.cameraNo||r.name)+"</strong><span class='kind "+((r.verified||r.aiAutoAccepted)?"good":"")+"'>"+escapeHTML(shownLabel)+"</span><small>"+escapeHTML(r.cameraNo?r.name:r.path)+"</small>"+(r.cameraNo?"<small>"+escapeHTML(r.path)+"</small>":"");b.append(body);b.addEventListener("click",()=>{if(multiSelect){if(selectedMany.has(r.key))selectedMany.delete(r.key);else selectedMany.add(r.key);render()}else openReview(r.key)});root.append(b)}
@@ -241,7 +250,7 @@ window.KaitiakiAttachConnectedToCameraCheck=async(context)=>{
   return updates.length;
 };
 document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>activateTab(b.dataset.tab)));
-document.querySelectorAll("[data-filter]").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.filter;limit=24;document.querySelectorAll("[data-filter]").forEach(x=>x.classList.toggle("active",x===b));render()}));$("speciesFilter")?.addEventListener("change",e=>{speciesFilter=e.target.value;limit=24;render()});
+document.querySelectorAll("[data-filter]").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.filter;limit=24;document.querySelectorAll("[data-filter]").forEach(x=>x.classList.toggle("active",x===b));render()}));$("cameraFilter")?.addEventListener("change",e=>{cameraFilter=e.target.value;limit=24;render()});$("speciesFilter")?.addEventListener("change",e=>{speciesFilter=e.target.value;limit=24;render()});
 $("seeResults").onclick=()=>activateTab("results");$("more").onclick=()=>{limit+=24;render()};
 $("selectMany").onclick=()=>{multiSelect=true;selectedMany.clear();render()};
 $("cancelSelect").onclick=()=>{multiSelect=false;selectedMany.clear();render()};
@@ -295,8 +304,8 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 })();
 </script>
 <script src="./cloud-ui.js?v=15"></script>
-<script src="./shared-ui.js?v=19"></script>
+<script src="./shared-ui.js?v=20"></script>
 <script src="./camera-report.js?v=7"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=40").catch(()=>{}))}</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=41").catch(()=>{}))}</script>
 </body>
 </html>
