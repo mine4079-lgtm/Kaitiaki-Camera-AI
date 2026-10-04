@@ -193,10 +193,29 @@ $("sharedRepair")?.addEventListener("click",async()=>{
   }finally{btn.disabled=false;btn.textContent="Keep report count"}
 });
 
-function fillSharedCameraFilter(kind,records){
+async function knownSharedCameras(records){
+  const names=new Set(records.map(r=>String(r.camera_no||"").trim().toUpperCase()).filter(Boolean));
+  try{
+    const reg=JSON.parse(localStorage.getItem("kaitiaki-camera-register-v1")||"{}");
+    for(const c of Object.values(reg||{}))if(c?.cameraNo)names.add(String(c.cameraNo).trim().toUpperCase());
+  }catch{}
+  try{
+    const checks=JSON.parse(localStorage.getItem("kaitiaki-camera-checks-v1")||"[]");
+    for(const c of checks||[])if(c?.cameraNo)names.add(String(c.cameraNo).trim().toUpperCase());
+  }catch{}
+  if(navigator.onLine&&token()){
+    try{
+      const res=await fetch(endpoint()+"/team/camera-checks",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:1000})});
+      const data=await res.json();
+      if(res.ok)for(const c of data.checks||[])if(c?.cameraNo)names.add(String(c.cameraNo).trim().toUpperCase());
+    }catch{}
+  }
+  return [...names].filter(Boolean).sort();
+}
+async function fillSharedCameraFilter(kind,records){
   const select=$(kind==="sighting"?"sharedSightingsCamera":"sharedReviewCamera");if(!select)return "all";
   const current=select.value||"all";
-  const cameras=[...new Set(records.map(r=>String(r.camera_no||"").trim().toUpperCase()).filter(Boolean))].sort();
+  const cameras=await knownSharedCameras(records);
   select.replaceChildren();
   const all=document.createElement("option");all.value="all";all.textContent="All cameras";select.append(all);
   for(const cam of cameras){const o=document.createElement("option");o.value=cam;o.textContent=cam;select.append(o)}
@@ -224,7 +243,7 @@ async function loadShared(kind){
     const speciesSelect=$(kind==="sighting"?"sharedSightingsSpecies":"sharedReviewSpecies");
     const chosenSpecies=speciesSelect?.value||"all";
     const baseRecords=(data.records||[]).filter(r=>r.ai_prediction!=="Empty image");
-    const chosenCamera=fillSharedCameraFilter(kind,baseRecords);
+    const chosenCamera=await fillSharedCameraFilter(kind,baseRecords);
     const records=baseRecords.filter(r=>{const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;const speciesOK=chosenSpecies==="all"||label===chosenSpecies;const cameraOK=chosenCamera==="all"||String(r.camera_no||"").trim().toUpperCase()===chosenCamera;return speciesOK&&cameraOK});
     if(!records.length){
       root.innerHTML='<div class="empty">No shared '+(kind==="sighting"?"pest sightings":"review items")+' yet.</div>';
