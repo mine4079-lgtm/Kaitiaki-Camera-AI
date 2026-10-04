@@ -210,7 +210,16 @@ function updateMultiControls(){const n=selectedMany.size;$("selectMany").hidden=
 function refreshCameraFilter(){
   const select=$("cameraFilter");if(!select)return;
   const current=cameraFilter;
-  const cameras=[...new Set(rows.map(r=>String(r.cameraNo||"").trim().toUpperCase()).filter(Boolean))].sort();
+  const names=new Set(rows.map(r=>String(r.cameraNo||"").trim().toUpperCase()).filter(Boolean));
+  try{
+    const reg=JSON.parse(localStorage.getItem("kaitiaki-camera-register-v1")||"{}");
+    for(const c of Object.values(reg||{}))if(c?.cameraNo)names.add(String(c.cameraNo).trim().toUpperCase());
+  }catch{}
+  try{
+    const checks=JSON.parse(localStorage.getItem("kaitiaki-camera-checks-v1")||"[]");
+    for(const c of checks||[])if(c?.cameraNo)names.add(String(c.cameraNo).trim().toUpperCase());
+  }catch{}
+  const cameras=[...names].filter(Boolean).sort();
   select.replaceChildren();
   const all=document.createElement("option");all.value="all";all.textContent="All cameras";select.append(all);
   for(const cam of cameras){const o=document.createElement("option");o.value=cam;o.textContent=cam;select.append(o)}
@@ -304,8 +313,8 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 })();
 </script>
 <script src="./cloud-ui.js?v=15"></script>
-<script src="./shared-ui.js?v=20"></script>
+<script src="./shared-ui.js?v=21"></script>
 <script src="./camera-report.js?v=7"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=41").catch(()=>{}))}</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=42").catch(()=>{}))}</script>
 </body>
 </html>
