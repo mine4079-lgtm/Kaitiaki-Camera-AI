@@ -48,6 +48,28 @@ async function syncRecord(record,preview){
 }
 window.KaitiakiSharedSync=syncRecord;
 
+async function syncRecordMetadata(record){
+  if(!record?.key||!navigator.onLine||!token())return false;
+  try{
+    const body={record:{...record,syncId:(record.deviceId||deviceId()||"device")+"|"+record.key},image:null};
+    const res=await fetch(endpoint()+"/team/sync",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody(body)});
+    if(!res.ok)throw Error("sync "+res.status);
+    clearPending(record.key);markSynced(record);return true;
+  }catch{markPending(record.key);return false}
+}
+
+async function reconcileCompletedLocalReview(){
+  if(!navigator.onLine||!token())return 0;
+  let db,rows=[];
+  try{db=await openDB();rows=await getAllRows(db)}catch{return 0}finally{db?.close()}
+  let n=0;
+  for(const row of rows){
+    if(!row?.verified)continue;
+    if(await syncRecordMetadata(row))n++;
+  }
+  return n;
+}
+
 async function flushPending(){
   if(!navigator.onLine||!token())return;
   const keys=[...pending()];if(!keys.length)return;
@@ -230,6 +252,10 @@ async function loadShared(kind){
   clearImages();
   if(!navigator.onLine){status.textContent="Offline — shared records need internet. Your local Review still works.";return}
   if(!token()){status.textContent="Connect AI once on this device to open shared team records.";return}
+  if(kind==="review"){
+    status.textContent="Updating completed local reviews…";
+    await reconcileCompletedLocalReview();
+  }
   status.textContent="Checking shared database…";
   try{const health=await fetch(endpoint(),{cache:"no-store"}).then(r=>r.json());if(!health.sharedReady)throw Error("Worker is online but D1 is not connected to it.")}catch(e){status.textContent="Shared connection problem: "+String(e.message||e);return}
   status.textContent="Loading shared team records…";
