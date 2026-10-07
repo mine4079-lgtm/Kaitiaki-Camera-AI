@@ -315,6 +315,30 @@ async function handleTeamList(input, env, origin, status) {
     return reply({ error: "Shared team database is not connected yet", sharedReady: false, records: [] }, 503, origin);
   }
   await ensureSchema(env);
+
+  if (status === "review") {
+    await env.KAITIAKI_DB.prepare(`
+      UPDATE sightings AS old
+      SET status='resolved',
+          needs_extra_review=0,
+          updated_at=CASE
+            WHEN old.updated_at IS NULL OR old.updated_at='' THEN datetime('now')
+            ELSE old.updated_at
+          END
+      WHERE old.status='review'
+        AND old.file_name<>''
+        AND old.captured_at<>''
+        AND EXISTS (
+          SELECT 1
+          FROM sightings AS newer
+          WHERE newer.id<>old.id
+            AND newer.human_verified=1
+            AND newer.file_name=old.file_name
+            AND newer.captured_at=old.captured_at
+            AND COALESCE(newer.updated_at,'')>=COALESCE(old.updated_at,'')
+        )
+    `).run();
+  }
   const limit = Math.max(1, Math.min(500, int(input?.limit, 100)));
   const team = clean(input?.team, 120);
   const cameraNo = clean(input?.cameraNo, 80);
