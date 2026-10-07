@@ -175,7 +175,7 @@ dialog::backdrop{background:#0c211dcc}
 <dialog id="reviewDialog" aria-label="Review image">
 <div class="dialog-title"><strong id="dialogName">Review photo</strong><button id="closeDialog" class="x" aria-label="Close">×</button></div>
 <img id="large" alt="Selected wildlife camera photo" hidden><div id="noPreview" hidden>Re-select the original folder or photo to view this image.</div>
-<div class="dialog-content"><p class="sub" id="dialogPath"></p><div class="notice green" id="dialogAi" hidden></div><h3>Confirm actual label</h3><div id="choices" class="choices"></div><div class="dialog-actions"><button id="saveLabel" class="btn" disabled>Save confirmed label</button><button id="nextImage" class="btn light">Next image</button><button id="deleteRecord" class="btn danger">Delete record</button></div><p class="sub" id="dialogMessage" role="status" style="margin:10px 0 0"></p></div>
+<div class="dialog-content"><p class="sub" id="dialogPath"></p><div class="notice green" id="dialogAi" hidden></div><h3>Confirm actual label</h3><div id="choices" class="choices"></div><div class="dialog-actions"><button id="prevImage" class="btn light">Previous image</button><button id="saveLabel" class="btn" disabled>Save confirmed label</button><button id="nextImage" class="btn light">Next image</button><button id="deleteRecord" class="btn danger">Delete record</button></div><p class="sub" style="margin:10px 0 0">Keyboard: ← previous · Enter save confirmed · → next</p><p class="sub" id="dialogMessage" role="status" style="margin:6px 0 0"></p></div>
 </dialog>
 <script>
 (function(){
@@ -183,7 +183,7 @@ dialog::backdrop{background:#0c211dcc}
 const SPECIES=["Possum","Rat","Stoat","Mouse","Deer","Pig","Weka","Other wildlife","Human","Unsure"];
 const DB_NAME="kaitiaki-next-v1"; const STORE="image-records"; const BATCH=50;
 const $=id=>document.getElementById(id);
-let db, rows=[], selectedFiles=[], filesByKey=new Map(), activeTab="scan", filter="all", cameraFilter="all",speciesFilter="all", limit=24, paused=false, working=false, selectedKey=null, selectedLabel="", largeUrl=null, thumbUrls=[], multiSelect=false, selectedMany=new Set();
+let db, rows=[], selectedFiles=[], filesByKey=new Map(), activeTab="scan", filter="all", cameraFilter="all",speciesFilter="all", limit=24, paused=false, working=false, selectedKey=null, selectedLabel="", largeUrl=null, thumbUrls=[], multiSelect=false, selectedMany=new Set(), reviewKeys=[];
 const pathFor=f=>f.webkitRelativePath||f.name;
 const keyFor=f=>pathFor(f)+"|"+f.size+"|"+f.lastModified;
 const wait=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -281,14 +281,45 @@ if(fresh.length||updated.length){await storeItems([...fresh,...updated]);if(fres
 $("status").textContent=paused?"Paused safely at "+done.toLocaleString()+" / "+total.toLocaleString()+". Press Import again to resume.":"Import complete. "+added.toLocaleString()+" new records; existing labels preserved. Go to Results to review.";
 }catch(err){$("status").textContent="Import stopped: "+String(err.message||err)+". Last completed checkpoint is saved."}finally{working=false;$("start").disabled=false;$("pause").disabled=true;render()}
 };
-function openReview(key){selectedKey=key;const r=rows.find(x=>x.key===key);if(!r)return;selectedLabel=r.verified?r.label:(r.aiAutoAccepted?r.aiPrediction:"");$("deleteRecord").disabled=false;$("dialogName").textContent=(r.cameraNo?r.cameraNo+" · ":"")+r.name;$("dialogPath").textContent=r.path;const ai=$("dialogAi");ai.hidden=!r.aiPrediction;ai.textContent=r.aiPrediction?(r.aiNeedsExtraReview?"⚠ Extra review: "+(r.aiQualityReason||"poor-quality frame")+" · ":"")+"AI suggests "+r.aiPrediction+" · "+r.aiConfidence+"%"+(r.aiSecondChoice?" · Second choice: "+r.aiSecondChoice:"")+" — "+(r.aiNote||"")+" (not verified)":"";$("dialogMessage").textContent=r.verified?"Saved label: "+r.label:(r.aiAutoAccepted?"AI accepted at "+r.aiConfidence+"%. Change it only if the AI is wrong.":"Choose what you actually see in the image.");$("saveLabel").disabled=!selectedLabel;
-if(largeUrl){URL.revokeObjectURL(largeUrl);largeUrl=null}const f=filesByKey.get(key),savedPreview=r.preview instanceof Blob?r.preview:null,shown=savedPreview||f;$("large").hidden=!shown;$("noPreview").hidden=!!shown;if(shown){largeUrl=URL.createObjectURL(shown);$("large").src=largeUrl}else{$("large").removeAttribute("src")}
-const c=$("choices");c.replaceChildren();for(const label of SPECIES){const b=document.createElement("button");b.textContent=label;b.className=selectedLabel===label?"selected":"";b.onclick=()=>{selectedLabel=label;c.querySelectorAll("button").forEach(x=>x.classList.toggle("selected",x===b));$("saveLabel").disabled=false};c.append(b)}
-$("reviewDialog").showModal()
+function openReview(key,keepSequence=false){
+  if(!keepSequence)reviewKeys=filtered().map(r=>r.key);
+  selectedKey=key;const r=rows.find(x=>x.key===key);if(!r)return;
+  selectedLabel=r.verified?r.label:(r.aiAutoAccepted?r.aiPrediction:"");
+  $("deleteRecord").disabled=false;
+  $("dialogName").textContent=(r.cameraNo?r.cameraNo+" · ":"")+r.name;
+  $("dialogPath").textContent=r.path;
+  const ai=$("dialogAi");ai.hidden=!r.aiPrediction;
+  ai.textContent=r.aiPrediction?(r.aiNeedsExtraReview?"⚠ Extra review: "+(r.aiQualityReason||"poor-quality frame")+" · ":"")+"AI suggests "+r.aiPrediction+" · "+r.aiConfidence+"%"+(r.aiSecondChoice?" · Second choice: "+r.aiSecondChoice:"")+" — "+(r.aiNote||"")+" (not verified)":"";
+  $("dialogMessage").textContent=r.verified?"Saved label: "+r.label:(r.aiAutoAccepted?"AI accepted at "+r.aiConfidence+"%. Change it only if the AI is wrong.":"Choose what you actually see in the image.");
+  $("saveLabel").disabled=!selectedLabel;
+  if(largeUrl){URL.revokeObjectURL(largeUrl);largeUrl=null}
+  const f=filesByKey.get(key),savedPreview=r.preview instanceof Blob?r.preview:null,shown=savedPreview||f;
+  $("large").hidden=!shown;$("noPreview").hidden=!!shown;
+  if(shown){largeUrl=URL.createObjectURL(shown);$("large").src=largeUrl}else{$("large").removeAttribute("src")}
+  const c=$("choices");c.replaceChildren();
+  for(const label of SPECIES){
+    const b=document.createElement("button");b.textContent=label;b.className=selectedLabel===label?"selected":"";
+    b.onclick=()=>{selectedLabel=label;c.querySelectorAll("button").forEach(x=>x.classList.toggle("selected",x===b));$("saveLabel").disabled=false};
+    c.append(b)
+  }
+  if(!$("reviewDialog").open)$("reviewDialog").showModal();
+}
+function moveReview(step){
+  if(!reviewKeys.length)return;
+  let idx=reviewKeys.indexOf(selectedKey);
+  if(idx<0)idx=0;
+  const nextKey=reviewKeys[(idx+step+reviewKeys.length)%reviewKeys.length];
+  if(nextKey)openReview(nextKey,true);
 }
 $("closeDialog").onclick=()=>$("reviewDialog").close();$("reviewDialog").addEventListener("close",()=>{if(largeUrl){URL.revokeObjectURL(largeUrl);largeUrl=null}});
+document.addEventListener("keydown",e=>{
+  const dlg=$("reviewDialog");if(!dlg?.open)return;
+  if(e.key==="ArrowLeft"){e.preventDefault();moveReview(-1);return}
+  if(e.key==="ArrowRight"){e.preventDefault();moveReview(1);return}
+  if(e.key==="Enter"){e.preventDefault();const b=$("saveLabel");if(!b.disabled)b.click()}
+});
 $("saveLabel").onclick=async()=>{const r=rows.find(x=>x.key===selectedKey);if(!r||!selectedLabel)return;const tc=teamContext();const next={...r,label:selectedLabel,verified:selectedLabel!=="Unsure",aiAutoAccepted:false,aiAutoAcceptedAt:"",reviewedBy:tc.staffName,reviewedTeam:tc.teamName,reviewedDevice:tc.deviceName,reviewedDeviceId:tc.deviceId,verifiedAt:selectedLabel!=="Unsure"?new Date().toISOString():"",updatedAt:new Date().toISOString()};try{await storeItems([next]);rows[rows.indexOf(r)]=next;window.KaitiakiSharedSync?.(next,next.preview);$("dialogMessage").textContent=next.verified?"Confirmed: "+selectedLabel:"Marked unsure for further review.";$("saveLabel").disabled=true;render()}catch(err){$("dialogMessage").textContent="Save failed: "+String(err.message||err)}};
-$("nextImage").onclick=()=>{const arr=filtered();const idx=arr.findIndex(r=>r.key===selectedKey);const next=arr[idx+1]||arr[0];if(next){$("reviewDialog").close();openReview(next.key)}};
+$("prevImage").onclick=()=>moveReview(-1);$("nextImage").onclick=()=>moveReview(1);
 $("deleteRecord").onclick=async()=>{
  const key=selectedKey,r=rows.find(x=>x.key===key);
  if(!r||working||window.KaitiakiCloudIsRunning?.()){ $("dialogMessage").textContent="Finish the current import or AI run before deleting a record.";return;}
@@ -315,6 +346,6 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 <script src="./cloud-ui.js?v=15"></script>
 <script src="./shared-ui.js?v=22"></script>
 <script src="./camera-report.js?v=7"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=43").catch(()=>{}))}</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=44").catch(()=>{}))}</script>
 </body>
 </html>
