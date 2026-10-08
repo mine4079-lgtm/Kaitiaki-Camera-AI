@@ -215,6 +215,37 @@ $("sharedRepair")?.addEventListener("click",async()=>{
   }finally{btn.disabled=false;btn.textContent="Keep report count"}
 });
 
+async function sharedCameraChecks(){
+  if(!navigator.onLine||!token())return [];
+  try{
+    const res=await fetch(endpoint()+"/team/camera-checks",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:1000})});
+    const data=await res.json();if(!res.ok)return [];
+    return data.checks||[];
+  }catch{return []}
+}
+function dedupeSharedChecks(checks){
+  const keep=new Map();
+  for(const c of checks){
+    const camera=String(c.cameraNo||"").trim().toUpperCase();
+    const checkNo=Number(c.checkNo)||0;
+    const date=String(c.checkedDate||"").trim();
+    const key=(camera&&checkNo&&date)?camera+"|"+checkNo+"|"+date:"id:"+String(c.id||Math.random());
+    const old=keep.get(key);
+    if(!old||String(c.updatedAt||c.createdAt||"")>String(old.updatedAt||old.createdAt||""))keep.set(key,c);
+  }
+  return [...keep.values()];
+}
+function fillSightingsYear(checks){
+  const select=$("sharedSightingsYear");if(!select)return new Date().getFullYear();
+  const current=Number(select.value)||new Date().getFullYear();
+  const years=[...new Set(checks.map(c=>Number(c.reportYear)).filter(Number.isFinite))].sort((a,b)=>b-a);
+  if(!years.length)years.push(new Date().getFullYear());
+  select.replaceChildren();
+  for(const y of years){const o=document.createElement("option");o.value=String(y);o.textContent=String(y);select.append(o)}
+  select.value=years.includes(current)?String(current):String(years[0]);
+  return Number(select.value);
+}
+function checkKey(c){return String(c.cameraNo||"").trim().toUpperCase()+"|"+(Number(c.checkNo)||0)+"|"+String(c.checkedDate||"").trim()}
 async function knownSharedCameras(records){
   const names=new Set(records.map(r=>String(r.camera_no||"").trim().toUpperCase()).filter(Boolean));
   try{
@@ -262,13 +293,29 @@ async function loadShared(kind){
   try{
     const path=kind==="sighting"?"/team/sightings":"/team/review";
     const url=endpoint()+path;
-    const res=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:150})});
+    const res=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:kind==="sighting"?500:150})});
     const data=await res.json();
     if(!res.ok||data.sharedReady!==true)throw Error(data.error||"Shared database not connected yet");
     root.replaceChildren();
     const speciesSelect=$(kind==="sighting"?"sharedSightingsSpecies":"sharedReviewSpecies");
     const chosenSpecies=speciesSelect?.value||"all";
-    const baseRecords=(data.records||[]).filter(r=>r.ai_prediction!=="Empty image");
+    let baseRecords=(data.records||[]).filter(r=>r.ai_prediction!=="Empty image");
+    let reportYear=null;
+    if(kind==="sighting"){
+      const checks=dedupeSharedChecks(await sharedCameraChecks());
+      reportYear=fillSightingsYear(checks);
+      const allowedChecks=checks.filter(c=>Number(c.reportYear)===reportYear);
+      const allowedIds=new Set(allowedChecks.map(c=>String(c.id||"")).filter(Boolean));
+      const allowedKeys=new Set(allowedChecks.map(checkKey));
+      baseRecords=baseRecords.filter(r=>{
+        const byId=r.camera_check_id&&allowedIds.has(String(r.camera_check_id));
+        const byKey=allowedKeys.has(String(r.camera_no||"").trim().toUpperCase()+"|"+(Number(r.check_no)||0)+"|"+String(r.checked_date||"").trim());
+        if(!byId&&!byKey)return false;
+        if(!r.captured_at)return true;
+        const d=new Date(r.captured_at);
+        return Number.isNaN(d.getTime())||d.getFullYear()===reportYear;
+      });
+    }
     const chosenCamera=await fillSharedCameraFilter(kind,baseRecords);
     const records=baseRecords.filter(r=>{const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;const speciesOK=chosenSpecies==="all"||label===chosenSpecies;const cameraOK=chosenCamera==="all"||String(r.camera_no||"").trim().toUpperCase()===chosenCamera;return speciesOK&&cameraOK});
     if(kind==="review")visibleSharedReviewRecords=records;
@@ -292,7 +339,7 @@ async function loadShared(kind){
       const confirm=confirmationText(r,kind);body.innerHTML="<strong>"+esc(r.camera_no||label||"Needs review")+"</strong><span class='kind "+(r.human_verified?"good":"")+"'>"+esc(confirm+(r.ai_confidence!=null&&!r.human_verified?" · "+r.ai_confidence+"%":""))+"</span><small>"+esc(label||"")+(r.file_name?" · "+esc(r.file_name):"")+"</small><small>"+esc(niceDate(r.captured_at||r.verified_at||r.updated_at))+(who?" · "+esc(who):"")+"</small>";
       card.append(body);root.append(card);
     }
-    status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown.";
+    status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown."+(kind==="sighting"&&reportYear?" Matched to "+reportYear+" finished camera checks.":"");
   }catch(e){
     root.innerHTML='<div class="empty">Shared database not connected yet.</div>';
     status.textContent="Shared database error: "+String(e.message||e);
@@ -363,6 +410,7 @@ window.KaitiakiLoadSharedReview=()=>loadShared("review");
 $("refreshSightings")?.addEventListener("click",window.KaitiakiLoadSharedSightings);
 $("refreshSharedReview")?.addEventListener("click",window.KaitiakiLoadSharedReview);
 $("sharedSightingsSpecies")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
+$("sharedSightingsYear")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
 $("sharedReviewSpecies")?.addEventListener("change",window.KaitiakiLoadSharedReview);
 $("sharedSightingsCamera")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
 $("sharedReviewCamera")?.addEventListener("change",window.KaitiakiLoadSharedReview);
