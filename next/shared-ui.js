@@ -10,7 +10,7 @@ const PENDING_KEY="kaitiaki-shared-pending";
 const SYNCED_KEY="kaitiaki-shared-synced-v3";
 const PESTS=["Possum","Rat","Stoat","Mouse","Deer","Pig"];
 let imageUrls=[];
-let galleryRecords=[],galleryIndex=0,galleryKind="sighting",localGalleryUrl=null,galleryWarning="",galleryRepairCheck=null;
+let galleryRecords=[],galleryIndex=0,galleryKind="sighting",localGalleryUrl=null,galleryWarning="",galleryRepairCheck=null,visibleSharedReviewRecords=[];
 
 function endpoint(){return (localStorage.getItem(URL_KEY)||"https://kaitiaki-next-vision.monaghan666.workers.dev").replace(/\/+$/,"")}
 function token(){return localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||""}
@@ -271,6 +271,7 @@ async function loadShared(kind){
     const baseRecords=(data.records||[]).filter(r=>r.ai_prediction!=="Empty image");
     const chosenCamera=await fillSharedCameraFilter(kind,baseRecords);
     const records=baseRecords.filter(r=>{const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;const speciesOK=chosenSpecies==="all"||label===chosenSpecies;const cameraOK=chosenCamera==="all"||String(r.camera_no||"").trim().toUpperCase()===chosenCamera;return speciesOK&&cameraOK});
+    if(kind==="review")visibleSharedReviewRecords=records;
     if(!records.length){
       root.innerHTML='<div class="empty">No shared '+(kind==="sighting"?"pest sightings":"review items")+' yet.</div>';
       status.textContent="Up to date.";
@@ -365,4 +366,19 @@ $("sharedSightingsSpecies")?.addEventListener("change",window.KaitiakiLoadShared
 $("sharedReviewSpecies")?.addEventListener("change",window.KaitiakiLoadSharedReview);
 $("sharedSightingsCamera")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
 $("sharedReviewCamera")?.addEventListener("change",window.KaitiakiLoadSharedReview);
+$("clearVisibleSharedReview")?.addEventListener("click",async()=>{
+  const records=visibleSharedReviewRecords.filter(r=>r?.id);
+  if(!records.length){$("sharedReviewStatus").textContent="No visible shared review records to clear.";return}
+  if(!confirm("Clear "+records.length+" visible shared review item"+(records.length===1?"":"s")+"?\n\nUse this only for old items the team has already reviewed. They will be marked resolved in the shared database; confirmed sightings and reports are not deleted."))return;
+  const btn=$("clearVisibleSharedReview");btn.disabled=true;
+  $("sharedReviewStatus").textContent="Clearing completed old review items…";
+  try{
+    const res=await fetch(endpoint()+"/team/review-resolve",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({ids:records.map(r=>r.id)})});
+    const data=await res.json();
+    if(!res.ok)throw Error(data.error||"Could not clear shared review");
+    $("sharedReviewStatus").textContent="Cleared "+Number(data.resolved||records.length)+" shared review item"+(Number(data.resolved||records.length)===1?"":"s")+".";
+    await loadShared("review");
+  }catch(e){$("sharedReviewStatus").textContent="Could not clear shared review: "+String(e.message||e)}
+  finally{btn.disabled=false}
+});
 })();
