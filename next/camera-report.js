@@ -235,6 +235,23 @@ async function mergedChecks(){
   return [...map.values()].sort((a,b)=>String(b.checkedDate||"").localeCompare(String(a.checkedDate||""))||String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
 }
 
+function cameraSort(a,b){
+  return String(a.cameraNo||"").localeCompare(String(b.cameraNo||""),undefined,{numeric:true,sensitivity:"base"})
+    || Number(b.checkNo||0)-Number(a.checkNo||0)
+    || String(b.checkedDate||"").localeCompare(String(a.checkedDate||""))
+    || String(b.updatedAt||"").localeCompare(String(a.updatedAt||""));
+}
+function fillReportCameraFilter(checks,year){
+  const select=$("reportCamera");if(!select)return "all";
+  const current=select.value||"all";
+  const cameras=[...new Set(checks.filter(c=>Number(c.reportYear)===year).map(c=>String(c.cameraNo||"").trim()).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:"base"}));
+  select.replaceChildren();
+  const all=document.createElement("option");all.value="all";all.textContent="All cameras";select.append(all);
+  for(const cam of cameras){const o=document.createElement("option");o.value=cam;o.textContent=cam;select.append(o)}
+  select.value=cameras.includes(current)?current:"all";
+  return select.value;
+}
 function bars(checks,year){
   const totals=Array(12).fill(0);
   for(const c of checks)if(Number(c.reportYear)===year){(c.monthlyPossum||[]).forEach((n,i)=>totals[i]+=Number(n)||0)}
@@ -245,17 +262,20 @@ async function renderReport(){
   const status=$("reportStatus");if(!status)return;
   status.textContent="Loading camera checks…";
   const checks=await mergedChecks(),year=Number($("reportYear")?.value)||new Date().getFullYear();
-  const yearChecks=checks.filter(c=>Number(c.reportYear)===year);
+  const selectedCamera=fillReportCameraFilter(checks,year);
+  const yearChecks=checks
+    .filter(c=>Number(c.reportYear)===year&&(selectedCamera==="all"||String(c.cameraNo||"").trim()===selectedCamera))
+    .sort(cameraSort);
   $("reportChecks").textContent=yearChecks.length.toLocaleString();
   $("reportPossums").textContent=yearChecks.reduce((a,c)=>a+(Number(c.totalPossum)||0),0).toLocaleString();
   $("reportDetections").textContent=yearChecks.reduce((a,c)=>a+(Number(c.meaningfulCount)||0),0).toLocaleString();
   $("reportSkipped").textContent=yearChecks.reduce((a,c)=>a+(Number(c.skippedCount)||0),0).toLocaleString();
-  bars(checks,year);
+  bars(yearChecks,year);
   const body=$("cameraReportBody");body.replaceChildren();
   for(const c of yearChecks.slice(0,250)){
     const tr=document.createElement("tr");
     const possumCell=Number(c.totalPossum)>0?"<button class='report-drilldown' type='button' title='Open possum images'>"+esc(c.totalPossum)+"</button>":"0";
-    tr.innerHTML="<td>"+esc(c.cameraNo)+"</td><td>"+esc(c.zone)+"</td><td>"+esc(c.block)+"</td><td>"+esc(c.checkNo)+"</td><td>"+esc(c.checkedDate)+"</td><td>"+esc(c.servicedBy)+"</td><td>"+possumCell+"</td><td>"+esc(c.approxPresence||presenceFromCount(c.totalPossum))+"</td><td>"+esc(c.latestPossumDate||"")+"</td><td>"+esc(c.notes||"")+"</td><td>"+esc(c.issuesNotes||"")+"</td>";
+    tr.innerHTML="<td><strong>"+esc(c.cameraNo)+"</strong></td><td>"+esc(c.zone)+"</td><td>"+esc(c.block)+"</td><td>"+esc(c.checkNo)+"</td><td>"+esc(c.checkedDate)+"</td><td>"+esc(c.servicedBy)+"</td><td>"+possumCell+"</td><td>"+esc(c.approxPresence||presenceFromCount(c.totalPossum))+"</td><td>"+esc(c.latestPossumDate||"")+"</td><td>"+esc(c.notes||"")+"</td><td>"+esc(c.issuesNotes||"")+"</td>";
     tr.querySelector(".report-drilldown")?.addEventListener("click",async()=>{
       const opened=await window.KaitiakiOpenCameraCheckGallery?.(c);
       if(opened==="mismatch-opened")status.textContent=c.cameraNo+" opened with an older image-link warning. Report count remains "+c.totalPossum+" possum images; the gallery may include extra saved links from another SD-card run.";
@@ -264,11 +284,12 @@ async function renderReport(){
     body.append(tr);
     if(c.cameraNo)saveRegister(c.cameraNo,{zone:c.zone||"",block:c.block||"",status:c.status||"Active"});
   }
-  status.textContent=yearChecks.length+" camera check"+(yearChecks.length===1?"":"s")+" shown for "+year+".";
+  const cameraText=selectedCamera==="all"?"":(" · "+selectedCamera);
+  status.textContent=yearChecks.length+" camera check"+(yearChecks.length===1?"":"s")+" shown for "+year+cameraText+".";
 }
 async function exportReport(){
-  const checks=await mergedChecks(),year=Number($("reportYear")?.value)||new Date().getFullYear();
-  const data=checks.filter(c=>Number(c.reportYear)===year);
+  const checks=await mergedChecks(),year=Number($("reportYear")?.value)||new Date().getFullYear(),camera=$("reportCamera")?.value||"all";
+  const data=checks.filter(c=>Number(c.reportYear)===year&&(camera==="all"||String(c.cameraNo||"").trim()===camera)).sort(cameraSort);
   const head=["Camera No'","Zones","Blocks","Status","Check No'","Checked date (in the field)","Serviced by","Classified date","Date of first image (if matching expected FIRST date)","Date of last image (if matching expected LAST date)","Approx possum presence","Most recent possum sighting","Classified by",...MONTHS.map(m=>m+" "+year),"Total "+year,"Notes","Issues notes"];
   const lines=[head.map(csv).join(",")];
   for(const c of data){
@@ -290,6 +311,7 @@ $("finishCameraCheck")?.addEventListener("click",finishCheck);
 $("refreshReport")?.addEventListener("click",renderReport);
 $("exportCameraReport")?.addEventListener("click",exportReport);
 $("reportYear")?.addEventListener("change",renderReport);
+$("reportCamera")?.addEventListener("change",renderReport);
 window.KaitiakiLoadCameraReport=renderReport;
 fillCameraList();renderCurrent();initYears();if($("cameraCheckedDate")&&!$("cameraCheckedDate").value)$("cameraCheckedDate").value=today();setTimeout(backfillExistingChecks,500);
 })();
