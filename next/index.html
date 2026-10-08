@@ -124,7 +124,7 @@ dialog::backdrop{background:#0c211dcc}
 <section class="view" id="sightings">
 <h2>Team pest sightings</h2>
 <p class="sub">Likely pest detections from the whole team. High-confidence pest records appear here automatically; staff corrections update the shared record.</p>
-<div class="actions"><label class="field" style="margin:0">Species <select id="sharedSightingsSpecies"><option value="all">All pests</option><option>Possum</option><option>Rat</option><option>Stoat</option><option>Mouse</option><option>Deer</option><option>Pig</option></select></label><label class="field" style="margin:0">Camera <select id="sharedSightingsCamera"><option value="all">All cameras</option></select></label><button id="refreshSightings" class="btn light">Refresh sightings</button></div>
+<div class="actions"><label class="field" style="margin:0">Year <select id="sharedSightingsYear"></select></label><label class="field" style="margin:0">Species <select id="sharedSightingsSpecies"><option value="all">All pests</option><option>Possum</option><option>Rat</option><option>Stoat</option><option>Mouse</option><option>Deer</option><option>Pig</option></select></label><label class="field" style="margin:0">Camera <select id="sharedSightingsCamera"><option value="all">All cameras</option></select></label><button id="refreshSightings" class="btn light">Refresh sightings</button></div>
 <p id="sharedSightingsStatus" class="sub" style="margin-top:12px">Shared database not connected yet.</p>
 <div id="sharedSightings" class="gallery"><div class="empty">No shared sightings loaded yet.</div></div>
 </section>
@@ -344,8 +344,8 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 })();
 </script>
 <script src="./cloud-ui.js?v=15"></script>
-<script src="./shared-ui.js?v=23"></script>
+<script src="./shared-ui.js?v=24"></script>
 <script src="./camera-report.js?v=9"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=47").catch(()=>{}))}</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=48").catch(()=>{}))}</script>
 </body>
 </html>
