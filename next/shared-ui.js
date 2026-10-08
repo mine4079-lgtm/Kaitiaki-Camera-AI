@@ -11,7 +11,7 @@ const SYNCED_KEY="kaitiaki-shared-synced-v3";
 const PESTS=["Possum","Rat","Stoat","Mouse","Deer","Pig"];
 let imageUrls=[];
 let galleryRecords=[],galleryIndex=0,galleryKind="sighting",localGalleryUrl=null,galleryWarning="",galleryRepairCheck=null,visibleSharedReviewRecords=[];
-let selectedSightingsCameras=null;
+let selectedSightingsCameras=null,visibleSightingsRecords=[];
 
 function endpoint(){return (localStorage.getItem(URL_KEY)||"https://kaitiaki-next-vision.monaghan666.workers.dev").replace(/\/+$/,"")}
 function token(){return localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||""}
@@ -355,8 +355,10 @@ async function loadShared(kind){
       });
       root.classList.toggle("time-view",($("sharedSightingsView")?.value||"grid")==="time");
     }else root.classList.remove("time-view");
+    if(kind==="sighting")visibleSightingsRecords=records;
     if(kind==="review")visibleSharedReviewRecords=records;
     if(!records.length){
+      if(kind==="sighting")visibleSightingsRecords=[];
       root.innerHTML='<div class="empty">No shared '+(kind==="sighting"?"pest sightings":"review items")+' yet.</div>';
       status.textContent="Up to date.";
       return;
@@ -448,9 +450,43 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
   }catch{return false}
 };
 
+function csvCell(v){
+  const t=String(v??"");
+  return /[",\n\r]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t;
+}
+function exportVisibleSightingsCsv(){
+  const rows=visibleSightingsRecords||[];
+  const status=$("sharedSightingsStatus");
+  if(!rows.length){if(status)status.textContent="No visible sightings to export.";return}
+  const year=$("sharedSightingsYear")?.value||"all";
+  const species=$("sharedSightingsSpecies")?.value||"all";
+  const head=["Camera","Species","Capture date","Capture time","Captured at","Check No","Checked date","AI suggestion","AI confidence","Human confirmed","Confirmed label","Confirmed by","Imported by","File name"];
+  const lines=[head.map(csvCell).join(",")];
+  for(const r of rows){
+    const stamp=r.captured_at||"";
+    let date="",time="";
+    if(stamp){
+      const d=new Date(stamp);
+      if(!Number.isNaN(d.getTime())){date=d.toLocaleDateString();time=d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"})}
+    }
+    const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;
+    lines.push([
+      r.camera_no||"",label||"",date,time,stamp,r.check_no||"",r.checked_date||"",
+      r.ai_prediction||"",r.ai_confidence??"",r.human_verified?"Yes":"No",r.confirmed_label||"",
+      r.reviewer_name||"",r.imported_by||"",r.file_name||""
+    ].map(csvCell).join(","));
+  }
+  const blob=new Blob(["\uFEFF"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  const safeSpecies=String(species).replace(/[^A-Za-z0-9_-]+/g,"-");
+  a.href=url;a.download="kaitiaki-sightings-"+year+"-"+safeSpecies+".csv";
+  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  if(status)status.textContent="Exported "+rows.length+" visible sighting"+(rows.length===1?"":"s")+" to CSV.";
+}
 window.KaitiakiLoadSharedSightings=()=>loadShared("sighting");
 window.KaitiakiLoadSharedReview=()=>loadShared("review");
 $("refreshSightings")?.addEventListener("click",window.KaitiakiLoadSharedSightings);
+$("exportSightingsCsv")?.addEventListener("click",exportVisibleSightingsCsv);
 $("refreshSharedReview")?.addEventListener("click",window.KaitiakiLoadSharedReview);
 $("sharedSightingsSpecies")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
 $("sharedSightingsYear")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
