@@ -335,7 +335,6 @@ async function handleTeamList(input, env, origin, status) {
             AND newer.human_verified=1
             AND newer.file_name=old.file_name
             AND newer.captured_at=old.captured_at
-            AND COALESCE(newer.updated_at,'')>=COALESCE(old.updated_at,'')
         )
     `).run();
   }
