@@ -331,9 +331,10 @@ async function loadShared(kind){
       const allowedIds=new Set(allowedChecks.map(c=>String(c.id||"")).filter(Boolean));
       const allowedKeys=new Set(allowedChecks.map(checkKey));
       baseRecords=baseRecords.filter(r=>{
-        const byId=r.camera_check_id&&allowedIds.has(String(r.camera_check_id));
-        const byKey=allowedKeys.has(String(r.camera_no||"").trim().toUpperCase()+"|"+(Number(r.check_no)||0)+"|"+String(r.checked_date||"").trim());
-        if(!byId&&!byKey)return false;
+        const hasId=!!String(r.camera_check_id||"").trim();
+        const byId=hasId&&allowedIds.has(String(r.camera_check_id));
+        const byLegacyKey=!hasId&&allowedKeys.has(String(r.camera_no||"").trim().toUpperCase()+"|"+(Number(r.check_no)||0)+"|"+String(r.checked_date||"").trim());
+        if(!byId&&!byLegacyKey)return false;
         if(!r.captured_at)return true;
         const d=new Date(r.captured_at);
         return Number.isNaN(d.getTime())||d.getFullYear()===reportYear;
@@ -384,7 +385,20 @@ async function loadShared(kind){
       body.innerHTML="<strong>"+esc(r.camera_no||label||"Needs review")+"</strong>"+timeHtml+"<span class='kind "+(r.human_verified?"good":"")+"'>"+esc(confirm+(r.ai_confidence!=null&&!r.human_verified?" · "+r.ai_confidence+"%":""))+"</span><small>"+esc(label||"")+(r.file_name?" · "+esc(r.file_name):"")+"</small><small>"+esc(niceDate(stamp))+(who?" · "+esc(who):"")+"</small>";
       card.append(body);root.append(card);
     }
-    status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown."+(kind==="sighting"&&reportYear?" Matched to "+reportYear+" finished camera checks.":"");
+    let integrityNote="";
+    if(kind==="sighting"){
+      const checks=dedupeSharedChecks(await sharedCameraChecks()).filter(c=>Number(c.reportYear)===reportYear);
+      const possumCounts=new Map();
+      for(const r of baseRecords){
+        const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;
+        if(label!=="Possum")continue;
+        const id=String(r.camera_check_id||"").trim();
+        if(id)possumCounts.set(id,(possumCounts.get(id)||0)+1);
+      }
+      const mismatches=checks.filter(c=>String(c.id||"").trim()&&Number(c.totalPossum||0)!==Number(possumCounts.get(String(c.id))||0));
+      if(mismatches.length)integrityNote=" Warning: "+mismatches.length+" camera check"+(mismatches.length===1?" has":"s have")+" a possum count mismatch and should be checked before reporting.";
+    }
+    status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown."+(kind==="sighting"&&reportYear?" Matched to "+reportYear+" finished camera checks.":"")+integrityNote;
   }catch(e){
     root.innerHTML='<div class="empty">Shared database not connected yet.</div>';
     status.textContent="Shared database error: "+String(e.message||e);
