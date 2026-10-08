@@ -241,6 +241,26 @@ function cameraSort(a,b){
     || String(b.checkedDate||"").localeCompare(String(a.checkedDate||""))
     || String(b.updatedAt||"").localeCompare(String(a.updatedAt||""));
 }
+function dedupeCameraChecks(checks){
+  const keep=new Map(),duplicates=[];
+  for(const c of checks){
+    const camera=String(c.cameraNo||"").trim().toUpperCase();
+    const checkNo=Number(c.checkNo)||0;
+    const date=String(c.checkedDate||"").trim();
+    if(!camera||!checkNo||!date){
+      keep.set("id:"+String(c.id||Math.random()),c);
+      continue;
+    }
+    const key=camera+"|"+checkNo+"|"+date;
+    const old=keep.get(key);
+    if(!old){keep.set(key,c);continue}
+    const oldTime=String(old.updatedAt||old.createdAt||"");
+    const newTime=String(c.updatedAt||c.createdAt||"");
+    if(newTime>oldTime){duplicates.push(old);keep.set(key,c)}
+    else duplicates.push(c);
+  }
+  return {checks:[...keep.values()],duplicates};
+}
 function fillReportCameraFilter(checks,year){
   const select=$("reportCamera");if(!select)return "all";
   const current=select.value||"all";
@@ -261,7 +281,8 @@ function bars(checks,year){
 async function renderReport(){
   const status=$("reportStatus");if(!status)return;
   status.textContent="Loading camera checks…";
-  const checks=await mergedChecks(),year=Number($("reportYear")?.value)||new Date().getFullYear();
+  const merged=await mergedChecks(),year=Number($("reportYear")?.value)||new Date().getFullYear();
+  const deduped=dedupeCameraChecks(merged),checks=deduped.checks;
   const selectedCamera=fillReportCameraFilter(checks,year);
   const yearChecks=checks
     .filter(c=>Number(c.reportYear)===year&&(selectedCamera==="all"||String(c.cameraNo||"").trim()===selectedCamera))
@@ -285,10 +306,11 @@ async function renderReport(){
     if(c.cameraNo)saveRegister(c.cameraNo,{zone:c.zone||"",block:c.block||"",status:c.status||"Active"});
   }
   const cameraText=selectedCamera==="all"?"":(" · "+selectedCamera);
-  status.textContent=yearChecks.length+" camera check"+(yearChecks.length===1?"":"s")+" shown for "+year+cameraText+".";
+  const duplicateCount=deduped.duplicates.filter(c=>Number(c.reportYear)===year&&(selectedCamera==="all"||String(c.cameraNo||"").trim()===selectedCamera)).length;
+  status.textContent=yearChecks.length+" camera check"+(yearChecks.length===1?"":"s")+" shown for "+year+cameraText+"."+(duplicateCount?" "+duplicateCount+" older duplicate check"+(duplicateCount===1?" was":"s were")+" ignored.":"");
 }
 async function exportReport(){
-  const checks=await mergedChecks(),year=Number($("reportYear")?.value)||new Date().getFullYear(),camera=$("reportCamera")?.value||"all";
+  const merged=await mergedChecks(),checks=dedupeCameraChecks(merged).checks,year=Number($("reportYear")?.value)||new Date().getFullYear(),camera=$("reportCamera")?.value||"all";
   const data=checks.filter(c=>Number(c.reportYear)===year&&(camera==="all"||String(c.cameraNo||"").trim()===camera)).sort(cameraSort);
   const head=["Camera No'","Zones","Blocks","Status","Check No'","Checked date (in the field)","Serviced by","Classified date","Date of first image (if matching expected FIRST date)","Date of last image (if matching expected LAST date)","Approx possum presence","Most recent possum sighting","Classified by",...MONTHS.map(m=>m+" "+year),"Total "+year,"Notes","Issues notes"];
   const lines=[head.map(csv).join(",")];
