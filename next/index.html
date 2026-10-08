@@ -28,7 +28,7 @@ h2{font-size:26px;letter-spacing:-.02em;margin:4px 0 7px}h3{margin:0 0 8px;font-
 .btn.light{background:#eaf2ee;color:#0b6655;border-color:#d4e8df}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 input[type=file]{display:none}
-.statbar{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:16px 0}
+.statbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin:16px 0}
 .stat{padding:13px;background:#fff;border:1px solid #dfe8e3;border-radius:14px}
 .stat b{font-size:25px;display:block;font-variant-numeric:tabular-nums}
 .stat small{color:#677a73;font-size:11px;font-weight:800}
@@ -140,7 +140,7 @@ dialog::backdrop{background:#0c211dcc}
 <section class="view" id="reports">
 <h2>Camera check reports</h2>
 <p class="sub">Camera-check records from the team, built from the SD-card classifications. Empty/vegetation frames are counted for audit but do not clutter the detection data.</p>
-<div class="actions"><label class="field" style="margin:0">Report year <select id="reportYear"></select></label><button id="refreshReport" class="btn light">Refresh report</button><button id="exportCameraReport" class="btn light">Export camera data CSV</button></div>
+<div class="actions"><label class="field" style="margin:0">Report year <select id="reportYear"></select></label><label class="field" style="margin:0">Camera <select id="reportCamera"><option value="all">All cameras</option></select></label><button id="refreshReport" class="btn light">Refresh report</button><button id="exportCameraReport" class="btn light">Export camera data CSV</button></div>
 <p id="reportStatus" class="sub" style="margin-top:10px">Open Reports to load camera checks.</p>
 <div class="statbar"><div class="stat"><b id="reportChecks">0</b><small>CAMERA CHECKS</small></div><div class="stat"><b id="reportPossums">0</b><small>POSSUM IMAGES</small></div><div class="stat"><b id="reportDetections">0</b><small>MEANINGFUL DETECTIONS</small></div><div class="stat"><b id="reportSkipped">0</b><small>EMPTY / VEGE SKIPPED</small></div></div>
 <div class="panel"><h3>Monthly possum detections</h3><p class="sub">Counts are based on images classified as Possum and the image date available to Kaitiaki.</p><div id="monthlyBars" class="month-bars"></div></div>
@@ -345,7 +345,7 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 </script>
 <script src="./cloud-ui.js?v=15"></script>
 <script src="./shared-ui.js?v=23"></script>
-<script src="./camera-report.js?v=7"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=45").catch(()=>{}))}</script>
+<script src="./camera-report.js?v=8"></script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=46").catch(()=>{}))}</script>
 </body>
 </html>
