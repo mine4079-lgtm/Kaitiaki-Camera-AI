@@ -334,7 +334,13 @@ async function handleTeamList(input, env, origin, status) {
           WHERE newer.id<>old.id
             AND newer.human_verified=1
             AND newer.file_name=old.file_name
-            AND newer.captured_at=old.captured_at
+            AND (
+              newer.captured_at=old.captured_at
+              OR (
+                COALESCE(newer.relative_path,'')<>''
+                AND newer.relative_path=old.relative_path
+              )
+            )
         )
     `).run();
   }
