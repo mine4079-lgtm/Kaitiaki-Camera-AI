@@ -73,6 +73,8 @@ dialog::backdrop{background:#0c211dcc}
 .monthbar div{height:92px;display:flex;align-items:flex-end;justify-content:center;background:#f2f6f4;border-radius:7px;overflow:hidden;margin:4px 0}
 .monthbar i{display:block;width:65%;background:#0b6655;border-radius:5px 5px 0 0}
 .monthbar b{font-size:11px;color:#173f36}
+.camera-picker{background:white;border:1px solid #dbe5e0;border-radius:14px;padding:10px 12px;margin:12px 0}.camera-picker summary{cursor:pointer;color:#244b41;font-size:13px}.camera-picker-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.camera-picker-actions .btn{min-height:36px;padding:8px 11px}.camera-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:7px}.camera-checks label{display:flex;gap:7px;align-items:center;background:#f4f7f5;border-radius:9px;padding:8px;font-size:12px;font-weight:750}.camera-checks input{width:auto}
+.gallery.time-view{display:block}.gallery.time-view .item{display:grid;grid-template-columns:minmax(130px,220px) 1fr;margin-bottom:10px}.gallery.time-view .item img,.gallery.time-view .placeholder{height:145px;aspect-ratio:auto}.gallery.time-view .item-body{display:flex;flex-direction:column;justify-content:center}.time-stamp{font-size:19px!important;font-weight:900!important;color:#173f36!important;margin:3px 0}.time-date{font-size:13px!important;font-weight:800!important;color:#46665c!important}
 @media(max-width:560px){.check-grid{grid-template-columns:1fr}.month-bars{grid-template-columns:repeat(6,1fr)}}
 @media(max-width:480px){h2{font-size:23px}.panel{padding:15px}.gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stat{padding:10px}.stat b{font-size:21px}.item-body{padding:8px}.tag{font-size:10px}.choices{grid-template-columns:repeat(2,1fr)}}
 </style>
@@ -124,7 +126,7 @@ dialog::backdrop{background:#0c211dcc}
 <section class="view" id="sightings">
 <h2>Team pest sightings</h2>
 <p class="sub">Likely pest detections from the whole team. High-confidence pest records appear here automatically; staff corrections update the shared record.</p>
-<div class="actions"><label class="field" style="margin:0">Year <select id="sharedSightingsYear"></select></label><label class="field" style="margin:0">Species <select id="sharedSightingsSpecies"><option value="all">All pests</option><option>Possum</option><option>Rat</option><option>Stoat</option><option>Mouse</option><option>Deer</option><option>Pig</option></select></label><label class="field" style="margin:0">Camera <select id="sharedSightingsCamera"><option value="all">All cameras</option></select></label><button id="refreshSightings" class="btn light">Refresh sightings</button></div>
+<div class="actions"><label class="field" style="margin:0">Year <select id="sharedSightingsYear"></select></label><label class="field" style="margin:0">Species <select id="sharedSightingsSpecies"><option value="all">All pests</option><option>Possum</option><option>Rat</option><option>Stoat</option><option>Mouse</option><option>Deer</option><option>Pig</option></select></label><label class="field" style="margin:0">Sort <select id="sharedSightingsSort"><option value="oldest">Oldest → newest</option><option value="newest">Newest → oldest</option></select></label><label class="field" style="margin:0">View <select id="sharedSightingsView"><option value="grid">Images</option><option value="time">Time view</option></select></label><button id="refreshSightings" class="btn light">Refresh sightings</button></div><details class="camera-picker" id="sharedSightingsCameraPicker"><summary><strong>Cameras</strong> · <span id="sharedSightingsCameraSummary">All cameras</span></summary><div class="camera-picker-actions"><button id="sharedSightingsSelectAll" type="button" class="btn light">Select all</button><button id="sharedSightingsClearAll" type="button" class="btn light">Clear all</button></div><div id="sharedSightingsCameraList" class="camera-checks"></div></details>
 <p id="sharedSightingsStatus" class="sub" style="margin-top:12px">Shared database not connected yet.</p>
 <div id="sharedSightings" class="gallery"><div class="empty">No shared sightings loaded yet.</div></div>
 </section>
@@ -344,8 +346,8 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 })();
 </script>
 <script src="./cloud-ui.js?v=15"></script>
-<script src="./shared-ui.js?v=24"></script>
+<script src="./shared-ui.js?v=25"></script>
 <script src="./camera-report.js?v=9"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=48").catch(()=>{}))}</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=49").catch(()=>{}))}</script>
 </body>
 </html>

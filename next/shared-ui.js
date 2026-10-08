@@ -11,6 +11,7 @@ const SYNCED_KEY="kaitiaki-shared-synced-v3";
 const PESTS=["Possum","Rat","Stoat","Mouse","Deer","Pig"];
 let imageUrls=[];
 let galleryRecords=[],galleryIndex=0,galleryKind="sighting",localGalleryUrl=null,galleryWarning="",galleryRepairCheck=null,visibleSharedReviewRecords=[];
+let selectedSightingsCameras=null;
 
 function endpoint(){return (localStorage.getItem(URL_KEY)||"https://kaitiaki-next-vision.monaghan666.workers.dev").replace(/\/+$/,"")}
 function token(){return localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||""}
@@ -266,9 +267,31 @@ async function knownSharedCameras(records){
   return [...names].filter(Boolean).sort();
 }
 async function fillSharedCameraFilter(kind,records){
-  const select=$(kind==="sighting"?"sharedSightingsCamera":"sharedReviewCamera");if(!select)return "all";
-  const current=select.value||"all";
   const cameras=await knownSharedCameras(records);
+  if(kind==="sighting"){
+    const root=$("sharedSightingsCameraList"),summary=$("sharedSightingsCameraSummary");
+    if(!root)return null;
+    if(selectedSightingsCameras instanceof Set){
+      selectedSightingsCameras=new Set([...selectedSightingsCameras].filter(c=>cameras.includes(c)));
+    }
+    root.replaceChildren();
+    for(const cam of cameras){
+      const label=document.createElement("label"),cb=document.createElement("input");
+      cb.type="checkbox";cb.value=cam;cb.checked=selectedSightingsCameras===null||selectedSightingsCameras.has(cam);
+      cb.addEventListener("change",()=>{
+        const checked=[...root.querySelectorAll("input:checked")].map(x=>x.value);
+        selectedSightingsCameras=checked.length===cameras.length?null:new Set(checked);
+        if(summary)summary.textContent=selectedSightingsCameras===null?"All cameras":checked.length+" selected";
+        loadShared("sighting");
+      });
+      label.append(cb,document.createTextNode(cam));root.append(label);
+    }
+    const count=selectedSightingsCameras===null?cameras.length:selectedSightingsCameras.size;
+    if(summary)summary.textContent=selectedSightingsCameras===null?"All cameras":count+" selected";
+    return selectedSightingsCameras;
+  }
+  const select=$("sharedReviewCamera");if(!select)return "all";
+  const current=select.value||"all";
   select.replaceChildren();
   const all=document.createElement("option");all.value="all";all.textContent="All cameras";select.append(all);
   for(const cam of cameras){const o=document.createElement("option");o.value=cam;o.textContent=cam;select.append(o)}
@@ -317,7 +340,21 @@ async function loadShared(kind){
       });
     }
     const chosenCamera=await fillSharedCameraFilter(kind,baseRecords);
-    const records=baseRecords.filter(r=>{const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;const speciesOK=chosenSpecies==="all"||label===chosenSpecies;const cameraOK=chosenCamera==="all"||String(r.camera_no||"").trim().toUpperCase()===chosenCamera;return speciesOK&&cameraOK});
+    let records=baseRecords.filter(r=>{
+      const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;
+      const speciesOK=chosenSpecies==="all"||label===chosenSpecies;
+      const camera=String(r.camera_no||"").trim().toUpperCase();
+      const cameraOK=kind==="sighting"?(chosenCamera===null||chosenCamera.has(camera)):(chosenCamera==="all"||camera===chosenCamera);
+      return speciesOK&&cameraOK;
+    });
+    if(kind==="sighting"){
+      const sort=$("sharedSightingsSort")?.value||"oldest";
+      records=records.sort((a,b)=>{
+        const av=new Date(a.captured_at||a.updated_at||0).getTime()||0,bv=new Date(b.captured_at||b.updated_at||0).getTime()||0;
+        return sort==="newest"?bv-av:av-bv;
+      });
+      root.classList.toggle("time-view",($("sharedSightingsView")?.value||"grid")==="time");
+    }else root.classList.remove("time-view");
     if(kind==="review")visibleSharedReviewRecords=records;
     if(!records.length){
       root.innerHTML='<div class="empty">No shared '+(kind==="sighting"?"pest sightings":"review items")+' yet.</div>';
@@ -336,7 +373,13 @@ async function loadShared(kind){
       const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;
       const who=r.reviewer_name||r.imported_by||"";
       const body=document.createElement("div");body.className="item-body";
-      const confirm=confirmationText(r,kind);body.innerHTML="<strong>"+esc(r.camera_no||label||"Needs review")+"</strong><span class='kind "+(r.human_verified?"good":"")+"'>"+esc(confirm+(r.ai_confidence!=null&&!r.human_verified?" · "+r.ai_confidence+"%":""))+"</span><small>"+esc(label||"")+(r.file_name?" · "+esc(r.file_name):"")+"</small><small>"+esc(niceDate(r.captured_at||r.verified_at||r.updated_at))+(who?" · "+esc(who):"")+"</small>";
+      const confirm=confirmationText(r,kind),stamp=r.captured_at||r.verified_at||r.updated_at;
+      let timeHtml="";
+      if(kind==="sighting"&&stamp){
+        const d=new Date(stamp);
+        if(!Number.isNaN(d.getTime()))timeHtml="<small class='time-date'>"+esc(d.toLocaleDateString())+"</small><small class='time-stamp'>"+esc(d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}))+"</small>";
+      }
+      body.innerHTML="<strong>"+esc(r.camera_no||label||"Needs review")+"</strong>"+timeHtml+"<span class='kind "+(r.human_verified?"good":"")+"'>"+esc(confirm+(r.ai_confidence!=null&&!r.human_verified?" · "+r.ai_confidence+"%":""))+"</span><small>"+esc(label||"")+(r.file_name?" · "+esc(r.file_name):"")+"</small><small>"+esc(niceDate(stamp))+(who?" · "+esc(who):"")+"</small>";
       card.append(body);root.append(card);
     }
     status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown."+(kind==="sighting"&&reportYear?" Matched to "+reportYear+" finished camera checks.":"");
@@ -411,8 +454,11 @@ $("refreshSightings")?.addEventListener("click",window.KaitiakiLoadSharedSightin
 $("refreshSharedReview")?.addEventListener("click",window.KaitiakiLoadSharedReview);
 $("sharedSightingsSpecies")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
 $("sharedSightingsYear")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
+$("sharedSightingsSort")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
+$("sharedSightingsView")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
+$("sharedSightingsSelectAll")?.addEventListener("click",()=>{selectedSightingsCameras=null;window.KaitiakiLoadSharedSightings()});
+$("sharedSightingsClearAll")?.addEventListener("click",()=>{selectedSightingsCameras=new Set();window.KaitiakiLoadSharedSightings()});
 $("sharedReviewSpecies")?.addEventListener("change",window.KaitiakiLoadSharedReview);
-$("sharedSightingsCamera")?.addEventListener("change",window.KaitiakiLoadSharedSightings);
 $("sharedReviewCamera")?.addEventListener("change",window.KaitiakiLoadSharedReview);
 $("clearVisibleSharedReview")?.addEventListener("click",async()=>{
   const records=visibleSharedReviewRecords.filter(r=>r?.id);
