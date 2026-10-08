@@ -372,6 +372,21 @@ async function handleTeamList(input, env, origin, status) {
   return reply({ sharedReady: true, records: result.results || [] }, 200, origin);
 }
 
+async function handleTeamReviewResolve(input, env, origin) {
+  if (!sharedConfigured(env)) return reply({ error: "Shared database is not connected yet" }, 503, origin);
+  await ensureSchema(env);
+  const ids = Array.isArray(input?.ids) ? [...new Set(input.ids.map(v => clean(v, 100)).filter(Boolean))].slice(0, 500) : [];
+  if (!ids.length) return reply({ error: "No review records supplied" }, 400, origin);
+  let resolved = 0;
+  for (const id of ids) {
+    const result = await env.KAITIAKI_DB.prepare(
+      "UPDATE sightings SET status='resolved', needs_extra_review=0, updated_at=? WHERE id=? AND status='review'"
+    ).bind(new Date().toISOString(), id).run();
+    resolved += Number(result?.meta?.changes || 0);
+  }
+  return reply({ ok: true, resolved, sharedReady: true }, 200, origin);
+}
+
 async function handleTeamImage(input, env, origin) {
   if (!sharedConfigured(env)) return reply({ error: "Shared database is not connected yet" }, 503, origin);
   await ensureSchema(env);
@@ -673,6 +688,7 @@ export default {
       if (url.pathname === "/team/sync") return handleTeamSync(parsed.input, env, origin);
       if (url.pathname === "/team/sightings") return handleTeamList(parsed.input, env, origin, "sighting");
       if (url.pathname === "/team/review") return handleTeamList(parsed.input, env, origin, "review");
+      if (url.pathname === "/team/review-resolve") return handleTeamReviewResolve(parsed.input, env, origin);
       if (url.pathname === "/team/image") return handleTeamImage(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-sync") return handleCameraCheckSync(parsed.input, env, origin);
       if (url.pathname === "/team/camera-checks") return handleCameraChecks(parsed.input, env, origin);
