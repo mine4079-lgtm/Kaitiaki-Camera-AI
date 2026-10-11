@@ -156,7 +156,25 @@ async function finishCheck(){
       db=await openDB();try{rows=await allRows(db)}finally{db.close()}
       linked=rows.filter(r=>r.cameraCheckId===c.id);
     }
-    if(!linked.length){$("cameraCheckStatusText").textContent="Could not finish "+c.cameraNo+": no imported images are attached to this check. Reconnect the same SD card/folder, press Start camera check once, then Finish & save check.";return}
+    if(!linked.length){
+      const startedAt=new Date(c.createdAt||0).getTime();
+      const recover=rows.filter(r=>{
+        if(r.cameraCheckId||!r.aiPrediction||!r.aiCheckedAt||!startedAt)return false;
+        const checkedAt=new Date(r.aiCheckedAt).getTime();
+        return Number.isFinite(checkedAt)&&checkedAt>=startedAt;
+      });
+      if(recover.length){
+        const context=window.KaitiakiCameraCheckContext?.()||{};
+        const now=new Date().toISOString(),updates=recover.map(r=>({...r,...context,updatedAt:now}));
+        db=await openDB();try{
+          await new Promise((ok,no)=>{const t=db.transaction(STORE,"readwrite"),st=t.objectStore(STORE);for(const r of updates)st.put(r);t.oncomplete=ok;t.onerror=()=>no(t.error)});
+        }finally{db.close()}
+        for(const r of updates)window.KaitiakiSharedSync?.(r,r.preview);
+        rows=rows.map(r=>updates.find(u=>u.key===r.key)||r);
+        linked=rows.filter(r=>r.cameraCheckId===c.id);
+      }
+    }
+    if(!linked.length){$("cameraCheckStatusText").textContent="Could not finish "+c.cameraNo+": no imported images could be matched safely to this check. Reconnect the same SD card/folder, press Start camera check once, then Finish & save check.";return}
     const processed=linked.filter(r=>r.aiPrediction);
     if(!processed.length){$("cameraCheckStatusText").textContent="Images are imported, but AI identification has not been run yet.";return}
     const meaningful=processed.filter(r=>!isSkipped(r));
