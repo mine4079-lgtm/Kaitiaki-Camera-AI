@@ -174,7 +174,15 @@ async function finishCheck(){
         linked=rows.filter(r=>r.cameraCheckId===c.id);
       }
     }
-    if(!linked.length){$("cameraCheckStatusText").textContent="Could not finish "+c.cameraNo+": no imported images could be matched safely to this check. Reconnect the same SD card/folder, press Start camera check once, then Finish & save check.";return}
+    if(!linked.length){
+      let forced=0;
+      try{forced=await window.KaitiakiAttachConnectedToCameraCheck?.(window.KaitiakiCameraCheckContext?.()||{},{force:true})||0}catch{}
+      if(forced){
+        db=await openDB();try{rows=await allRows(db)}finally{db.close()}
+        linked=rows.filter(r=>r.cameraCheckId===c.id);
+      }
+    }
+    if(!linked.length){$("cameraCheckStatusText").textContent="Could not finish "+c.cameraNo+": the connected files still could not be linked to this check.";return}
     const processed=linked.filter(r=>r.aiPrediction);
     if(!processed.length){$("cameraCheckStatusText").textContent="Images are imported, but AI identification has not been run yet.";return}
     const meaningful=processed.filter(r=>!isSkipped(r));
