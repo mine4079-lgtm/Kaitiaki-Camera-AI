@@ -63,12 +63,11 @@ if(attempt<2){say("Temporary AI error — retrying this image…");await new Pro
 }
 }
 if(!rowDone){
-failed++;consecutiveFailures++;say("AI error: "+String(lastError?.message||lastError||"Unknown error")+" · "+consecutiveFailures+" in a row");
-if(consecutiveFailures>=3){paused=true;break}
+failed++;consecutiveFailures++;say("AI error: "+String(lastError?.message||lastError||"Unknown error")+" · skipped this image and continuing");
 }
-say(done.toLocaleString()+" / "+queue.length.toLocaleString()+" AI results saved · "+failed+" failed"+(consecutiveFailures?" · "+consecutiveFailures+" in a row":"")+(paused?" · paused":""));await new Promise(resolve=>setTimeout(resolve,0))
+say(done.toLocaleString()+" / "+queue.length.toLocaleString()+" AI results saved · "+failed+" failed"+(paused?" · pausing after current image":""));await new Promise(resolve=>setTimeout(resolve,0))
 }
-say((paused?"Paused safely. ":"Done. ")+done.toLocaleString()+" processed · "+accepted.toLocaleString()+" accepted · "+skipped.toLocaleString()+" empty/vegetation skipped · "+review.toLocaleString()+" to review · "+failed+" failed.");
+say((paused?"Paused safely. ":"Done. ")+done.toLocaleString()+" processed · "+accepted.toLocaleString()+" accepted · "+skipped.toLocaleString()+" empty/vegetation skipped · "+review.toLocaleString()+" to review · "+failed+" failed"+(failed?" · failed images remain unscanned for a later retry":"")+".");
 }finally{db.close();running=false;$("cloudStart").disabled=false;$("cloudPause").disabled=true;$("start").disabled=!$("photos").files.length&&!$("folder").files.length}
 };
 if(navigator.onLine&&$("cloudEndpoint").value&&$("cloudToken").value){checkConnection()}else if(!navigator.onLine){$("cloudStart").disabled=true;say("Offline — import, review and CSV still work. AI identification needs internet.")}else{$("aiSettings").open=true}
