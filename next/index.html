@@ -262,15 +262,16 @@ const body=document.createElement("div");body.className="item-body";const shownL
 $("more").hidden=visible.length>=data.length;$("more").textContent="Show more photos ("+visible.length+" / "+data.length+")"}
 function activateTab(name){activeTab=name;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("current",b.dataset.tab===name));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("current",v.id===name));render();if(name==="sightings")window.KaitiakiLoadSharedSightings?.();if(name==="results")window.KaitiakiLoadSharedReview?.();if(name==="reports")window.KaitiakiLoadCameraReport?.();if(name==="projectLead")window.KaitiakiLoadProjectLead?.()}
 window.KaitiakiNextApplyAIResult=(next)=>{if(!next||!next.key)return;const i=rows.findIndex(r=>r.key===next.key);if(i>=0)rows[i]=next;else rows.push(next);rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();};
-window.KaitiakiAttachConnectedToCameraCheck=async(context)=>{
+window.KaitiakiAttachConnectedToCameraCheck=async(context,options={})=>{
   if(!context?.cameraCheckId)return 0;
   const keys=new Set(filesByKey.keys());
   if(!keys.size)return 0;
+  const force=!!options.force;
   const now=new Date().toISOString(),updates=[];
   for(let i=0;i<rows.length;i++){
     const r=rows[i];
     if(!keys.has(r.key))continue;
-    if(r.cameraCheckId&&r.cameraCheckId!==context.cameraCheckId)continue;
+    if(!force&&r.cameraCheckId&&r.cameraCheckId!==context.cameraCheckId)continue;
     const next={...r,
       cameraCheckId:context.cameraCheckId,
       cameraNo:context.cameraNo||r.cameraNo||"",
@@ -376,7 +377,7 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 <script src="./cloud-ui.js?v=21"></script>
 <script src="./shared-ui.js?v=27"></script>
 <script src="./project-lead.js?v=1"></script>
-<script src="./camera-report.js?v=11"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=59").catch(()=>{}))}</script>
+<script src="./camera-report.js?v=12"></script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=60").catch(()=>{}))}</script>
 </body>
 </html>
