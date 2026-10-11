@@ -147,10 +147,16 @@ function presenceFromCount(n){n=Number(n)||0;return n===0?"None":n<=9?"Low":n<=1
 async function finishCheck(){
   const c=current();if(!c){$("cameraCheckStatusText").textContent="Start a camera check first.";return}
   const btn=$("finishCameraCheck");btn.disabled=true;
+  $("cameraCheckStatusText").textContent="Finishing "+c.cameraNo+"…";
   try{
-    const db=await openDB();let rows;try{rows=await allRows(db)}finally{db.close()}
-    const linked=rows.filter(r=>r.cameraCheckId===c.id);
-    if(!linked.length){$("cameraCheckStatusText").textContent="No imported images are attached to this camera check yet.";return}
+    let db=await openDB(),rows;try{rows=await allRows(db)}finally{db.close()}
+    let linked=rows.filter(r=>r.cameraCheckId===c.id);
+    if(!linked.length){
+      try{await window.KaitiakiAttachConnectedToCameraCheck?.(window.KaitiakiCameraCheckContext?.()||{})}catch{}
+      db=await openDB();try{rows=await allRows(db)}finally{db.close()}
+      linked=rows.filter(r=>r.cameraCheckId===c.id);
+    }
+    if(!linked.length){$("cameraCheckStatusText").textContent="Could not finish "+c.cameraNo+": no imported images are attached to this check. Reconnect the same SD card/folder, press Start camera check once, then Finish & save check.";return}
     const processed=linked.filter(r=>r.aiPrediction);
     if(!processed.length){$("cameraCheckStatusText").textContent="Images are imported, but AI identification has not been run yet.";return}
     const meaningful=processed.filter(r=>!isSkipped(r));
