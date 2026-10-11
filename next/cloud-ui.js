@@ -46,17 +46,27 @@ const db=await dbOpen();const rows=await getAll(db),queue=rows.filter(r=>files.h
 if(!queue.length){say("No unscanned imported photos found. Import or re-select the original folder.");db.close();return}
 if(!confirm("Identify "+queue.length.toLocaleString()+" unscanned photo(s)? Resized copies will be sent to Gemini; originals stay untouched.")){db.close();return}
 running=true;paused=false;$("cloudStart").disabled=true;$("cloudPause").disabled=false;$("start").disabled=true;
-let done=0,failed=0,skipped=0,accepted=0,review=0;try{
+let done=0,failed=0,skipped=0,accepted=0,review=0,consecutiveFailures=0;try{
 for(const row of queue){
 if(paused)break;
+let rowDone=false,lastError=null;
+for(let attempt=1;attempt<=2&&!rowDone&&!paused;attempt++){
 try{
 const prepared=await prepareImage(files.get(row.key)),image=prepared.image;
 const res=await fetch(url,{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+key},body:JSON.stringify({image})});
 const out=await res.json();if(!res.ok)throw Error(out.error||"HTTP "+res.status);
 const allowed=["Possum","Rat","Stoat","Mouse","Deer","Pig","Weka","Other wildlife","Human","Empty image","Unsure"];if(!allowed.includes(out.label)||!Number.isInteger(out.confidence)||out.confidence<0||out.confidence>100||(out.second_choice!==null&&out.second_choice!==undefined&&!allowed.includes(out.second_choice)))throw Error("Invalid prediction");
-const clearEmpty=out.label==="Empty image";const autoAccepted=!clearEmpty&&out.label!=="Unsure"&&out.confidence>=95&&!prepared.quality.flagged;const extraReview=!clearEmpty&&!autoAccepted;if(clearEmpty)skipped++;else if(autoAccepted)accepted++;else review++;const reviewReason=prepared.quality.flagged?prepared.quality.reason:(out.label==="Unsure"?"AI unsure":(out.confidence<95?"AI confidence under 95%":""));const now=new Date().toISOString();const next={...row,preview:row.preview instanceof Blob?row.preview:prepared.preview,aiPrediction:out.label,aiConfidence:out.confidence,aiSecondChoice:out.second_choice??null,aiNote:String(out.note||"").slice(0,300),aiModel:String(out.modelId||""),aiSkipped:clearEmpty,aiSkippedReason:clearEmpty?"empty / vegetation-only frame":"",aiNeedsExtraReview:extraReview,aiAutoAccepted:autoAccepted,aiAutoAcceptedAt:autoAccepted?now:"",aiQualityReason:extraReview?reviewReason:"",aiQualityBrightness:prepared.quality.meanBrightness,aiQualityDetail:prepared.quality.detailScore,aiCheckedAt:now,updatedAt:now};await put(db,next);if(typeof window.KaitiakiNextApplyAIResult==="function")window.KaitiakiNextApplyAIResult(next);window.KaitiakiSharedSync?.(next,prepared.preview);done++;
-}catch(err){failed++;say("Error: "+String(err.message||err));if(failed>=3){paused=true;break}}
-say(done.toLocaleString()+" / "+queue.length.toLocaleString()+" AI results saved · "+failed+" errors"+(paused?" · paused":""));await new Promise(resolve=>setTimeout(resolve,0))
+const clearEmpty=out.label==="Empty image";const autoAccepted=!clearEmpty&&out.label!=="Unsure"&&out.confidence>=95&&!prepared.quality.flagged;const extraReview=!clearEmpty&&!autoAccepted;if(clearEmpty)skipped++;else if(autoAccepted)accepted++;else review++;const reviewReason=prepared.quality.flagged?prepared.quality.reason:(out.label==="Unsure"?"AI unsure":(out.confidence<95?"AI confidence under 95%":""));const now=new Date().toISOString();const next={...row,preview:row.preview instanceof Blob?row.preview:prepared.preview,aiPrediction:out.label,aiConfidence:out.confidence,aiSecondChoice:out.second_choice??null,aiNote:String(out.note||"").slice(0,300),aiModel:String(out.modelId||""),aiSkipped:clearEmpty,aiSkippedReason:clearEmpty?"empty / vegetation-only frame":"",aiNeedsExtraReview:extraReview,aiAutoAccepted:autoAccepted,aiAutoAcceptedAt:autoAccepted?now:"",aiQualityReason:extraReview?reviewReason:"",aiQualityBrightness:prepared.quality.meanBrightness,aiQualityDetail:prepared.quality.detailScore,aiCheckedAt:now,updatedAt:now};await put(db,next);if(typeof window.KaitiakiNextApplyAIResult==="function")window.KaitiakiNextApplyAIResult(next);window.KaitiakiSharedSync?.(next,prepared.preview);done++;consecutiveFailures=0;rowDone=true;
+}catch(err){
+lastError=err;
+if(attempt<2){say("Temporary AI error — retrying this image…");await new Promise(resolve=>setTimeout(resolve,1200))}
+}
+}
+if(!rowDone){
+failed++;consecutiveFailures++;say("AI error: "+String(lastError?.message||lastError||"Unknown error")+" · "+consecutiveFailures+" in a row");
+if(consecutiveFailures>=3){paused=true;break}
+}
+say(done.toLocaleString()+" / "+queue.length.toLocaleString()+" AI results saved · "+failed+" failed"+(consecutiveFailures?" · "+consecutiveFailures+" in a row":"")+(paused?" · paused":""));await new Promise(resolve=>setTimeout(resolve,0))
 }
 say((paused?"Paused safely. ":"Done. ")+done.toLocaleString()+" processed · "+accepted.toLocaleString()+" accepted · "+skipped.toLocaleString()+" empty/vegetation skipped · "+review.toLocaleString()+" to review · "+failed+" failed.");
 }finally{db.close();running=false;$("cloudStart").disabled=false;$("cloudPause").disabled=true;$("start").disabled=!$("photos").files.length&&!$("folder").files.length}
