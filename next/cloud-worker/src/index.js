@@ -1,5 +1,6 @@
 /* Kaitiaki Camera AI — Gemini classifier + shared team sightings backend.
  * Required Worker secrets: GEMINI_API_KEY and KAITIAKI_ACCESS_TOKEN.
+ * Optional role secret: KAITIAKI_PROJECT_LEAD_TOKEN (unlocks the read-only Project Lead dashboard).
  * Shared-team binding:
  *   KAITIAKI_DB -> Cloudflare D1 database
  * Small shared thumbnails are stored directly in D1; R2 is not required.
@@ -51,19 +52,34 @@ function reply(body, status = 200, origin = "") {
   });
 }
 
+function accessRoleForToken(token, env) {
+  if (env.KAITIAKI_PROJECT_LEAD_TOKEN && token === env.KAITIAKI_PROJECT_LEAD_TOKEN) return "project_lead";
+  if (env.KAITIAKI_ACCESS_TOKEN && token === env.KAITIAKI_ACCESS_TOKEN) return "team";
+  return "";
+}
+
 function authorised(request, env) {
-  return !!env.KAITIAKI_ACCESS_TOKEN &&
-    request.headers.get("Authorization") === "Bearer " + env.KAITIAKI_ACCESS_TOKEN;
+  const header = request.headers.get("Authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  return !!accessRoleForToken(token, env);
 }
 
 async function teamPayload(request, env) {
   let input;
   try { input = JSON.parse(await request.text()); }
   catch { return { error: "Invalid team request" }; }
-  if (!env.KAITIAKI_ACCESS_TOKEN || input?.token !== env.KAITIAKI_ACCESS_TOKEN) {
-    return { error: "Not authorised" };
-  }
-  return { input };
+  const role = accessRoleForToken(input?.token, env);
+  if (!role) return { error: "Not authorised" };
+  return { input, role };
+}
+
+async function rolePayload(request, env, requiredRole = "") {
+  let input;
+  try { input = JSON.parse(await request.text()); }
+  catch { return { error: "Invalid access request" }; }
+  const role = accessRoleForToken(input?.token, env);
+  if (!role || (requiredRole && role !== requiredRole)) return { error: "Not authorised" };
+  return { input, role };
 }
 
 function clean(value, max = 300) {
@@ -553,6 +569,12 @@ async function handleCameraChecks(input, env, origin) {
   return reply({ sharedReady: true, checks }, 200, origin);
 }
 
+async function handleProjectLeadDashboard(input, env, origin) {
+  const response = await handleCameraChecks(input, env, origin);
+  const data = await response.json();
+  return reply({ ...data, role: "project_lead", readOnly: true }, response.status, origin);
+}
+
 async function handleClassification(request, env, origin) {
   if (!env.GEMINI_API_KEY || !env.KAITIAKI_ACCESS_TOKEN) {
     return reply({ error: "Server not configured" }, 503, origin);
@@ -677,6 +699,21 @@ export default {
         service: "kaitiaki-next-gemini",
         modelId: MODEL
       }, 200, origin);
+    }
+
+    if (request.method === "POST" && url.pathname === "/session") {
+      const parsed = await rolePayload(request, env);
+      if (parsed.error) return reply({ error: parsed.error }, parsed.error === "Not authorised" ? 401 : 400, origin);
+      return reply({ ok: true, role: parsed.role }, 200, origin);
+    }
+
+    if (request.method === "POST" && url.pathname === "/project-lead/dashboard") {
+      if (Number(request.headers.get("content-length") || 0) > MAX_SYNC_BODY) {
+        return reply({ error: "Project Lead request too large" }, 413, origin);
+      }
+      const parsed = await rolePayload(request, env, "project_lead");
+      if (parsed.error) return reply({ error: parsed.error }, parsed.error === "Not authorised" ? 401 : 400, origin);
+      return handleProjectLeadDashboard(parsed.input, env, origin);
     }
 
     if (request.method === "POST" && url.pathname.startsWith("/team/")) {

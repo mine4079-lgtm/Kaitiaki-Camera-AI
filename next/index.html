@@ -14,7 +14,7 @@ header{background:#0b6655;color:white;padding:20px max(18px,calc((100vw - 1100px
 header h1{font-size:20px;margin:0}header p{font-size:12px;opacity:.85;margin:3px 0 0}
 .tag{margin-left:auto;background:#ffffff24;border:1px solid #ffffff48;border-radius:20px;font-size:11px;padding:6px 10px;font-weight:800}.tag.offline{background:#fff1c7;color:#6c4c13;border-color:#ffe29a}
 main{max-width:1100px;margin:auto;padding:20px 16px 92px}
-nav{display:flex;gap:7px;margin-bottom:22px;max-width:450px;background:#e7eeeb;border-radius:15px;padding:5px}
+nav{display:flex;gap:7px;margin-bottom:22px;max-width:620px;background:#e7eeeb;border-radius:15px;padding:5px;overflow-x:auto}
 nav button{flex:1;border:0;padding:12px 5px;background:transparent;color:#526660;border-radius:11px;font-weight:800}
 nav button.current{background:white;color:#0b6655;box-shadow:0 2px 6px #13342913}
 .view{display:none}.view.current{display:block}
@@ -88,6 +88,7 @@ dialog::backdrop{background:#0c211dcc}
 <button data-tab="results">Review</button>
 <button data-tab="reports">Reports</button>
 <button data-tab="learning">Team</button>
+<button data-tab="projectLead" id="projectLeadNav" hidden>Project Lead</button>
 </nav>
 <section class="view current" id="scan">
 <h2>Scan your camera images</h2>
@@ -154,6 +155,33 @@ dialog::backdrop{background:#0c211dcc}
 <div class="panel"><h3>Team setup</h3><p class="sub">Set this once on each work device so exports show who reviewed each image.</p><label class="field">Team / project <input id="teamName" type="text" placeholder="Team or project name" style="display:block;width:100%;padding:11px;border:1px solid #cbdad3;border-radius:10px;margin-top:6px"></label><label class="field">Your name <input id="staffName" type="text" placeholder="Staff member name" style="display:block;width:100%;padding:11px;border:1px solid #cbdad3;border-radius:10px;margin-top:6px"></label><label class="field">Device name <input id="deviceName" type="text" placeholder="e.g. Tom laptop or Field phone 2" style="display:block;width:100%;padding:11px;border:1px solid #cbdad3;border-radius:10px;margin-top:6px"></label><div class="actions"><button id="saveTeam" class="btn light">Save team setup</button></div><p id="teamStatus" class="sub" style="margin:10px 0 0"></p></div><div class="panel"><h3>Verified examples</h3><div id="breakdown" class="sub">No verified images yet.</div><button id="export3" class="btn light">Export verified CSV</button></div>
 <div class="notice green"><strong>Model status:</strong> Gemini assists with sorting. Your confirmed labels remain the trusted record and are never overwritten by AI.</div>
 <div class="panel"><h3>Target species</h3><p class="sub">Possum · Rat · Stoat · Mouse · Deer · Pig · Weka, with separate Other wildlife, Human and Unsure labels. Clear empty/vegetation frames are skipped automatically.</p></div>
+</section>
+<section class="view" id="projectLead">
+<h2>Project Lead dashboard</h2>
+<p class="sub">Read-only reporting view built from completed camera checks. Changes here do not affect the team's Scan, Review, Sightings or camera-check workflow.</p>
+<div class="notice green"><strong>Project Lead access:</strong> This area is separate from the field workflow. Filter and export the figures you need without changing classification records.</div>
+<div class="panel">
+<h3>Report filters</h3>
+<div class="actions">
+<label class="field" style="margin:0">Year <select id="plYear"></select></label>
+<label class="field" style="margin:0">Zone <select id="plZone"><option value="all">All zones</option></select></label>
+<label class="field" style="margin:0">Block <select id="plBlock"><option value="all">All blocks</option></select></label>
+<label class="field" style="margin:0">Camera <select id="plCamera"><option value="all">All cameras</option></select></label>
+<button id="plRefresh" class="btn light">Refresh dashboard</button>
+<button id="plExport" class="btn light">Export dashboard CSV</button>
+</div>
+<p id="plStatus" class="sub" style="margin:10px 0 0">Project Lead access is not connected yet.</p>
+</div>
+<div class="statbar">
+<div class="stat"><b id="plChecks">0</b><small>CAMERA CHECKS</small></div>
+<div class="stat"><b id="plCameras">0</b><small>CAMERAS</small></div>
+<div class="stat"><b id="plPossums">0</b><small>POSSUM IMAGES</small></div>
+<div class="stat"><b id="plDetections">0</b><small>MEANINGFUL DETECTIONS</small></div>
+<div class="stat"><b id="plLastPossum">—</b><small>LAST POSSUM</small></div>
+</div>
+<div class="panel"><h3>Monthly possum detections</h3><p class="sub">Image detections by capture month, not individual possums.</p><div id="plMonthlyBars" class="month-bars"></div></div>
+<div class="panel"><h3>Species summary</h3><div id="plSpeciesSummary" class="sub">No data loaded yet.</div></div>
+<div class="panel"><h3>Camera summary</h3><p class="sub">Read-only summary of the filtered completed camera checks.</p><div class="report-scroll"><table class="report-table"><thead><tr><th>Camera</th><th>Zone</th><th>Block</th><th>Checks</th><th>Possum images</th><th>Last possum</th><th>Latest check</th><th>Latest issues</th></tr></thead><tbody id="plCameraBody"></tbody></table></div></div>
 </section>
 <p class="footer">Kaitiaki Camera AI · local records · AI uploads only when you press Identify · source photos never edited.<br>© 2026 Thomas Monaghan. All rights reserved.</p>
 </main>
@@ -232,7 +260,7 @@ for(const r of visible){const b=document.createElement("button");b.className="it
 const f=filesByKey.get(r.key),savedPreview=r.preview instanceof Blob?r.preview:null,shown=savedPreview||f;if(shown){const img=document.createElement("img");const src=URL.createObjectURL(shown);thumbUrls.push(src);img.src=src;img.alt=r.name;img.loading="lazy";b.append(img)}else{const p=document.createElement("div");p.className="placeholder";p.textContent="Reconnect folder to restore preview";b.append(p)}
 const body=document.createElement("div");body.className="item-body";const shownLabel=r.verified?r.label:(r.aiAutoAccepted?"AI accepted · "+r.aiPrediction+" · "+r.aiConfidence+"%":(r.aiPrediction?r.aiPrediction+" · "+r.aiConfidence+"%"+(r.aiNeedsExtraReview?" · CHECK":""):"Needs review"));body.innerHTML="<strong>"+escapeHTML(r.cameraNo||r.name)+"</strong><span class='kind "+((r.verified||r.aiAutoAccepted)?"good":"")+"'>"+escapeHTML(shownLabel)+"</span><small>"+escapeHTML(r.cameraNo?r.name:r.path)+"</small>"+(r.cameraNo?"<small>"+escapeHTML(r.path)+"</small>":"");b.append(body);b.addEventListener("click",()=>{if(multiSelect){if(selectedMany.has(r.key))selectedMany.delete(r.key);else selectedMany.add(r.key);render()}else openReview(r.key)});root.append(b)}
 $("more").hidden=visible.length>=data.length;$("more").textContent="Show more photos ("+visible.length+" / "+data.length+")"}
-function activateTab(name){activeTab=name;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("current",b.dataset.tab===name));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("current",v.id===name));render();if(name==="sightings")window.KaitiakiLoadSharedSightings?.();if(name==="results")window.KaitiakiLoadSharedReview?.();if(name==="reports")window.KaitiakiLoadCameraReport?.()}
+function activateTab(name){activeTab=name;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("current",b.dataset.tab===name));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("current",v.id===name));render();if(name==="sightings")window.KaitiakiLoadSharedSightings?.();if(name==="results")window.KaitiakiLoadSharedReview?.();if(name==="reports")window.KaitiakiLoadCameraReport?.();if(name==="projectLead")window.KaitiakiLoadProjectLead?.()}
 window.KaitiakiNextApplyAIResult=(next)=>{if(!next||!next.key)return;const i=rows.findIndex(r=>r.key===next.key);if(i>=0)rows[i]=next;else rows.push(next);rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();};
 window.KaitiakiAttachConnectedToCameraCheck=async(context)=>{
   if(!context?.cameraCheckId)return 0;
@@ -347,7 +375,8 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 </script>
 <script src="./cloud-ui.js?v=15"></script>
 <script src="./shared-ui.js?v=27"></script>
+<script src="./project-lead.js?v=1"></script>
 <script src="./camera-report.js?v=9"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=51").catch(()=>{}))}</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=52").catch(()=>{}))}</script>
 </body>
 </html>
