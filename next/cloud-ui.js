@@ -20,13 +20,26 @@ async function checkConnection(){
   try{
     const url=endpoint(),key=token(),res=await fetch(url,{cache:"no-store"}),data=await res.json();
     if(!res.ok||!data.ready)throw Error("Backend is not configured");
+    let accessRole="team";
+    try{
+      const roleRes=await fetch(url+"/session",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:JSON.stringify({token:key})});
+      if(roleRes.status!==404){
+        const roleData=await roleRes.json();
+        if(!roleRes.ok)throw Error(roleData.error||"Access token not authorised");
+        accessRole=roleData.role==="project_lead"?"project_lead":"team";
+      }
+    }catch(e){
+      if(String(e.message||e).includes("not authorised")||String(e.message||e).includes("Not authorised"))throw e;
+    }
     localStorage.setItem(URL_KEY,url);
     if($("rememberToken").checked){localStorage.setItem(PERSIST_TOKEN_KEY,key);localStorage.setItem(REMEMBER_KEY,"yes");sessionStorage.removeItem(TOKEN_KEY)}else{sessionStorage.setItem(TOKEN_KEY,key);localStorage.removeItem(PERSIST_TOKEN_KEY);localStorage.removeItem(REMEMBER_KEY)}
+    window.KaitiakiSetAccessRole?.(accessRole);
     $("cloudStart").disabled=false;
-    say("AI ready.");
+    say(accessRole==="project_lead"?"AI ready · Project Lead access.":"AI ready.");
     $("aiSettings").open=false;
     return true;
   }catch(e){
+    window.KaitiakiSetAccessRole?.("team");
     $("cloudStart").disabled=true;
     $("aiSettings").open=true;
     say("AI connection unavailable: "+String(e.message||e));
@@ -34,7 +47,7 @@ async function checkConnection(){
   }
 }
 $("cloudCheck").onclick=checkConnection;
-for(const id of ["cloudEndpoint","cloudToken"])$(id).oninput=()=>{$("cloudStart").disabled=true;say("AI connection needs checking.")};$("rememberToken").onchange=()=>{if(!$("rememberToken").checked){localStorage.removeItem(PERSIST_TOKEN_KEY);localStorage.removeItem(REMEMBER_KEY)}else localStorage.setItem(REMEMBER_KEY,"yes")};
+for(const id of ["cloudEndpoint","cloudToken"])$(id).oninput=()=>{$("cloudStart").disabled=true;window.KaitiakiSetAccessRole?.("team");say("AI connection needs checking.")};$("rememberToken").onchange=()=>{if(!$("rememberToken").checked){localStorage.removeItem(PERSIST_TOKEN_KEY);localStorage.removeItem(REMEMBER_KEY)}else localStorage.setItem(REMEMBER_KEY,"yes")};
 for(const id of ["photos","folder"])$(id).addEventListener("change",e=>{for(const f of Array.from(e.target.files||[]))files.set(getKey(f),f);say(files.size.toLocaleString()+" images connected. Import them, then Identify unscanned photos.")});
 window.addEventListener("kaitiaki-clear-files",()=>{files.clear();say("Connected folders cleared. Saved results are unchanged.")});
 $("cloudPause").onclick=()=>{paused=true;say("Pausing after current image…")};
