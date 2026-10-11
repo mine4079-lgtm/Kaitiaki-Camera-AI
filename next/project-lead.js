@@ -44,7 +44,16 @@ window.KaitiakiSetAccessRole=next=>{
   localStorage.setItem(ROLE_KEY,safe);applyRole(safe);
   window.dispatchEvent(new CustomEvent("kaitiaki-role-changed",{detail:{role:safe}}));
 };
-applyRole(role());
+async function verifyStoredRole(){
+  applyRole("team");
+  const t=token();if(!t||!navigator.onLine){localStorage.setItem(ROLE_KEY,"team");return}
+  try{
+    const res=await fetch(endpoint()+"/session",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:JSON.stringify({token:t})});
+    if(!res.ok){localStorage.setItem(ROLE_KEY,"team");return}
+    const data=await res.json();window.KaitiakiSetAccessRole(data.role==="project_lead"?"project_lead":"team");
+  }catch{localStorage.setItem(ROLE_KEY,"team")}
+}
+verifyStoredRole();
 
 function fillYears(){
   const sel=$("plYear"),current=Number(sel?.value)||new Date().getFullYear();
