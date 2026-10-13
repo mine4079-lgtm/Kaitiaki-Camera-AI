@@ -291,7 +291,7 @@ async function handleTeamSync(input, env, origin) {
       status=excluded.status,
       image_blob=COALESCE(excluded.image_blob, sightings.image_blob),
       image_type=COALESCE(excluded.image_type, sightings.image_type),
-      captured_at=excluded.captured_at,
+      captured_at=COALESCE(NULLIF(excluded.captured_at,''), sightings.captured_at),
       verified_at=excluded.verified_at,
       updated_at=excluded.updated_at
   `).bind(
