@@ -148,7 +148,7 @@ async function galleryLinkAudit(records){
     "\nDistinct linked camera-check IDs in this viewer: "+(ids.size||"not supplied")+
     (duplicates?"\nDuplicate candidates need checking before any unlinking.":"\nNo exact filename-and-capture-time duplicates detected. This does not rule out incorrect links.");
 }
-function showGalleryRecord(){
+async function showGalleryRecord(){
   const dlg=$("sharedImageDialog");if(!dlg||!galleryRecords.length)return;
   const r=galleryRecords[galleryIndex],label=recordLabel(r)||"Needs review";
   $("sharedDialogTitle").textContent=(r.camera_no?r.camera_no+" · ":"")+label;
