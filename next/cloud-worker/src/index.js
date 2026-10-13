@@ -476,6 +476,41 @@ async function handleCameraCheckAudit(input, env, origin) {
     const label = Number(r.human_verified) ? (r.confirmed_label || r.ai_prediction) : r.ai_prediction;
     return label === "Possum" && r.status !== "ignored";
   });
+  // Read-only recovery hints: locate dated records from the same camera with matching
+  // relative path or filename. These are suggestions only; no dates are copied.
+  const datedByPath = new Map(), datedByFile = new Map();
+  for (const row of rows) {
+    if (!row.captured_at) continue;
+    const camera = String(row.camera_no || checksById.get(String(row.camera_check_id||""))?.camera_no || "").trim().toUpperCase();
+    const path = String(row.relative_path || "").trim().toLowerCase();
+    const file = String(row.file_name || "").trim().toLowerCase();
+    if (!camera) continue;
+    if (path) {
+      const key = camera+"|"+path;
+      if (!datedByPath.has(key)) datedByPath.set(key, []);
+      datedByPath.get(key).push(row);
+    }
+    if (file) {
+      const key = camera+"|"+file;
+      if (!datedByFile.has(key)) datedByFile.set(key, []);
+      datedByFile.get(key).push(row);
+    }
+  }
+  const recoveryCandidates = [];
+  for (const row of possumRows) {
+    if (row.captured_at) continue;
+    const camera = String(row.camera_no || checksById.get(String(row.camera_check_id||""))?.camera_no || "").trim().toUpperCase();
+    const path = String(row.relative_path || "").trim().toLowerCase();
+    const file = String(row.file_name || "").trim().toLowerCase();
+    const matches = (path && datedByPath.get(camera+"|"+path)) || (file && datedByFile.get(camera+"|"+file)) || [];
+    const unique = [...new Map(matches.filter(m => String(m.id)!==String(row.id)).map(m=>[String(m.id),m])).values()];
+    if (unique.length && recoveryCandidates.length < 100) recoveryCandidates.push({
+      cameraNo:camera, fileName:row.file_name||"", relativePath:row.relative_path||"", recordId:row.id,
+      matches:unique.slice(0,3).map(m=>({recordId:m.id,fileName:m.file_name||"",relativePath:m.relative_path||"",
+        capturedAt:m.captured_at||"",createdAt:m.created_at||"",label:Number(m.human_verified)?(m.confirmed_label||m.ai_prediction):m.ai_prediction||""}))
+    });
+  }
+
   for (const r of possumRows) {
     const camera = String(r.camera_no || checksById.get(String(r.camera_check_id||""))?.camera_no || "").trim().toUpperCase();
     const captured = String(r.captured_at || "").slice(0,10);
@@ -516,6 +551,7 @@ async function handleCameraCheckAudit(input, env, origin) {
       dateRuleWouldMove:c.dateRuleWouldMove,samples:c.samples,missingDateSamples:c.missingDateSamples};
   });
   return reply({sharedReady:true,checks:result,orphan,recordsInspected:rows.length,possumsInspected:possumRows.length,
+    recoveryCandidates, recoveryCandidateCount:recoveryCandidates.length,
     exactDuplicateCandidates:[...signatureCounts.values()].reduce((n,v)=>n+Math.max(0,v-1),0)},200,origin);
 }
 

@@ -485,10 +485,18 @@ async function loadShared(kind){
               }
             }
           }
+          lines.push("","Possible date-recovery matches in existing shared records: "+(data.recoveryCandidateCount||0));
+          for(const candidate of (data.recoveryCandidates||[]).slice(0,12)){
+            lines.push("  "+candidate.cameraNo+" · "+candidate.fileName+" · missing record "+candidate.recordId);
+            for(const match of (candidate.matches||[]).slice(0,3)){
+              lines.push("    possible match: "+(match.fileName||"(no filename)")+" · "+(match.capturedAt||"no date")+" · "+(match.label||"")+
+                " · ID "+match.recordId);
+            }
+          }
           lines.push("","Possum records without a valid linked check: "+data.orphan.totalPossum,
             "Missing capture date among those: "+data.orphan.missingCaptureDate,
             "No check link: "+data.orphan.noCheckLink,
-            "No images or classifications were changed.");
+            "No images or classifications were changed. Candidate dates are suggestions only; nothing was copied.");
           alert(lines.join("\n"));
         }catch(e){alert("Audit failed: "+String(e.message||e))}
         finally{auditButton.disabled=false;auditButton.textContent="Inspect link problems"}
