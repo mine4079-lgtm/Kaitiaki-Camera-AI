@@ -478,10 +478,18 @@ async function loadShared(kind){
             remoteResult=data;
           }catch(e){remoteError=String(e.message||e)}
           if(remoteResult){
-            const msg="Repair complete.\n\nLocal links moved: "+(localResult.moved||0)+
+            const d=remoteResult.diagnostics||{};
+            const msg="Repair check complete.\n\nLocal links moved: "+(localResult.moved||0)+
               "\nShared links moved: "+(remoteResult.moved||0)+
               "\nCamera-check totals refreshed: "+(remoteResult.updatedChecks||0)+
               "\nAmbiguous same-day camera runs left unchanged: "+(remoteResult.ambiguousCameras||0)+
+              "\n\nWhy records were skipped (shared):"+
+              "\nRows found: "+(d.rowsFound??"not reported")+
+              "\nNo camera match: "+(d.noCamera??"not reported")+
+              "\nNo capture date: "+(d.noCaptureDate??"not reported")+
+              "\nNo check group: "+(d.noCheckGroup??"not reported")+
+              "\nNo later check date: "+(d.noLaterCheck??"not reported")+
+              "\nAlready matched: "+(d.alreadyCorrect??"not reported")+
               "\n\nNo images or classifications were deleted or changed.";
             alert(msg);
             await loadShared("sighting");window.KaitiakiLoadCameraReport?.();
