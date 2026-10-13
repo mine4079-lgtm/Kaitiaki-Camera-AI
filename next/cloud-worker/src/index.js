@@ -506,20 +506,21 @@ async function handleCameraCheckReconcile(input, env, origin) {
     const currentId = String(r.camera_check_id || "");
     const linkedCheck = checkById.get(currentId);
     const camera = String(r.camera_no || linkedCheck?.camera_no || "").trim().toUpperCase();
-    if (!cameraNos.includes(camera)) continue;
+    if (!cameraNos.includes(camera)) { noCamera++; continue; }
     const captured = String(r.captured_at || "").slice(0,10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(captured)) continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(captured)) { noCaptureDate++; continue; }
     const year = Number(captured.slice(0,4));
     const key = camera + "|" + year;
     const group = groups.get(key);
-    if (!group || ambiguous.has(key)) continue;
+    if (!group) { noCheckGroup++; continue; }
+    if (ambiguous.has(key)) { ambiguousSkipped++; continue; }
     if (linkedCheck && String(linkedCheck.camera_no || "").trim().toUpperCase() !== camera) continue;
     const target = group.find(c => String(c.checked_date).slice(0,10) >= captured);
-    if (!target) continue;
+    if (!target) { noLaterCheck++; continue; }
     const canonicalTargetId = duplicateIdMap.get(String(target.id)) || String(target.id);
     if (currentId === canonicalTargetId &&
         Number(r.check_no) === Number(target.check_no) &&
-        String(r.checked_date || "").slice(0,10) === String(target.checked_date).slice(0,10)) continue;
+        String(r.checked_date || "").slice(0,10) === String(target.checked_date).slice(0,10)) { alreadyCorrect++; continue; }
     await env.KAITIAKI_DB.prepare(`
       UPDATE sightings SET camera_no=?, camera_check_id=?, check_no=?, checked_date=?, updated_at=? WHERE id=?
     `).bind(camera, canonicalTargetId, Number(target.check_no)||0, String(target.checked_date).slice(0,10), now, r.id).run();
@@ -574,6 +575,7 @@ async function handleCameraCheckReconcile(input, env, origin) {
   return reply({
     ok:true, sharedReady:true, moved, updatedChecks,
     ambiguousCameras:ambiguous.size,
+    diagnostics:{rowsFound:rows.length,noCamera,noCaptureDate,noCheckGroup,ambiguousSkipped,noLaterCheck,alreadyCorrect},
     message:"Links were matched to the next check date for the same camera. Ambiguous same-day runs were left unchanged.",
     checks:details
   }, 200, origin);
