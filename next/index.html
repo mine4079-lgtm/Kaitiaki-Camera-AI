@@ -303,6 +303,7 @@ window.KaitiakiAttachConnectedToCameraCheck=async(context,options={})=>{
     rows[i]=next;updates.push(next);
   }
   if(updates.length)await storeItems(updates);
+  for(const r of updates)await window.KaitiakiSharedSyncMetadataIfChanged?.(r);
   render();
   return updates.length;
 };
