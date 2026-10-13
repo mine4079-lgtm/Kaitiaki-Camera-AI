@@ -426,7 +426,7 @@ async function loadShared(kind){
     status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown."+(kind==="sighting"&&reportYear?" Matched to "+reportYear+" finished camera checks.":"")+integrityNote;
     if(kind==="sighting"&&integrityMismatches.length){
       const panel=document.createElement("section");panel.className="integrity-mismatch-list";
-      panel.style.cssText="margin:12px 0 18px;padding:14px;border:1px solid #e6c98a;border-radius:12px;background:#fff8e8;color:#24332f";
+      panel.style.cssText="display:block;width:100%;max-width:100%;box-sizing:border-box;overflow-x:auto;margin:12px 0 18px;padding:14px;border:1px solid #e6c98a;border-radius:12px;background:#fff8e8;color:#24332f";
       const heading=document.createElement("strong");heading.textContent="Camera checks to investigate";panel.append(heading);
       const intro=document.createElement("p");intro.textContent="These are image counts, not individual possums. A difference can mean missing links or an older check that needs reconciling.";panel.append(intro);
       const table=document.createElement("table");table.style.cssText="width:100%;border-collapse:collapse;font-size:14px";
@@ -440,7 +440,7 @@ async function loadShared(kind){
         for(const val of vals){const td=document.createElement("td");td.textContent=val;td.style.cssText="padding:7px 5px;border-bottom:1px solid #eee0c4;vertical-align:top";tr.append(td)}
         tbody.append(tr);
       }
-      table.append(tbody);panel.append(table);root.prepend(panel);
+      table.append(tbody);panel.append(table);const integrityRoot=$("sharedSightingsIntegrity");if(integrityRoot)integrityRoot.replaceChildren(panel);
     }
   }catch(e){
     root.innerHTML='<div class="empty">Shared database not connected yet.</div>';
