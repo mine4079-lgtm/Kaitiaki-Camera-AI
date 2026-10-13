@@ -135,6 +135,8 @@ async function showGalleryRecord(){
   $("sharedMetaWho").textContent=confirmerText(r,galleryKind);
   $("sharedMetaAi").textContent=(r.ai_prediction||"No AI result")+(r.ai_confidence!=null?" · "+r.ai_confidence+"%":"")+(r.ai_second_choice?" · second: "+r.ai_second_choice:"");
   $("sharedMetaFile").textContent=r.file_name||"";
+  $("sharedMetaImported").textContent=niceDate(r.imported_at||r.created_at)||"Not recorded";
+  $("sharedMetaProcessed").textContent=niceDate(r.ai_checked_at||r.updated_at)||"Not recorded";
   $("sharedMetaNote").textContent=(galleryWarning?galleryWarning+"\n\n":"")+(r.ai_note||"No description available.");
   $("sharedPosition").textContent=(galleryIndex+1)+" of "+galleryRecords.length;
   $("sharedPrev").disabled=galleryRecords.length<2;
@@ -490,6 +492,8 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
         imported_by:r.importedBy||"",
         captured_at:r.capturedAt||"",
         verified_at:r.verifiedAt||"",
+        imported_at:r.createdAt||"",
+        ai_checked_at:r.aiCheckedAt||"",
         updated_at:r.updatedAt||"",
         has_image:r.preview instanceof Blob?1:0,
         _localPreview:r.preview instanceof Blob?r.preview:null
