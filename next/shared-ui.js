@@ -473,6 +473,13 @@ async function loadShared(kind){
           const lines=["Read-only audit complete.","Cameras: "+cameras.join(", "),"Shared records inspected: "+data.recordsInspected,
             "Possum records inspected: "+data.possumsInspected,"Exact duplicate filename + capture-time candidates overall: "+data.exactDuplicateCandidates,
             "","Per camera check: report count | linked records | unique file/time signatures | duplicate candidates | missing capture date | date-rule would move"];
+          lines.push("","Possible date-recovery matches in existing shared records: "+(data.recoveryCandidateCount||0));
+          for(const candidate of (data.recoveryCandidates||[]).slice(0,5)){
+            lines.push("  "+candidate.cameraNo+" · "+candidate.fileName+" · missing ID "+String(candidate.recordId).slice(0,12));
+            for(const match of (candidate.matches||[]).slice(0,2)){
+              lines.push("    candidate "+(match.capturedAt||"no date")+" · "+(match.fileName||"(no filename)")+" · ID "+String(match.recordId).slice(0,12));
+            }
+          }
           for(const c of data.checks||[]){
             if(c.reportImages!==c.linkedPossumRecords||c.exactDuplicateCandidates||c.missingCaptureDate||c.dateRuleWouldMove){
               lines.push(c.cameraNo+" check "+c.checkNo+" ("+c.checkedDate+"): "+c.reportImages+" | "+c.linkedPossumRecords+" | "+c.uniqueFileTimeSignatures+" | "+c.exactDuplicateCandidates+" | "+c.missingCaptureDate+" | "+c.dateRuleWouldMove);
@@ -483,14 +490,6 @@ async function loadShared(kind){
                   lines.push("  "+(sample.fileName||"(no filename)")+" · path "+(sample.relativePath||"(no path)")+" · record "+sample.recordId+" · created "+(sample.createdAt||"unknown"));
                 }
               }
-            }
-          }
-          lines.push("","Possible date-recovery matches in existing shared records: "+(data.recoveryCandidateCount||0));
-          for(const candidate of (data.recoveryCandidates||[]).slice(0,12)){
-            lines.push("  "+candidate.cameraNo+" · "+candidate.fileName+" · missing record "+candidate.recordId);
-            for(const match of (candidate.matches||[]).slice(0,3)){
-              lines.push("    possible match: "+(match.fileName||"(no filename)")+" · "+(match.capturedAt||"no date")+" · "+(match.label||"")+
-                " · ID "+match.recordId);
             }
           }
           lines.push("","Possum records without a valid linked check: "+data.orphan.totalPossum,
