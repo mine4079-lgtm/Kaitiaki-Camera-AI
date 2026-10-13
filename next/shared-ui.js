@@ -431,14 +431,25 @@ async function loadShared(kind){
       const intro=document.createElement("p");intro.textContent="These are image counts, not individual possums. A difference can mean missing links or an older check that needs reconciling.";panel.append(intro);
       const table=document.createElement("table");table.style.cssText="width:100%;border-collapse:collapse;font-size:14px";
       const thead=document.createElement("thead"),hr=document.createElement("tr");
-      for(const label of ["Camera","Check","Checked","Report images","Matched images","Difference"]){const th=document.createElement("th");th.textContent=label;th.style.cssText="text-align:left;padding:7px 5px;border-bottom:1px solid #e2d2ab";hr.append(th)}
+      for(const label of ["Camera","Check","Checked","Report images","Matched images","Difference","Inspect"]){const th=document.createElement("th");th.textContent=label;th.style.cssText="text-align:left;padding:7px 5px;border-bottom:1px solid #e2d2ab";hr.append(th)}
       thead.append(hr);table.append(thead);
       const tbody=document.createElement("tbody");
       for(const c of integrityMismatches){
         const tr=document.createElement("tr");
         const vals=[c.cameraNo||"Unknown",String(c.checkNo||"—"),c.checkedDate||"—",String(Number(c.totalPossum||0)),String(c.comparedPossums),(c.difference>0?"+":"")+String(c.difference)];
         for(const val of vals){const td=document.createElement("td");td.textContent=val;td.style.cssText="padding:7px 5px;border-bottom:1px solid #eee0c4;vertical-align:top";tr.append(td)}
-        tbody.append(tr);
+        const actionCell=document.createElement("td");actionCell.style.cssText="padding:7px 5px;border-bottom:1px solid #eee0c4;vertical-align:top";
+        const inspect=document.createElement("button");inspect.type="button";inspect.textContent="View images";inspect.style.cssText="white-space:nowrap;cursor:pointer";
+        inspect.addEventListener("click",async()=>{
+          inspect.disabled=true;inspect.textContent="Opening…";
+          try{
+            if(typeof window.KaitiakiOpenCameraCheckGallery!=="function")throw Error("Image viewer is not available in this app version. Refresh and try again.");
+            const opened=await window.KaitiakiOpenCameraCheckGallery(c);
+            if(!opened)throw Error("No matching possum images could be opened for this check.");
+          }catch(e){alert(String(e.message||e))}
+          finally{inspect.disabled=false;inspect.textContent="View images"}
+        });
+        actionCell.append(inspect);tr.append(actionCell);tbody.append(tr);
       }
       table.append(tbody);panel.append(table);const integrityRoot=$("sharedSightingsIntegrity");if(integrityRoot)integrityRoot.replaceChildren(panel);
     }
