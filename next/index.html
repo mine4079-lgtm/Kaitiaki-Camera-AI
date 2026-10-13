@@ -201,6 +201,7 @@ dialog::backdrop{background:#0c211dcc}
 <div><b>AI processed / last updated</b><span id="sharedMetaProcessed">—</span></div>
 </div>
 <div class="notice green shared-note" id="sharedMetaNote">No description available.</div>
+<div id="sharedLinkAudit" class="notice" style="display:none;white-space:pre-wrap;margin-top:10px"></div>
 <div class="dialog-actions"><button id="sharedPrev" class="btn light">Previous</button><button id="sharedNext" class="btn">Next</button><button id="sharedRepair" class="btn light" hidden>Keep report count</button></div>
 <p class="sub" id="sharedPosition" style="margin:10px 0 0"></p>
 </div>
@@ -378,9 +379,9 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 })();
 </script>
 <script src="./cloud-ui.js?v=21"></script>
-<script src="./shared-ui.js?v=33"></script>
+<script src="./shared-ui.js?v=34"></script>
 <script src="./project-lead.js?v=1"></script>
 <script src="./camera-report.js?v=12"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=65").catch(()=>{}))}</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=66").catch(()=>{}))}</script>
 </body>
 </html>
