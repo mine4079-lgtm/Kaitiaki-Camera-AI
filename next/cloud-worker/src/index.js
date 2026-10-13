@@ -429,6 +429,155 @@ async function handleTeamImage(input, env, origin) {
   }, 200, origin);
 }
 
+async function handleCameraCheckReconcile(input, env, origin) {
+  if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
+  await ensureSchema(env);
+  const cameraNos = [...new Set((Array.isArray(input?.cameraNos) ? input.cameraNos : [])
+    .map(v => clean(v, 80).toUpperCase()).filter(Boolean))].slice(0, 50);
+  if (!cameraNos.length) return reply({ error: "Choose at least one camera to reconcile" }, 400, origin);
+
+  const checkResult = await env.KAITIAKI_DB.prepare(`
+    SELECT id, camera_no, check_no, checked_date, report_year, total_possum,
+      monthly_possum_json, latest_possum_date, approx_presence, updated_at, created_at
+    FROM camera_checks
+  `).all();
+  const allChecks = checkResult.results || [];
+  const byId = new Map(allChecks.map(c => [String(c.id), c]));
+  const selectedChecks = allChecks.filter(c => cameraNos.includes(String(c.camera_no || "").trim().toUpperCase()));
+  const canonical = new Map(), duplicateIdMap = new Map();
+  for (const c of selectedChecks) {
+    const camera = String(c.camera_no || "").trim().toUpperCase();
+    const no = Number(c.check_no) || 0;
+    const date = String(c.checked_date || "").slice(0, 10);
+    if (!camera || !no || !date) continue;
+    const key = camera + "|" + no + "|" + date;
+    const old = canonical.get(key);
+    if (!old) canonical.set(key, c);
+    else {
+      const keep = String(c.updated_at || c.created_at || "") > String(old.updated_at || old.created_at || "") ? c : old;
+      const lose = keep === c ? old : c;
+      canonical.set(key, keep);
+      duplicateIdMap.set(String(lose.id), String(keep.id));
+    }
+  }
+  const checks = [...canonical.values()];
+  const checkById = new Map(allChecks.map(c => [String(c.id), c]));
+  for (const [oldId, newId] of duplicateIdMap) {
+    const old = checkById.get(oldId), keep = checkById.get(newId);
+    if (old && keep) checkById.set(oldId, { ...old, camera_no: keep.camera_no, check_no: keep.check_no, checked_date: keep.checked_date, report_year: keep.report_year, canonical_id: newId });
+  }
+
+  const groups = new Map();
+  for (const c of checks) {
+    const camera = String(c.camera_no || "").trim().toUpperCase();
+    const year = Number(c.report_year) || Number(String(c.checked_date || "").slice(0, 4));
+    if (!camera || !year || !String(c.checked_date || "").slice(0, 10)) continue;
+    const key = camera + "|" + year;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(c);
+  }
+  const ambiguous = new Set();
+  for (const [key, group] of groups) {
+    group.sort((a,b) => String(a.checked_date).localeCompare(String(b.checked_date)) || Number(a.check_no)-Number(b.check_no));
+    const dates = new Map();
+    for (const c of group) {
+      const d = String(c.checked_date).slice(0,10);
+      dates.set(d, (dates.get(d) || 0) + 1);
+    }
+    if ([...dates.values()].some(n => n > 1)) ambiguous.add(key);
+  }
+
+  const ids = checks.map(c => String(c.id));
+  const placeholders = cameraNos.map(() => "?").join(",");
+  const rowQuery = await env.KAITIAKI_DB.prepare(`
+    SELECT id, camera_no, camera_check_id, check_no, checked_date, file_name, relative_path,
+      ai_prediction, confirmed_label, human_verified, status, captured_at
+    FROM sightings
+    WHERE UPPER(COALESCE(camera_no,'')) IN (${placeholders})
+       OR camera_check_id IN (${ids.length ? ids.map(() => "?").join(",") : "NULL"})
+       OR camera_check_id IN (${duplicateIdMap.size ? [...duplicateIdMap.keys()].map(() => "?").join(",") : "NULL"})
+  `).bind(...cameraNos, ...ids, ...duplicateIdMap.keys()).all();
+  const rows = rowQuery.results || [];
+  const now = new Date().toISOString();
+  let moved = 0;
+  const changedRows = [];
+  for (const r of rows) {
+    const currentId = String(r.camera_check_id || "");
+    const linkedCheck = checkById.get(currentId);
+    const camera = String(r.camera_no || linkedCheck?.camera_no || "").trim().toUpperCase();
+    if (!cameraNos.includes(camera)) continue;
+    const captured = String(r.captured_at || "").slice(0,10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(captured)) continue;
+    const year = Number(captured.slice(0,4));
+    const key = camera + "|" + year;
+    const group = groups.get(key);
+    if (!group || ambiguous.has(key)) continue;
+    if (linkedCheck && String(linkedCheck.camera_no || "").trim().toUpperCase() !== camera) continue;
+    const target = group.find(c => String(c.checked_date).slice(0,10) >= captured);
+    if (!target) continue;
+    const canonicalTargetId = duplicateIdMap.get(String(target.id)) || String(target.id);
+    if (currentId === canonicalTargetId &&
+        Number(r.check_no) === Number(target.check_no) &&
+        String(r.checked_date || "").slice(0,10) === String(target.checked_date).slice(0,10)) continue;
+    await env.KAITIAKI_DB.prepare(`
+      UPDATE sightings SET camera_no=?, camera_check_id=?, check_no=?, checked_date=?, updated_at=? WHERE id=?
+    `).bind(camera, canonicalTargetId, Number(target.check_no)||0, String(target.checked_date).slice(0,10), now, r.id).run();
+    moved++;
+    changedRows.push({ id:r.id, camera, targetId:canonicalTargetId });
+  }
+
+  const freshResult = await env.KAITIAKI_DB.prepare(`
+    SELECT id, camera_no, camera_check_id, file_name, ai_prediction, confirmed_label,
+      human_verified, status, captured_at
+    FROM sightings
+    WHERE UPPER(COALESCE(camera_no,'')) IN (${placeholders})
+       OR camera_check_id IN (${ids.length ? ids.map(() => "?").join(",") : "NULL"})
+  `).bind(...cameraNos, ...ids).all();
+  const freshRows = freshResult.results || [];
+  let updatedChecks = 0;
+  const details = [];
+  for (const c of checks) {
+    const camera = String(c.camera_no || "").trim().toUpperCase();
+    const year = Number(c.report_year) || Number(String(c.checked_date || "").slice(0,4));
+    const monthly = Array(12).fill(0), seen = new Set();
+    let latest = "";
+    for (const r of freshRows) {
+      if (String(r.camera_check_id || "") !== String(c.id)) continue;
+      const label = Number(r.human_verified) ? (r.confirmed_label || r.ai_prediction) : r.ai_prediction;
+      if (label !== "Possum" || r.status === "ignored") continue;
+      const captured = String(r.captured_at || "").slice(0,10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(captured) || Number(captured.slice(0,4)) !== year) continue;
+      const sig = String(r.file_name || r.id) + "|" + captured + "|" + String(r.captured_at || "");
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      const month = Number(captured.slice(5,7))-1;
+      if (month >= 0 && month < 12) monthly[month]++;
+      if (captured > latest) latest = captured;
+    }
+    const total = monthly.reduce((sum,n)=>sum+n,0);
+    const presence = total===0 ? "None" : total<=9 ? "Low" : total<=15 ? "Medium" : "High";
+    const oldMonthly = (()=>{try{return JSON.parse(c.monthly_possum_json||"[]")}catch{return []}})();
+    const sameMonthly = Array.from({length:12},(_,i)=>Number(oldMonthly[i]||0)).every((n,i)=>n===monthly[i]);
+    const changed = Number(c.total_possum||0)!==total ||
+      String(c.latest_possum_date||"")!==latest ||
+      String(c.approx_presence||"")!==presence || !sameMonthly;
+    if (changed) {
+      await env.KAITIAKI_DB.prepare(`
+        UPDATE camera_checks SET total_possum=?, monthly_possum_json=?, latest_possum_date=?,
+          approx_presence=?, updated_at=? WHERE id=?
+      `).bind(total, JSON.stringify(monthly), latest, presence, now, c.id).run();
+      updatedChecks++;
+    }
+    details.push({ cameraNo:camera, checkNo:Number(c.check_no)||0, checkedDate:String(c.checked_date||"").slice(0,10), totalPossum:total, updated:changed });
+  }
+  return reply({
+    ok:true, sharedReady:true, moved, updatedChecks,
+    ambiguousCameras:ambiguous.size,
+    message:"Links were matched to the next check date for the same camera. Ambiguous same-day runs were left unchanged.",
+    checks:details
+  }, 200, origin);
+}
+
 async function handleCameraCheckSync(input, env, origin) {
   if (!sharedConfigured(env)) {
     return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
@@ -727,6 +876,7 @@ export default {
       if (url.pathname === "/team/review") return handleTeamList(parsed.input, env, origin, "review");
       if (url.pathname === "/team/review-resolve") return handleTeamReviewResolve(parsed.input, env, origin);
       if (url.pathname === "/team/image") return handleTeamImage(parsed.input, env, origin);
+      if (url.pathname === "/team/camera-check-reconcile") return handleCameraCheckReconcile(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-sync") return handleCameraCheckSync(parsed.input, env, origin);
       if (url.pathname === "/team/camera-checks") return handleCameraChecks(parsed.input, env, origin);
       return reply({ error: "Not found" }, 404, origin);

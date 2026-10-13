@@ -183,7 +183,7 @@ async function finishCheck(){
       }
     }
     if(!linked.length){$("cameraCheckStatusText").textContent="Could not finish "+c.cameraNo+": the connected files still could not be linked to this check.";return}
-    const processed=linked.filter(r=>r.aiPrediction);
+    const processed=linked.filter(r=>r.aiPrediction||(r.verified&&r.label));
     if(!processed.length){$("cameraCheckStatusText").textContent="Images are imported, but AI identification has not been run yet.";return}
     const meaningful=processed.filter(r=>!isSkipped(r));
     const species={};for(const r of meaningful){const label=effectiveLabel(r);if(label)species[label]=(species[label]||0)+1}
@@ -224,12 +224,66 @@ async function finishCheck(){
   finally{btn.disabled=false}
 }
 
+function captureDateForLink(r){
+  const raw=String(r?.capturedAt||"");
+  if(/^\d{4}-\d{2}-\d{2}/.test(raw))return raw.slice(0,10);
+  const d=new Date(r?.lastModified||0);if(Number.isNaN(d.getTime()))return "";
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+async function reconcileLocalCameraLinks(cameraNames=[]){
+  let checks=localChecks();
+  try{
+    const remote=await sharedChecks(),byId=new Map(checks.map(c=>[String(c.id),c]));
+    for(const c of remote){const old=byId.get(String(c.id));if(!old||String(c.updatedAt||"")>String(old.updatedAt||""))byId.set(String(c.id),c)}
+    checks=[...byId.values()];
+  }catch{}
+  const deduped=dedupeCameraChecks(checks).checks;
+  const chosen=new Set(cameraNames.map(v=>String(v).trim().toUpperCase()).filter(Boolean));
+  const filtered=chosen.size?deduped.filter(c=>chosen.has(String(c.cameraNo||"").trim().toUpperCase())):deduped;
+  const byId=new Map(filtered.map(c=>[String(c.id),c])),groups=new Map();
+  for(const c of filtered){
+    const camera=String(c.cameraNo||"").trim().toUpperCase(),year=Number(c.reportYear)||Number(String(c.checkedDate||"").slice(0,4));
+    const date=String(c.checkedDate||"").slice(0,10);if(!camera||!year||!date)continue;
+    const key=camera+"|"+year;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(c);
+  }
+  const ambiguous=new Set();
+  for(const [key,group] of groups){
+    group.sort((a,b)=>String(a.checkedDate).localeCompare(String(b.checkedDate))||Number(a.checkNo||0)-Number(b.checkNo||0));
+    const dates=new Map();for(const c of group){const d=String(c.checkedDate).slice(0,10);dates.set(d,(dates.get(d)||0)+1)}
+    if([...dates.values()].some(n=>n>1))ambiguous.add(key);
+  }
+  const db=await openDB();let rows=[];try{rows=await allRows(db)}finally{db.close()}
+  const now=new Date().toISOString(),updates=[];
+  for(const r of rows){
+    const current=byId.get(String(r.cameraCheckId||""));
+    const camera=String(r.cameraNo||current?.cameraNo||"").trim().toUpperCase();
+    if(!camera||(chosen.size&&!chosen.has(camera)))continue;
+    const captured=captureDateForLink(r);if(!/^\d{4}-\d{2}-\d{2}$/.test(captured))continue;
+    const year=Number(captured.slice(0,4)),key=camera+"|"+year,group=groups.get(key);
+    if(!group||ambiguous.has(key))continue;
+    if(r.cameraCheckId&&!current)continue;
+    if(current&&String(current.cameraNo||"").trim().toUpperCase()!==camera)continue;
+    const target=group.find(c=>String(c.checkedDate).slice(0,10)>=captured);if(!target)continue;
+    if(String(r.cameraCheckId||"")===String(target.id)&&Number(r.checkNo||0)===Number(target.checkNo||0)&&String(r.checkedDate||"").slice(0,10)===String(target.checkedDate||"").slice(0,10))continue;
+    updates.push({...r,cameraCheckId:target.id,cameraNo:target.cameraNo,zone:target.zone||r.zone||"",block:target.block||r.block||"",status:target.status||r.status||"",checkNo:target.checkNo,checkedDate:target.checkedDate,servicedBy:target.servicedBy||r.servicedBy||"",updatedAt:now});
+  }
+  if(updates.length){
+    const db2=await openDB();try{await new Promise((ok,no)=>{const t=db2.transaction(STORE,"readwrite"),st=t.objectStore(STORE);for(const r of updates)st.put(r);t.oncomplete=ok;t.onerror=()=>no(t.error)})}finally{db2.close()}
+    for(const r of updates)await window.KaitiakiSharedSyncMetadataIfChanged?.(r);
+  }
+  localStorage.setItem("kaitiaki-camera-link-reconciled-v1","true");
+  await backfillExistingChecks();
+  return {moved:updates.length,ambiguousCameras:ambiguous.size};
+}
+window.KaitiakiReconcileLocalCameraLinks=reconcileLocalCameraLinks;
+
 async function backfillExistingChecks(){
   const checks=localChecks();if(!checks.length)return;
+  const includeManualOnly=localStorage.getItem("kaitiaki-camera-link-reconciled-v1")==="true";
   let db,rows=[];try{db=await openDB();rows=await allRows(db)}catch{return}finally{db?.close()}
   let changed=false;
   for(const c of checks){
-    const linked=rows.filter(r=>r.cameraCheckId===c.id&&r.aiPrediction);
+    const linked=rows.filter(r=>r.cameraCheckId===c.id&&(r.aiPrediction||(includeManualOnly&&r.verified&&r.label)));
     if(!linked.length)continue;
     const meaningful=linked.filter(r=>!isSkipped(r));
     const possums=meaningful.filter(r=>effectiveLabel(r)==="Possum");
@@ -239,14 +293,10 @@ async function backfillExistingChecks(){
     dates.sort((a,b)=>a-b);const total=monthly.reduce((a,n)=>a+n,0);
     const latest=dates.length?dateOnly(dates.at(-1).toISOString()):"";
     if(c.latestPossumDate!==latest||c.approxPresence!==presenceFromCount(total)||Number(c.totalPossum)!==total){
-      c.latestPossumDate=latest;c.approxPresence=presenceFromCount(total);c.totalPossum=total;c.monthlyPossum=monthly;c.updatedAt=new Date().toISOString();saveLocalCheck(c);syncCheck(c);changed=true;
+      c.latestPossumDate=latest;c.approxPresence=presenceFromCount(total);c.totalPossum=total;c.monthlyPossum=monthly;c.updatedAt=new Date().toISOString();saveLocalCheck(c);await syncCheck(c);changed=true;
     }
   }
   if(changed)renderReport();
-  if(navigator.onLine&&token()){
-    const latest=localChecks();
-    for(const check of latest)await syncCheck(check);
-  }
 }
 
 async function syncCheck(check){
