@@ -500,6 +500,7 @@ async function handleCameraCheckReconcile(input, env, origin) {
   const rows = rowQuery.results || [];
   const now = new Date().toISOString();
   let moved = 0;
+  let noCamera = 0, noCaptureDate = 0, noCheckGroup = 0, ambiguousSkipped = 0, noLaterCheck = 0, alreadyCorrect = 0;
   const changedRows = [];
   for (const r of rows) {
     const currentId = String(r.camera_check_id || "");
