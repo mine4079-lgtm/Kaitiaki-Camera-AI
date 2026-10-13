@@ -445,7 +445,7 @@ async function handleCameraCheckAudit(input, env, origin) {
     `).bind(...cameraNos).all(),
     env.KAITIAKI_DB.prepare(`
       SELECT id, camera_no, camera_check_id, check_no, checked_date, file_name, relative_path,
-        ai_prediction, confirmed_label, human_verified, status, captured_at
+        ai_prediction, confirmed_label, human_verified, status, captured_at, created_at, updated_at
       FROM sightings
       WHERE UPPER(COALESCE(camera_no,'')) IN (${placeholders})
          OR camera_check_id IN (SELECT id FROM camera_checks WHERE UPPER(camera_no) IN (${placeholders}))
@@ -468,7 +468,7 @@ async function handleCameraCheckAudit(input, env, origin) {
     id:String(c.id), cameraNo:c.camera_no, checkNo:Number(c.check_no)||0, checkedDate:String(c.checked_date||"").slice(0,10),
     reportImages:Number(c.total_possum)||0, linkedPossumRecords:0, uniqueFileTimeSignatures:0,
     exactDuplicateCandidates:0, missingCaptureDate:0, otherYear:0, noCheckLink:0, dateRuleWouldMove:0,
-    samples:[], signatures:new Map()
+    samples:[], missingDateSamples:[], signatures:new Map()
   }]));
   const orphan = { totalPossum:0, missingCaptureDate:0, noCheckLink:0, dateRuleWouldMove:0, sample:[] };
   const signatureCounts = new Map();
@@ -481,11 +481,17 @@ async function handleCameraCheckAudit(input, env, origin) {
     const captured = String(r.captured_at || "").slice(0,10);
     const currentId = String(r.camera_check_id || "");
     const current = perCheck.get(currentId);
-    const sig = String(r.file_name||"").trim().toLowerCase()+"|"+String(r.captured_at||"").trim();
+    const sig = camera+"|"+String(r.file_name||"").trim().toLowerCase()+"|"+String(r.captured_at||"").trim();
     if (sig !== "|") signatureCounts.set(sig,(signatureCounts.get(sig)||0)+1);
     if (current) {
       current.linkedPossumRecords++;
-      if (!captured) current.missingCaptureDate++;
+      if (!captured) {
+        current.missingCaptureDate++;
+        if (current.missingDateSamples.length < 25) current.missingDateSamples.push({
+          fileName:r.file_name||"", relativePath:r.relative_path||"", recordId:r.id,
+          createdAt:r.created_at||"", updatedAt:r.updated_at||"", cameraCheckId:r.camera_check_id||""
+        });
+      }
       else if (Number(captured.slice(0,4)) !== (Number(checksById.get(currentId)?.report_year)||Number(String(checksById.get(currentId)?.checked_date||"").slice(0,4)))) current.otherYear++;
       current.signatures.set(sig,(current.signatures.get(sig)||0)+1);
       if (current.samples.length<8) current.samples.push({fileName:r.file_name||"",capturedAt:r.captured_at||"",recordId:r.id,relativePath:r.relative_path||""});
@@ -507,7 +513,7 @@ async function handleCameraCheckAudit(input, env, origin) {
     return {id:c.id,cameraNo:c.cameraNo,checkNo:c.checkNo,checkedDate:c.checkedDate,reportImages:c.reportImages,
       linkedPossumRecords:c.linkedPossumRecords,uniqueFileTimeSignatures:c.signatures.size,
       exactDuplicateCandidates:dup,missingCaptureDate:c.missingCaptureDate,otherYear:c.otherYear,
-      dateRuleWouldMove:c.dateRuleWouldMove,samples:c.samples};
+      dateRuleWouldMove:c.dateRuleWouldMove,samples:c.samples,missingDateSamples:c.missingDateSamples};
   });
   return reply({sharedReady:true,checks:result,orphan,recordsInspected:rows.length,possumsInspected:possumRows.length,
     exactDuplicateCandidates:[...signatureCounts.values()].reduce((n,v)=>n+Math.max(0,v-1),0)},200,origin);
