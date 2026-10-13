@@ -429,6 +429,89 @@ async function handleTeamImage(input, env, origin) {
   }, 200, origin);
 }
 
+async function handleCameraCheckAudit(input, env, origin) {
+  if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
+  await ensureSchema(env);
+  const cameraNos = [...new Set((Array.isArray(input?.cameraNos) ? input.cameraNos : [])
+    .map(v => clean(v, 80).toUpperCase()).filter(Boolean))].slice(0, 50);
+  if (!cameraNos.length) return reply({ error: "Choose at least one camera to inspect" }, 400, origin);
+  const placeholders = cameraNos.map(() => "?").join(",");
+  const [checkResult, rowResult] = await Promise.all([
+    env.KAITIAKI_DB.prepare(`
+      SELECT id, camera_no, check_no, checked_date, report_year, total_possum
+      FROM camera_checks WHERE UPPER(camera_no) IN (${placeholders})
+      ORDER BY camera_no, checked_date, check_no
+    `).bind(...cameraNos).all(),
+    env.KAITIAKI_DB.prepare(`
+      SELECT id, camera_no, camera_check_id, check_no, checked_date, file_name, relative_path,
+        ai_prediction, confirmed_label, human_verified, status, captured_at
+      FROM sightings
+      WHERE UPPER(COALESCE(camera_no,'')) IN (${placeholders})
+         OR camera_check_id IN (SELECT id FROM camera_checks WHERE UPPER(camera_no) IN (${placeholders}))
+    `).bind(...cameraNos, ...cameraNos).all()
+  ]);
+  const checks = checkResult.results || [], rows = rowResult.results || [];
+  const checksById = new Map(checks.map(c => [String(c.id), c]));
+  const groups = new Map();
+  for (const c of checks) {
+    const camera = String(c.camera_no || "").trim().toUpperCase();
+    const year = Number(c.report_year) || Number(String(c.checked_date || "").slice(0,4));
+    const key = camera + "|" + year;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(c);
+  }
+  for (const group of groups.values()) group.sort((a,b) =>
+    String(a.checked_date || "").slice(0,10).localeCompare(String(b.checked_date || "").slice(0,10)) ||
+    Number(a.check_no || 0)-Number(b.check_no || 0));
+  const perCheck = new Map(checks.map(c => [String(c.id), {
+    id:String(c.id), cameraNo:c.camera_no, checkNo:Number(c.check_no)||0, checkedDate:String(c.checked_date||"").slice(0,10),
+    reportImages:Number(c.total_possum)||0, linkedPossumRecords:0, uniqueFileTimeSignatures:0,
+    exactDuplicateCandidates:0, missingCaptureDate:0, otherYear:0, noCheckLink:0, dateRuleWouldMove:0,
+    samples:[], signatures:new Map()
+  }]));
+  const orphan = { totalPossum:0, missingCaptureDate:0, noCheckLink:0, dateRuleWouldMove:0, sample:[] };
+  const signatureCounts = new Map();
+  const possumRows = rows.filter(r => {
+    const label = Number(r.human_verified) ? (r.confirmed_label || r.ai_prediction) : r.ai_prediction;
+    return label === "Possum" && r.status !== "ignored";
+  });
+  for (const r of possumRows) {
+    const camera = String(r.camera_no || checksById.get(String(r.camera_check_id||""))?.camera_no || "").trim().toUpperCase();
+    const captured = String(r.captured_at || "").slice(0,10);
+    const currentId = String(r.camera_check_id || "");
+    const current = perCheck.get(currentId);
+    const sig = String(r.file_name||"").trim().toLowerCase()+"|"+String(r.captured_at||"").trim();
+    if (sig !== "|") signatureCounts.set(sig,(signatureCounts.get(sig)||0)+1);
+    if (current) {
+      current.linkedPossumRecords++;
+      if (!captured) current.missingCaptureDate++;
+      else if (Number(captured.slice(0,4)) !== (Number(checksById.get(currentId)?.report_year)||Number(String(checksById.get(currentId)?.checked_date||"").slice(0,4)))) current.otherYear++;
+      current.signatures.set(sig,(current.signatures.get(sig)||0)+1);
+      if (current.samples.length<8) current.samples.push({fileName:r.file_name||"",capturedAt:r.captured_at||"",recordId:r.id,relativePath:r.relative_path||""});
+    } else {
+      orphan.totalPossum++;
+      if (!captured) orphan.missingCaptureDate++;
+      if (!currentId) orphan.noCheckLink++;
+      if (orphan.sample.length<12) orphan.sample.push({cameraNo:camera,fileName:r.file_name||"",capturedAt:r.captured_at||"",recordId:r.id});
+    }
+    if (!captured || !camera) continue;
+    const year=Number(captured.slice(0,4)),group=groups.get(camera+"|"+year);
+    if (!group) continue;
+    const target=group.find(c=>String(c.checked_date||"").slice(0,10)>=captured);
+    if (target && String(target.id)!==currentId && current) current.dateRuleWouldMove++;
+    if (target && String(target.id)!==currentId && !current) orphan.dateRuleWouldMove++;
+  }
+  const result = [...perCheck.values()].map(c=>{
+    const dup=[...c.signatures.values()].reduce((n,v)=>n+Math.max(0,v-1),0);
+    return {id:c.id,cameraNo:c.cameraNo,checkNo:c.checkNo,checkedDate:c.checkedDate,reportImages:c.reportImages,
+      linkedPossumRecords:c.linkedPossumRecords,uniqueFileTimeSignatures:c.signatures.size,
+      exactDuplicateCandidates:dup,missingCaptureDate:c.missingCaptureDate,otherYear:c.otherYear,
+      dateRuleWouldMove:c.dateRuleWouldMove,samples:c.samples};
+  });
+  return reply({sharedReady:true,checks:result,orphan,recordsInspected:rows.length,possumsInspected:possumRows.length,
+    exactDuplicateCandidates:[...signatureCounts.values()].reduce((n,v)=>n+Math.max(0,v-1),0)},200,origin);
+}
+
 async function handleCameraCheckReconcile(input, env, origin) {
   if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
   await ensureSchema(env);
@@ -879,6 +962,7 @@ export default {
       if (url.pathname === "/team/review") return handleTeamList(parsed.input, env, origin, "review");
       if (url.pathname === "/team/review-resolve") return handleTeamReviewResolve(parsed.input, env, origin);
       if (url.pathname === "/team/image") return handleTeamImage(parsed.input, env, origin);
+      if (url.pathname === "/team/camera-check-audit") return handleCameraCheckAudit(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-reconcile") return handleCameraCheckReconcile(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-sync") return handleCameraCheckSync(parsed.input, env, origin);
       if (url.pathname === "/team/camera-checks") return handleCameraChecks(parsed.input, env, origin);
