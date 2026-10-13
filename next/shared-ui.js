@@ -125,7 +125,30 @@ function confirmerText(r,kind){
   if(kind==="sighting")return r.imported_by?("AI accepted · imported by "+r.imported_by):"AI accepted";
   return r.imported_by?("Imported by "+r.imported_by):"Not confirmed yet";
 }
-async function showGalleryRecord(){
+async function galleryLinkAudit(records){
+  const times=records.map(r=>new Date(r.captured_at||0).getTime()).filter(Number.isFinite).filter(t=>t>0).sort((a,b)=>a-b);
+  const imports=records.map(r=>r.imported_at||r.created_at||"").filter(Boolean);
+  const batches=new Set(imports.map(v=>{const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toISOString().slice(0,16)}));
+  const ids=new Set(records.map(r=>String(r.camera_check_id||r.cameraCheckId||"").trim()).filter(Boolean));
+  const signatures=new Map();
+  for(const r of records){
+    const sig=String(r.file_name||r.name||"").trim().toLowerCase()+"|"+String(r.captured_at||r.capturedAt||"").trim();
+    if(sig!=="|")signatures.set(sig,(signatures.get(sig)||0)+1);
+  }
+  const duplicates=[...signatures.values()].filter(n=>n>1).reduce((n,v)=>n+v-1,0);
+  const first=times.length?new Date(times[0]).toLocaleString():"not recorded";
+  const last=times.length?new Date(times[times.length-1]).toLocaleString():"not recorded";
+  const importTimes=imports.map(v=>new Date(v).getTime()).filter(Number.isFinite).sort((a,b)=>a-b);
+  const importRange=importTimes.length?new Date(importTimes[0]).toLocaleString()+" to "+new Date(importTimes[importTimes.length-1]).toLocaleString():"not recorded";
+  return "Linked records inspected: "+records.length+
+    "\nCapture range: "+first+" to "+last+
+    "\nRecord creation range: "+importRange+
+    "\nApproximate import/creation batches (per minute): "+batches.size+
+    "\nExact duplicate filename + capture-time candidates: "+duplicates+
+    "\nDistinct linked camera-check IDs in this viewer: "+(ids.size||"not supplied")+
+    (duplicates?"\nDuplicate candidates need checking before any unlinking.":"\nNo exact filename-and-capture-time duplicates detected. This does not rule out incorrect links.");
+}
+function showGalleryRecord(){
   const dlg=$("sharedImageDialog");if(!dlg||!galleryRecords.length)return;
   const r=galleryRecords[galleryIndex],label=recordLabel(r)||"Needs review";
   $("sharedDialogTitle").textContent=(r.camera_no?r.camera_no+" · ":"")+label;
@@ -138,6 +161,9 @@ async function showGalleryRecord(){
   $("sharedMetaImported").textContent=niceDate(r.imported_at||r.created_at)||"Not recorded";
   $("sharedMetaProcessed").textContent=niceDate(r.ai_checked_at||r.updated_at)||"Not recorded";
   $("sharedMetaNote").textContent=(galleryWarning?galleryWarning+"\n\n":"")+(r.ai_note||"No description available.");
+  const audit=$("sharedLinkAudit");
+  if(audit&&galleryWarning&&galleryRecords.length>1){audit.style.display="block";audit.textContent=galleryLinkAudit(galleryRecords)}
+  else if(audit){audit.style.display="none";audit.textContent=""}
   $("sharedPosition").textContent=(galleryIndex+1)+" of "+galleryRecords.length;
   $("sharedPrev").disabled=galleryRecords.length<2;
   $("sharedNext").disabled=galleryRecords.length<2;
@@ -495,6 +521,8 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
         imported_at:r.createdAt||"",
         ai_checked_at:r.aiCheckedAt||"",
         updated_at:r.updatedAt||"",
+        camera_check_id:r.cameraCheckId||"",
+        relative_path:r.path||"",
         has_image:r.preview instanceof Blob?1:0,
         _localPreview:r.preview instanceof Blob?r.preview:null
       }));
