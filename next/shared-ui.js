@@ -385,7 +385,7 @@ async function loadShared(kind){
       body.innerHTML="<strong>"+esc(r.camera_no||label||"Needs review")+"</strong>"+timeHtml+"<span class='kind "+(r.human_verified?"good":"")+"'>"+esc(confirm+(r.ai_confidence!=null&&!r.human_verified?" · "+r.ai_confidence+"%":""))+"</span><small>"+esc(label||"")+(r.file_name?" · "+esc(r.file_name):"")+"</small><small>"+esc(niceDate(stamp))+(who?" · "+esc(who):"")+"</small>";
       card.append(body);root.append(card);
     }
-    let integrityNote="";
+    let integrityNote="",integrityMismatches=[];
     if(kind==="sighting"){
       const checks=dedupeSharedChecks(await sharedCameraChecks()).filter(c=>Number(c.reportYear)===reportYear);
       const allowedIds=new Set(checks.map(c=>String(c.id||"").trim()).filter(Boolean));
@@ -417,11 +417,31 @@ async function loadShared(kind){
         integrityNote=" Count comparison incomplete because shared Review records could not be loaded.";
       }
       if(!integrityNote){
-        const mismatches=checks.filter(c=>String(c.id||"").trim()&&Number(c.totalPossum||0)!==Number(possumCounts.get(String(c.id))||0));
-        if(mismatches.length)integrityNote=" Warning: "+mismatches.length+" camera check"+(mismatches.length===1?" has":"s have")+" a possum count mismatch and should be checked before reporting.";
+        integrityMismatches=checks.filter(c=>String(c.id||"").trim()&&Number(c.totalPossum||0)!==Number(possumCounts.get(String(c.id))||0))
+          .map(c=>({...c,comparedPossums:Number(possumCounts.get(String(c.id))||0),difference:Number(c.totalPossum||0)-Number(possumCounts.get(String(c.id))||0)}))
+          .sort((a,b)=>String(a.cameraNo||"").localeCompare(String(b.cameraNo||""),undefined,{numeric:true})||String(b.checkedDate||"").localeCompare(String(a.checkedDate||"")));
+        if(integrityMismatches.length)integrityNote=" Warning: "+integrityMismatches.length+" camera checks have a possum-count mismatch. Details are listed below.";
       }
     }
     status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown."+(kind==="sighting"&&reportYear?" Matched to "+reportYear+" finished camera checks.":"")+integrityNote;
+    if(kind==="sighting"&&integrityMismatches.length){
+      const panel=document.createElement("section");panel.className="integrity-mismatch-list";
+      panel.style.cssText="margin:12px 0 18px;padding:14px;border:1px solid #e6c98a;border-radius:12px;background:#fff8e8;color:#24332f";
+      const heading=document.createElement("strong");heading.textContent="Camera checks to investigate";panel.append(heading);
+      const intro=document.createElement("p");intro.textContent="Report total is compared with shared Possum images in Sightings and Review. A difference can mean missing links or an old check that needs reconciling; it does not mean the number of individual possums.";panel.append(intro);
+      const table=document.createElement("table");table.style.cssText="width:100%;border-collapse:collapse;font-size:14px";
+      const thead=document.createElement("thead"),hr=document.createElement("tr");
+      for(const label of ["Camera","Check","Checked","Report images","Matched images","Difference"]){const th=document.createElement("th");th.textContent=label;th.style.cssText="text-align:left;padding:7px 5px;border-bottom:1px solid #e2d2ab";hr.append(th)}
+      thead.append(hr);table.append(thead);
+      const tbody=document.createElement("tbody");
+      for(const c of integrityMismatches){
+        const tr=document.createElement("tr");
+        const vals=[c.cameraNo||"Unknown",String(c.checkNo||"—"),c.checkedDate||"—",String(Number(c.totalPossum||0)),String(c.comparedPossums),(c.difference>0?"+":"")+String(c.difference)];
+        for(const val of vals){const td=document.createElement("td");td.textContent=val;td.style.cssText="padding:7px 5px;border-bottom:1px solid #eee0c4;vertical-align:top";tr.append(td)}
+        tbody.append(tr);
+      }
+      table.append(tbody);panel.append(table);root.prepend(panel);
+    }
   }catch(e){
     root.innerHTML='<div class="empty">Shared database not connected yet.</div>';
     status.textContent="Shared database error: "+String(e.message||e);
