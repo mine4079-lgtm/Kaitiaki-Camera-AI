@@ -125,7 +125,7 @@ function confirmerText(r,kind){
   if(kind==="sighting")return r.imported_by?("AI accepted · imported by "+r.imported_by):"AI accepted";
   return r.imported_by?("Imported by "+r.imported_by):"Not confirmed yet";
 }
-async function galleryLinkAudit(records){
+function galleryLinkAudit(records){
   const times=records.map(r=>new Date(r.captured_at||0).getTime()).filter(Number.isFinite).filter(t=>t>0).sort((a,b)=>a-b);
   const imports=records.map(r=>r.imported_at||r.created_at||"").filter(Boolean);
   const batches=new Set(imports.map(v=>{const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toISOString().slice(0,16)}));
@@ -148,7 +148,7 @@ async function galleryLinkAudit(records){
     "\nDistinct linked camera-check IDs in this viewer: "+(ids.size||"not supplied")+
     (duplicates?"\nDuplicate candidates need checking before any unlinking.":"\nNo exact filename-and-capture-time duplicates detected. This does not rule out incorrect links.");
 }
-function showGalleryRecord(){
+async function showGalleryRecord(){
   const dlg=$("sharedImageDialog");if(!dlg||!galleryRecords.length)return;
   const r=galleryRecords[galleryIndex],label=recordLabel(r)||"Needs review";
   $("sharedDialogTitle").textContent=(r.camera_no?r.camera_no+" · ":"")+label;
