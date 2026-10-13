@@ -48,6 +48,7 @@ async function syncRecord(record,preview){
   }catch{markPending(record.key)}
 }
 window.KaitiakiSharedSync=syncRecord;
+window.KaitiakiSharedSyncMetadataIfChanged=async record=>{if(!record?.key||!needsSync(record))return false;return syncRecordMetadata(record)};
 
 async function syncRecordMetadata(record){
   if(!record?.key||!navigator.onLine||!token())return false;
@@ -457,6 +458,41 @@ async function loadShared(kind){
       panel.style.cssText="display:block;width:100%;max-width:100%;box-sizing:border-box;overflow-x:auto;margin:12px 0 18px;padding:14px;border:1px solid #e6c98a;border-radius:12px;background:#fff8e8;color:#24332f";
       const heading=document.createElement("strong");heading.textContent="Camera checks to investigate";panel.append(heading);
       const intro=document.createElement("p");intro.textContent="These are image counts, not individual possums. A difference can mean missing links or an older check that needs reconciling.";panel.append(intro);
+      const repairRow=document.createElement("div");repairRow.style.cssText="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 14px";
+      const repairButton=document.createElement("button");repairButton.type="button";repairButton.textContent="Repair mismatches by capture date";
+      const repairHelp=document.createElement("span");repairHelp.textContent="Reassigns links to the next check date for the same camera; does not delete images.";
+      repairHelp.style.cssText="font-size:13px";
+      repairButton.addEventListener("click",async()=>{
+        const cameras=[...new Set(integrityMismatches.map(c=>String(c.cameraNo||"").trim().toUpperCase()).filter(Boolean))];
+        if(!cameras.length)return;
+        if(!confirm("Repair camera-check links for "+cameras.join(", ")+ "?\n\nKaitiaki will match each image to the next check date for the same camera, using the image capture date. It will update links and possum image totals only. It will not delete images or change classifications. Checks with ambiguous same-day runs will be left unchanged. Continue?"))return;
+        repairButton.disabled=true;repairButton.textContent="Repairing…";
+        try{
+          let localResult={moved:0,updatedChecks:0};
+          if(typeof window.KaitiakiReconcileLocalCameraLinks==="function")localResult=await window.KaitiakiReconcileLocalCameraLinks(cameras);
+          let remoteResult=null,remoteError="";
+          try{
+            const res=await fetch(endpoint()+"/team/camera-check-reconcile",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({cameraNos:cameras})});
+            const data=await res.json();
+            if(!res.ok||!data.sharedReady)throw Error(data.error||("Worker returned "+res.status));
+            remoteResult=data;
+          }catch(e){remoteError=String(e.message||e)}
+          if(remoteResult){
+            const msg="Repair complete.\n\nLocal links moved: "+(localResult.moved||0)+
+              "\nShared links moved: "+(remoteResult.moved||0)+
+              "\nCamera-check totals refreshed: "+(remoteResult.updatedChecks||0)+
+              "\nAmbiguous same-day camera runs left unchanged: "+(remoteResult.ambiguousCameras||0)+
+              "\n\nNo images or classifications were deleted or changed.";
+            alert(msg);
+            await loadShared("sighting");window.KaitiakiLoadCameraReport?.();
+          }else{
+            alert("Local links moved: "+(localResult.moved||0)+".\n\nThe shared-team repair did not run: "+remoteError+"\n\nThe Worker update must be deployed in Cloudflare before shared records can be repaired. No images or classifications were deleted.");
+            await loadShared("sighting");window.KaitiakiLoadCameraReport?.();
+          }
+        }catch(e){alert("Repair stopped: "+String(e.message||e))}
+        finally{repairButton.disabled=false;repairButton.textContent="Repair mismatches by capture date"}
+      });
+      repairRow.append(repairButton,repairHelp);panel.append(repairRow);
       const table=document.createElement("table");table.style.cssText="width:100%;border-collapse:collapse;font-size:14px";
       const thead=document.createElement("thead"),hr=document.createElement("tr");
       for(const label of ["Camera","Check","Checked","Report images","Matched images","Difference","Inspect"]){const th=document.createElement("th");th.textContent=label;th.style.cssText="text-align:left;padding:7px 5px;border-bottom:1px solid #e2d2ab";hr.append(th)}
