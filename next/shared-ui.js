@@ -388,15 +388,38 @@ async function loadShared(kind){
     let integrityNote="";
     if(kind==="sighting"){
       const checks=dedupeSharedChecks(await sharedCameraChecks()).filter(c=>Number(c.reportYear)===reportYear);
+      const allowedIds=new Set(checks.map(c=>String(c.id||"").trim()).filter(Boolean));
       const possumCounts=new Map();
-      for(const r of baseRecords){
-        const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;
-        if(label!=="Possum")continue;
+      const countedIds=new Set();
+      const addPossumRecord=r=>{
         const id=String(r.camera_check_id||"").trim();
-        if(id)possumCounts.set(id,(possumCounts.get(id)||0)+1);
+        if(!id||!allowedIds.has(id))return;
+        const captured=String(r.captured_at||"");
+        if(captured){
+          const d=new Date(captured);
+          if(!Number.isNaN(d.getTime())&&d.getFullYear()!==reportYear)return;
+        }
+        const label=r.human_verified?(r.confirmed_label||r.ai_prediction):r.ai_prediction;
+        if(label!=="Possum"||countedIds.has(String(r.id||"")))return;
+        countedIds.add(String(r.id||""));
+        possumCounts.set(id,(possumCounts.get(id)||0)+1);
+      };
+      for(const r of baseRecords)addPossumRecord(r);
+      // Report summaries include all processed Possum predictions, including low-confidence
+      // candidates which intentionally remain in Team Review rather than Sightings.
+      try{
+        const reviewRes=await fetch(endpoint()+"/team/review",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:500})});
+        const reviewData=await reviewRes.json();
+        if(reviewRes.ok&&reviewData.sharedReady===true){
+          for(const r of reviewData.records||[])addPossumRecord(r);
+        }else throw Error("Review records unavailable for count comparison");
+      }catch{
+        integrityNote=" Count comparison incomplete because shared Review records could not be loaded.";
       }
-      const mismatches=checks.filter(c=>String(c.id||"").trim()&&Number(c.totalPossum||0)!==Number(possumCounts.get(String(c.id))||0));
-      if(mismatches.length)integrityNote=" Warning: "+mismatches.length+" camera check"+(mismatches.length===1?" has":"s have")+" a possum count mismatch and should be checked before reporting.";
+      if(!integrityNote){
+        const mismatches=checks.filter(c=>String(c.id||"").trim()&&Number(c.totalPossum||0)!==Number(possumCounts.get(String(c.id))||0));
+        if(mismatches.length)integrityNote=" Warning: "+mismatches.length+" camera check"+(mismatches.length===1?" has":"s have")+" a possum count mismatch and should be checked before reporting.";
+      }
     }
     status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown."+(kind==="sighting"&&reportYear?" Matched to "+reportYear+" finished camera checks.":"")+integrityNote;
   }catch(e){
