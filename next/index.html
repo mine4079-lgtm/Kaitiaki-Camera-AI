@@ -392,9 +392,19 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 })();
 </script>
 <script src="./cloud-ui.js?v=21"></script>
-<script src="./shared-ui.js?v=35"></script>
+<script src="./shared-ui.js?v=36"></script>
+<script>
+(function(){
+  const button=document.getElementById("refreshSightings");
+  const status=document.getElementById("sharedSightingsStatus");
+  if(button)button.onclick=function(){
+    if(typeof window.KaitiakiLoadSharedSightings==="function")window.KaitiakiLoadSharedSightings();
+    else if(status)status.textContent="Sightings script did not load correctly. Refresh this page once; if this message remains, send this screenshot to support.";
+  };
+})();
+</script>
 <script src="./project-lead.js?v=1"></script>
 <script src="./camera-report.js?v=12"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=67").catch(()=>{}))}</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=68").catch(()=>{}))}</script>
 </body>
 </html>
