@@ -431,7 +431,8 @@ async function handleTeamImage(input, env, origin) {
 
 async function handleCameraCheckAudit(input, env, origin) {
   if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
-  await ensureSchema(env);
+  // Strictly read-only: do not call ensureSchema here because it can alter existing sighting statuses.
+  // If the tables/columns are missing, fail visibly rather than mutating the database during an audit.
   const cameraNos = [...new Set((Array.isArray(input?.cameraNos) ? input.cameraNos : [])
     .map(v => clean(v, 80).toUpperCase()).filter(Boolean))].slice(0, 50);
   if (!cameraNos.length) return reply({ error: "Choose at least one camera to inspect" }, 400, origin);
