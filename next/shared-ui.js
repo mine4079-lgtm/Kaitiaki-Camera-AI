@@ -459,48 +459,35 @@ async function loadShared(kind){
       const heading=document.createElement("strong");heading.textContent="Camera checks to investigate";panel.append(heading);
       const intro=document.createElement("p");intro.textContent="These are image counts, not individual possums. A difference can mean missing links or an older check that needs reconciling.";panel.append(intro);
       const repairRow=document.createElement("div");repairRow.style.cssText="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 14px";
-      const repairButton=document.createElement("button");repairButton.type="button";repairButton.textContent="Repair mismatches by capture date";
-      const repairHelp=document.createElement("span");repairHelp.textContent="Reassigns links to the next check date for the same camera; does not delete images.";
-      repairHelp.style.cssText="font-size:13px";
-      repairButton.addEventListener("click",async()=>{
+      const auditButton=document.createElement("button");auditButton.type="button";auditButton.textContent="Inspect link problems";
+      const auditHelp=document.createElement("span");auditHelp.textContent="Read-only check of duplicate image links, missing dates and likely wrong check links. Does not change records.";
+      auditHelp.style.cssText="font-size:13px";
+      auditButton.addEventListener("click",async()=>{
         const cameras=[...new Set(integrityMismatches.map(c=>String(c.cameraNo||"").trim().toUpperCase()).filter(Boolean))];
         if(!cameras.length)return;
-        if(!confirm("Repair camera-check links for "+cameras.join(", ")+ "?\n\nKaitiaki will match each image to the next check date for the same camera, using the image capture date. It will update links and possum image totals only. It will not delete images or change classifications. Checks with ambiguous same-day runs will be left unchanged. Continue?"))return;
-        repairButton.disabled=true;repairButton.textContent="Repairing…";
+        auditButton.disabled=true;auditButton.textContent="Inspecting…";
         try{
-          let localResult={moved:0,updatedChecks:0};
-          if(typeof window.KaitiakiReconcileLocalCameraLinks==="function")localResult=await window.KaitiakiReconcileLocalCameraLinks(cameras);
-          let remoteResult=null,remoteError="";
-          try{
-            const res=await fetch(endpoint()+"/team/camera-check-reconcile",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({cameraNos:cameras})});
-            const data=await res.json();
-            if(!res.ok||!data.sharedReady)throw Error(data.error||("Worker returned "+res.status));
-            remoteResult=data;
-          }catch(e){remoteError=String(e.message||e)}
-          if(remoteResult){
-            const d=remoteResult.diagnostics||{};
-            const msg="Repair check complete.\n\nLocal links moved: "+(localResult.moved||0)+
-              "\nShared links moved: "+(remoteResult.moved||0)+
-              "\nCamera-check totals refreshed: "+(remoteResult.updatedChecks||0)+
-              "\nAmbiguous same-day camera runs left unchanged: "+(remoteResult.ambiguousCameras||0)+
-              "\n\nWhy records were skipped (shared):"+
-              "\nRows found: "+(d.rowsFound??"not reported")+
-              "\nNo camera match: "+(d.noCamera??"not reported")+
-              "\nNo capture date: "+(d.noCaptureDate??"not reported")+
-              "\nNo check group: "+(d.noCheckGroup??"not reported")+
-              "\nNo later check date: "+(d.noLaterCheck??"not reported")+
-              "\nAlready matched: "+(d.alreadyCorrect??"not reported")+
-              "\n\nNo images or classifications were deleted or changed.";
-            alert(msg);
-            await loadShared("sighting");window.KaitiakiLoadCameraReport?.();
-          }else{
-            alert("Local links moved: "+(localResult.moved||0)+".\n\nThe shared-team repair did not run: "+remoteError+"\n\nThe Worker update must be deployed in Cloudflare before shared records can be repaired. No images or classifications were deleted.");
-            await loadShared("sighting");window.KaitiakiLoadCameraReport?.();
+          const res=await fetch(endpoint()+"/team/camera-check-audit",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({cameraNos:cameras})});
+          const data=await res.json();
+          if(!res.ok||data.sharedReady!==true)throw Error(data.error||("Worker returned "+res.status));
+          const lines=["Read-only audit complete.","Cameras: "+cameras.join(", "),"Shared records inspected: "+data.recordsInspected,
+            "Possum records inspected: "+data.possumsInspected,"Exact duplicate filename + capture-time candidates overall: "+data.exactDuplicateCandidates,
+            "","Per camera check: report count | linked records | unique file/time signatures | duplicate candidates | missing capture date | date-rule would move"];
+          for(const c of data.checks||[]){
+            if(c.reportImages!==c.linkedPossumRecords||c.exactDuplicateCandidates||c.missingCaptureDate||c.dateRuleWouldMove){
+              lines.push(c.cameraNo+" check "+c.checkNo+" ("+c.checkedDate+"): "+c.reportImages+" | "+c.linkedPossumRecords+" | "+c.uniqueFileTimeSignatures+" | "+c.exactDuplicateCandidates+" | "+c.missingCaptureDate+" | "+c.dateRuleWouldMove);
+              for(const sample of (c.samples||[]).slice(0,3))lines.push("  "+(sample.fileName||"(no filename)")+" · "+(sample.capturedAt||"no capture date")+" · ID "+sample.recordId);
+            }
           }
-        }catch(e){alert("Repair stopped: "+String(e.message||e))}
-        finally{repairButton.disabled=false;repairButton.textContent="Repair mismatches by capture date"}
+          lines.push("","Possum records without a valid linked check: "+data.orphan.totalPossum,
+            "Missing capture date among those: "+data.orphan.missingCaptureDate,
+            "No check link: "+data.orphan.noCheckLink,
+            "No images or classifications were changed.");
+          alert(lines.join("\n"));
+        }catch(e){alert("Audit failed: "+String(e.message||e))}
+        finally{auditButton.disabled=false;auditButton.textContent="Inspect link problems"}
       });
-      repairRow.append(repairButton,repairHelp);panel.append(repairRow);
+      repairRow.append(auditButton,auditHelp);panel.append(repairRow);
       const table=document.createElement("table");table.style.cssText="width:100%;border-collapse:collapse;font-size:14px";
       const thead=document.createElement("thead"),hr=document.createElement("tr");
       for(const label of ["Camera","Check","Checked","Report images","Matched images","Difference","Inspect"]){const th=document.createElement("th");th.textContent=label;th.style.cssText="text-align:left;padding:7px 5px;border-bottom:1px solid #e2d2ab";hr.append(th)}
