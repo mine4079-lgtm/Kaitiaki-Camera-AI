@@ -510,6 +510,8 @@ async function handleCameraCheckAudit(input, env, origin) {
     if (unique.length && recoveryCandidates.length < 100) recoveryCandidates.push({
       cameraNo:camera, fileName:row.file_name||"", relativePath:row.relative_path||"", recordId:row.id,
       recordStatus:row.status||"", recordLabel:Number(row.human_verified)?(row.confirmed_label||row.ai_prediction):row.ai_prediction||"",
+      recordCheckNo:row.check_no??null, recordCheckedDate:row.checked_date||"",
+      recordCameraCheckId:row.camera_check_id||"",
       recordCreatedAt:row.created_at||"", recordUpdatedAt:row.updated_at||"",
       matches:unique.slice(0,3).map(m=>({
         recordId:m.id,fileName:m.file_name||"",relativePath:m.relative_path||"",
