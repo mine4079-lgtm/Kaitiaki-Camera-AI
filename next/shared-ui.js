@@ -475,9 +475,9 @@ async function loadShared(kind){
             "","Per camera check: report count | linked records | unique file/time signatures | duplicate candidates | missing capture date | date-rule would move"];
           lines.push("","Possible date-recovery matches in existing shared records: "+(data.recoveryCandidateCount||0));
           for(const candidate of (data.recoveryCandidates||[]).slice(0,5)){
-            lines.push("  "+candidate.cameraNo+" · "+candidate.fileName+" · missing ID "+String(candidate.recordId).slice(0,12));
+            lines.push("  "+candidate.cameraNo+" · "+candidate.fileName+" · missing ID "+String(candidate.recordId).slice(0,12)+" · missing image "+(candidate.hasStoredImage?"stored":"not stored"));
             for(const match of (candidate.matches||[]).slice(0,2)){
-              lines.push("    candidate "+(match.capturedAt||"no date")+" · "+(match.matchType||"match type unknown")+" · image bytes "+(match.exactImageBytesMatch?"EXACT MATCH":(match.hasStoredImage?"different/unconfirmed":"not stored"))+" · created "+(match.createdAt||"unknown")+" · gap "+(match.creationGapSeconds===null?"unknown":match.creationGapSeconds+"s")+(match.sameCreationBatch?" · same import window":"")+" · ID "+String(match.recordId).slice(0,12));
+              lines.push("    candidate "+(match.capturedAt||"no date")+" · "+(match.matchType||"match type unknown")+" · candidate image "+(match.hasStoredImage?"stored":"not stored")+" · byte comparison "+(match.exactImageBytesMatch?"EXACT MATCH":(candidate.hasStoredImage&&match.hasStoredImage?"different bytes":"not comparable (image missing)"))+" · created "+(match.createdAt||"unknown")+" · gap "+(match.creationGapSeconds===null?"unknown":match.creationGapSeconds+"s")+(match.sameCreationBatch?" · same import window":"")+" · ID "+String(match.recordId).slice(0,12));
             }
           }
           for(const c of data.checks||[]){
