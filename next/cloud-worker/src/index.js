@@ -502,12 +502,18 @@ async function handleCameraCheckAudit(input, env, origin) {
     const camera = String(row.camera_no || checksById.get(String(row.camera_check_id||""))?.camera_no || "").trim().toUpperCase();
     const path = String(row.relative_path || "").trim().toLowerCase();
     const file = String(row.file_name || "").trim().toLowerCase();
-    const matches = (path && datedByPath.get(camera+"|"+path)) || (file && datedByFile.get(camera+"|"+file)) || [];
-    const unique = [...new Map(matches.filter(m => String(m.id)!==String(row.id)).map(m=>[String(m.id),m])).values()];
+    // Require the same filename for every candidate. A path match alone can be
+    // misleading when relative_path stores only a folder or was imported inconsistently.
+    const sameFile = (file ? (datedByFile.get(camera+"|"+file)||[]) : [])
+      .filter(m => String(m.id)!==String(row.id));
+    const unique = [...new Map(sameFile.map(m=>[String(m.id),m])).values()];
     if (unique.length && recoveryCandidates.length < 100) recoveryCandidates.push({
       cameraNo:camera, fileName:row.file_name||"", relativePath:row.relative_path||"", recordId:row.id,
-      matches:unique.slice(0,3).map(m=>({recordId:m.id,fileName:m.file_name||"",relativePath:m.relative_path||"",
-        capturedAt:m.captured_at||"",createdAt:m.created_at||"",label:Number(m.human_verified)?(m.confirmed_label||m.ai_prediction):m.ai_prediction||""}))
+      matches:unique.slice(0,3).map(m=>({
+        recordId:m.id,fileName:m.file_name||"",relativePath:m.relative_path||"",
+        matchType: String(m.relative_path||"").trim().toLowerCase()===path && path ? "same filename + exact path" : "same filename only",
+        capturedAt:m.captured_at||"",createdAt:m.created_at||"",label:Number(m.human_verified)?(m.confirmed_label||m.ai_prediction):m.ai_prediction||""
+      }))
     });
   }
 
