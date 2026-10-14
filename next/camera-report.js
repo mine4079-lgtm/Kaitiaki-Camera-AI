@@ -391,7 +391,7 @@ async function renderReport(){
   const duplicateCount=deduped.duplicates.filter(c=>Number(c.reportYear)===year&&(selectedCamera==="all"||String(c.cameraNo||"").trim()===selectedCamera)).length;
   status.textContent=yearChecks.length+" camera check"+(yearChecks.length===1?"":"s")+" shown for "+year+cameraText+"."+(duplicateCount?" "+duplicateCount+" older duplicate check"+(duplicateCount===1?" was":"s were")+" ignored.":"");
 }
-async async function runReportAudit(){
+async function runReportAudit(){
   const button=$("runReportAudit"),status=$("reportAuditStatus"),body=$("reportAuditBody");
   if(!button||!status||!body)return;
   button.disabled=true;button.textContent="Checking…";status.textContent="Running read-only audit…";body.replaceChildren();
