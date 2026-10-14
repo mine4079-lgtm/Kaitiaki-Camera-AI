@@ -429,20 +429,6 @@ async function runReportAudit(){
          for(const m of matches){const tr=document.createElement("tr");[c.fileName,c.relativePath,c.recordCreatedAt,m.fileName,m.matchType,m.exactImageBytesMatch?"YES":(m.hasStoredImage&&c.hasStoredImage?"NO":"Not available"),m.creationGapSeconds??"—"].forEach(v=>{const td=document.createElement("td");td.textContent=v??"—";tr.append(td)});tbody.append(tr)}
        }
        table.append(tbody);detail.append(table);
-       const linked=(data.oxic1LinkedRecordDetails||[]).filter(r=>String(r.cameraNo||"").toUpperCase()==="OXIC1");
-       const linkedHeading=document.createElement("p");linkedHeading.className="sub";
-       linkedHeading.textContent="OXIC1 linked possum records (read-only): showing "+linked.length+" of "+(data.oxic1LinkedRecordCount??linked.length)+" records returned by the audit. No records changed.";
-       detail.append(linkedHeading);
-       const linkedTable=document.createElement("table");linkedTable.className="report-table";
-       const linkedHead=document.createElement("thead"),linkedHr=document.createElement("tr");
-       ["Check #","Check date","Capture date","Filename","Status","Record ID","Camera-check link"].forEach(v=>{const th=document.createElement("th");th.textContent=v;linkedHr.append(th)});
-       linkedHead.append(linkedHr);linkedTable.append(linkedHead);const linkedBody=document.createElement("tbody");
-       for(const r of linked){
-         const tr=document.createElement("tr");
-         [r.checkNo==null?"—":"#"+r.checkNo,r.checkedDate||"—",r.capturedAt||"MISSING",r.fileName||"—",r.status||"—",r.recordId||"—",r.cameraCheckId||"—"].forEach(v=>{const td=document.createElement("td");td.textContent=v;tr.append(td)});
-         linkedBody.append(tr);
-       }
-       linkedTable.append(linkedBody);detail.append(linkedTable);
      }
     if(!checks.length)status.textContent="Audit completed, but no checks matched the selected year/camera. Try All cameras or another year.";
   }catch(e){status.textContent="Audit failed: "+String(e.message||e)}
