@@ -512,7 +512,12 @@ async function handleCameraCheckAudit(input, env, origin) {
       matches:unique.slice(0,3).map(m=>({
         recordId:m.id,fileName:m.file_name||"",relativePath:m.relative_path||"",
         matchType: String(m.relative_path||"").trim().toLowerCase()===path && path ? "same filename + exact path" : "same filename only",
-        capturedAt:m.captured_at||"",createdAt:m.created_at||"",label:Number(m.human_verified)?(m.confirmed_label||m.ai_prediction):m.ai_prediction||""
+        capturedAt:m.captured_at||"",createdAt:m.created_at||"",
+        creationGapSeconds: row.created_at && m.created_at
+          ? Math.round((Date.parse(m.created_at)-Date.parse(row.created_at))/1000) : null,
+        sameCreationBatch: Boolean(row.created_at && m.created_at &&
+          Math.abs(Date.parse(m.created_at)-Date.parse(row.created_at)) <= 120000),
+        label:Number(m.human_verified)?(m.confirmed_label||m.ai_prediction):m.ai_prediction||""
       }))
     });
   }
