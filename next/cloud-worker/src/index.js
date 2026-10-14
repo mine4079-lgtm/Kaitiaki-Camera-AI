@@ -509,6 +509,8 @@ async function handleCameraCheckAudit(input, env, origin) {
     const unique = [...new Map(sameFile.map(m=>[String(m.id),m])).values()];
     if (unique.length && recoveryCandidates.length < 100) recoveryCandidates.push({
       cameraNo:camera, fileName:row.file_name||"", relativePath:row.relative_path||"", recordId:row.id,
+      recordStatus:row.status||"", recordLabel:Number(row.human_verified)?(row.confirmed_label||row.ai_prediction):row.ai_prediction||"",
+      recordCreatedAt:row.created_at||"", recordUpdatedAt:row.updated_at||"",
       matches:unique.slice(0,3).map(m=>({
         recordId:m.id,fileName:m.file_name||"",relativePath:m.relative_path||"",
         matchType: String(m.relative_path||"").trim().toLowerCase()===path && path ? "same filename + exact path" : "same filename only",
