@@ -391,7 +391,32 @@ async function renderReport(){
   const duplicateCount=deduped.duplicates.filter(c=>Number(c.reportYear)===year&&(selectedCamera==="all"||String(c.cameraNo||"").trim()===selectedCamera)).length;
   status.textContent=yearChecks.length+" camera check"+(yearChecks.length===1?"":"s")+" shown for "+year+cameraText+"."+(duplicateCount?" "+duplicateCount+" older duplicate check"+(duplicateCount===1?" was":"s were")+" ignored.":"");
 }
-async function exportReport(){
+async async function runReportAudit(){
+  const button=$("runReportAudit"),status=$("reportAuditStatus"),body=$("reportAuditBody");
+  if(!button||!status||!body)return;
+  button.disabled=true;button.textContent="Checking…";status.textContent="Running read-only audit…";body.replaceChildren();
+  try{
+    if(!navigator.onLine)throw Error("Connect to the internet before running the shared audit.");
+    if(!token())throw Error("Team access token is missing on this device. Reconnect Team access, then try again.");
+    const merged=await mergedChecks(),year=Number($("reportYear")?.value)||new Date().getFullYear();
+    const selectedCamera=$("reportCamera")?.value||"all";
+    const cameraNos=[...new Set(merged.filter(c=>Number(c.reportYear||String(c.checkedDate||"").slice(0,4))===year&&(selectedCamera==="all"||String(c.cameraNo||"").trim()===selectedCamera)).map(c=>String(c.cameraNo||"").trim().toUpperCase()).filter(Boolean))];
+    if(!cameraNos.length)throw Error("No camera checks found for the selected year and camera.");
+    const res=await fetch(endpoint()+"/team/camera-check-audit",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:JSON.stringify({token:token(),cameraNos})});
+    const data=await res.json();if(!res.ok||data.sharedReady!==true)throw Error(data.error||("Worker returned "+res.status));
+    const checks=(data.checks||[]).filter(c=>Number(c.reportYear)===year&&(selectedCamera==="all"||String(c.cameraNo||"").trim()===selectedCamera));
+    for(const c of checks){
+      const tr=document.createElement("tr");
+      const vals=[c.cameraNo,"#"+c.checkNo,c.checkedDate,c.reportYear,c.reportImages,c.linkedPossumRecords,c.datedPossumRecords,c.capturedInReportYear,c.capturedOutsideReportYear,c.missingCaptureDate,c.reportVsDatedDelta];
+      for(const value of vals){const td=document.createElement("td");td.textContent=value??"—";tr.append(td)}
+      body.append(tr);
+    }
+    status.textContent="Read-only audit complete: "+checks.length+" camera checks inspected. No shared records or report totals were changed.";
+    if(!checks.length)status.textContent="Audit completed, but no checks matched the selected year/camera. Try All cameras or another year.";
+  }catch(e){status.textContent="Audit failed: "+String(e.message||e)}
+  finally{button.disabled=false;button.textContent="Check report count breakdown"}
+}
+function exportReport(){
   const merged=await mergedChecks(),checks=dedupeCameraChecks(merged).checks,year=Number($("reportYear")?.value)||new Date().getFullYear(),camera=$("reportCamera")?.value||"all";
   const data=checks.filter(c=>Number(c.reportYear)===year&&(camera==="all"||String(c.cameraNo||"").trim()===camera)).sort(cameraSort);
   const head=["Camera No'","Zones","Blocks","Status","Check No'","Checked date (in the field)","Serviced by","Classified date","Date of first image (if matching expected FIRST date)","Date of last image (if matching expected LAST date)","Approx possum presence","Most recent possum sighting","Classified by",...MONTHS.map(m=>m+" "+year),"Total "+year,"Notes","Issues notes"];
@@ -413,6 +438,7 @@ $("startCameraCheck")?.addEventListener("click",startCheck);
 $("cancelCameraCheck")?.addEventListener("click",cancelCheck);
 $("finishCameraCheck")?.addEventListener("click",finishCheck);
 $("refreshReport")?.addEventListener("click",renderReport);
+$("runReportAudit")?.addEventListener("click",runReportAudit);
 $("exportCameraReport")?.addEventListener("click",exportReport);
 $("reportYear")?.addEventListener("change",renderReport);
 $("reportCamera")?.addEventListener("change",renderReport);
