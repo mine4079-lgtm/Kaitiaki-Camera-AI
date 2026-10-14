@@ -522,6 +522,40 @@ async function handleCameraCheckAudit(input, env, origin) {
     });
   }
 
+  // Compare exact stored image bytes for candidate pairs where blobs exist.
+  // This is read-only and intentionally does not infer a match from filename/date alone.
+  const candidateIds = [...new Set(recoveryCandidates.flatMap(c => [
+    String(c.recordId), ...(c.matches||[]).map(m => String(m.recordId))
+  ]))];
+  const imageHashes = new Map();
+  for (let offset=0; offset<candidateIds.length; offset+=80) {
+    const ids = candidateIds.slice(offset, offset+80);
+    const marks = ids.map(()=>"?").join(",");
+    const blobRows = await env.KAITIAKI_DB.prepare(
+      `SELECT id, image_blob FROM sightings WHERE id IN (${marks})`
+    ).bind(...ids).all();
+    for (const imageRow of (blobRows.results||[])) {
+      if (!imageRow.image_blob) continue;
+      const bytes = Array.isArray(imageRow.image_blob) ? Uint8Array.from(imageRow.image_blob)
+        : imageRow.image_blob instanceof Uint8Array ? imageRow.image_blob
+        : imageRow.image_blob instanceof ArrayBuffer ? new Uint8Array(imageRow.image_blob) : null;
+      if (!bytes) continue;
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      const hex = [...new Uint8Array(digest)].map(v=>v.toString(16).padStart(2,"0")).join("");
+      imageHashes.set(String(imageRow.id), hex);
+    }
+  }
+  for (const candidate of recoveryCandidates) {
+    const missingHash = imageHashes.get(String(candidate.recordId)) || "";
+    candidate.hasStoredImage = Boolean(missingHash);
+    candidate.matches = (candidate.matches||[]).map(match => {
+      const candidateHash = imageHashes.get(String(match.recordId)) || "";
+      return {...match, hasStoredImage: Boolean(candidateHash),
+        exactImageBytesMatch: Boolean(missingHash && candidateHash && missingHash===candidateHash),
+        imageHashPrefix: candidateHash ? candidateHash.slice(0,12) : ""};
+    });
+  }
+
   for (const r of possumRows) {
     const camera = String(r.camera_no || checksById.get(String(r.camera_check_id||""))?.camera_no || "").trim().toUpperCase();
     const captured = String(r.captured_at || "").slice(0,10);
