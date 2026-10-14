@@ -162,6 +162,7 @@ dialog::backdrop{background:#0c211dcc}
 <div class="statbar"><div class="stat"><b id="reportChecks">0</b><small>CAMERA CHECKS</small></div><div class="stat"><b id="reportPossums">0</b><small>POSSUM IMAGES</small></div><div class="stat"><b id="reportDetections">0</b><small>MEANINGFUL DETECTIONS</small></div><div class="stat"><b id="reportSkipped">0</b><small>EMPTY / VEGE SKIPPED</small></div></div>
 <div class="panel"><h3>Monthly possum detections</h3><p class="sub">Counts are based on images classified as Possum and the image date available to Kaitiaki.</p><div id="monthlyBars" class="month-bars"></div></div>
 <div class="panel"><h3>Camera checks</h3><p class="sub">Possum counts are image detections, not individual animals. Tap a possum-image count to view the saved detections for that camera check.</p><div class="report-scroll"><table class="report-table"><thead><tr><th>Camera</th><th>Zone</th><th>Block</th><th>Check</th><th>Checked</th><th>Serviced by</th><th>Possum images</th><th>Presence</th><th>Last possum</th><th>Other detections</th><th>Issues</th></tr></thead><tbody id="cameraReportBody"></tbody></table></div></div>
+<div class="panel"><h3>Report count audit</h3><p class="sub">Read-only comparison of saved report totals with shared Possum records grouped by camera check and capture year. Missing capture dates are shown separately. This does not alter images, links, classifications or report totals.</p><div class="actions"><button id="runReportAudit" class="btn light">Check report count breakdown</button></div><p id="reportAuditStatus" class="sub" role="status" style="margin-top:10px">Run this audit when you want to investigate report-count differences.</p><div class="report-scroll"><table class="report-table"><thead><tr><th>Camera</th><th>Check</th><th>Checked</th><th>Report year</th><th>Report images</th><th>Linked possum records</th><th>Dated records</th><th>In report year</th><th>Other year</th><th>Missing date</th><th>Report − in-year</th></tr></thead><tbody id="reportAuditBody"></tbody></table></div></div>
 </section>
 <section class="view" id="learning">
 <h2>Learning, without the clutter</h2>
@@ -405,7 +406,7 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 })();
 </script>
 <script src="./project-lead.js?v=1"></script>
-<script src="./camera-report.js?v=13"></script>
+<script src="./camera-report.js?v=14"></script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=72").catch(()=>{}))}</script>
 </body>
 </html>
