@@ -472,6 +472,7 @@ async function handleCameraCheckAudit(input, env, origin) {
     samples:[], missingDateSamples:[], signatures:new Map()
   }]));
   const orphan = { totalPossum:0, missingCaptureDate:0, noCheckLink:0, dateRuleWouldMove:0, sample:[] };
+  const oxic1LinkedRecordDetails = [];
   const signatureCounts = new Map();
   const possumRows = rows.filter(r => {
     const label = Number(r.human_verified) ? (r.confirmed_label || r.ai_prediction) : r.ai_prediction;
@@ -570,6 +571,13 @@ async function handleCameraCheckAudit(input, env, origin) {
     const sig = camera+"|"+String(r.file_name||"").trim().toLowerCase()+"|"+String(r.captured_at||"").trim();
     if (sig !== "|") signatureCounts.set(sig,(signatureCounts.get(sig)||0)+1);
     if (current) {
+      if (camera === "OXIC1" && oxic1LinkedRecordDetails.length < 300) oxic1LinkedRecordDetails.push({
+        cameraNo: camera, recordId: r.id, cameraCheckId: currentId,
+        checkNo: current.checkNo, checkedDate: current.checkedDate,
+        capturedAt: r.captured_at || "", fileName: r.file_name || "",
+        relativePath: r.relative_path || "", status: r.status || "",
+        createdAt: r.created_at || "", updatedAt: r.updated_at || ""
+      });
       current.linkedPossumRecords++;
       if (!captured) {
         current.missingCaptureDate++;
@@ -608,6 +616,7 @@ async function handleCameraCheckAudit(input, env, origin) {
       dateRuleWouldMove:c.dateRuleWouldMove,samples:c.samples,missingDateSamples:c.missingDateSamples};
   });
   return reply({sharedReady:true,checks:result,orphan,recordsInspected:rows.length,possumsInspected:possumRows.length,
+    oxic1LinkedRecordDetails, oxic1LinkedRecordCount: oxic1LinkedRecordDetails.length,
     recoveryCandidates, recoveryCandidateCount:recoveryCandidates.length,
     exactDuplicateCandidates:[...signatureCounts.values()].reduce((n,v)=>n+Math.max(0,v-1),0)},200,origin);
 }
