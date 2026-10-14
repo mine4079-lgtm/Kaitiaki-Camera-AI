@@ -473,6 +473,7 @@ async function handleCameraCheckAudit(input, env, origin) {
   }]));
   const orphan = { totalPossum:0, missingCaptureDate:0, noCheckLink:0, dateRuleWouldMove:0, sample:[] };
   const oxic1LinkedRecordDetails = [];
+  const mtc03LinkedRecordDetails = [];
   const signatureCounts = new Map();
   const possumRows = rows.filter(r => {
     const label = Number(r.human_verified) ? (r.confirmed_label || r.ai_prediction) : r.ai_prediction;
@@ -571,13 +572,17 @@ async function handleCameraCheckAudit(input, env, origin) {
     const sig = camera+"|"+String(r.file_name||"").trim().toLowerCase()+"|"+String(r.captured_at||"").trim();
     if (sig !== "|") signatureCounts.set(sig,(signatureCounts.get(sig)||0)+1);
     if (current) {
-      if (camera === "OXIC1" && oxic1LinkedRecordDetails.length < 300) oxic1LinkedRecordDetails.push({
+      const detailRecord = {
         cameraNo: camera, recordId: r.id, cameraCheckId: currentId,
-        checkNo: current.checkNo, checkedDate: current.checkedDate,
+        checkNo: current.check_no ?? current.checkNo, checkedDate: current.checkedDate,
         capturedAt: r.captured_at || "", fileName: r.file_name || "",
         relativePath: r.relative_path || "", status: r.status || "",
+        aiPrediction: r.ai_prediction || "", confirmedLabel: r.confirmed_label || "",
+        humanVerified: Number(r.human_verified) || 0,
         createdAt: r.created_at || "", updatedAt: r.updated_at || ""
-      });
+      };
+      if (camera === "OXIC1" && oxic1LinkedRecordDetails.length < 300) oxic1LinkedRecordDetails.push(detailRecord);
+      if (camera === "MTC03" && mtc03LinkedRecordDetails.length < 300) mtc03LinkedRecordDetails.push(detailRecord);
       current.linkedPossumRecords++;
       if (!captured) {
         current.missingCaptureDate++;
@@ -617,6 +622,7 @@ async function handleCameraCheckAudit(input, env, origin) {
   });
   return reply({sharedReady:true,checks:result,orphan,recordsInspected:rows.length,possumsInspected:possumRows.length,
     oxic1LinkedRecordDetails, oxic1LinkedRecordCount: oxic1LinkedRecordDetails.length,
+    mtc03LinkedRecordDetails, mtc03LinkedRecordCount: mtc03LinkedRecordDetails.length,
     recoveryCandidates, recoveryCandidateCount:recoveryCandidates.length,
     exactDuplicateCandidates:[...signatureCounts.values()].reduce((n,v)=>n+Math.max(0,v-1),0)},200,origin);
 }
