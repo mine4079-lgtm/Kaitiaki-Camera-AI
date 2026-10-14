@@ -477,7 +477,7 @@ async function loadShared(kind){
           for(const candidate of (data.recoveryCandidates||[]).slice(0,5)){
             lines.push("  "+candidate.cameraNo+" · "+candidate.fileName+" · missing ID "+String(candidate.recordId).slice(0,12));
             for(const match of (candidate.matches||[]).slice(0,2)){
-              lines.push("    candidate "+(match.capturedAt||"no date")+" · "+(match.fileName||"(no filename)")+" · ID "+String(match.recordId).slice(0,12));
+              lines.push("    candidate "+(match.capturedAt||"no date")+" · "+(match.fileName||"(no filename)")+" · "+(match.matchType||"match type unknown")+" · ID "+String(match.recordId).slice(0,12));
             }
           }
           for(const c of data.checks||[]){
