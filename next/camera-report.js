@@ -412,6 +412,24 @@ async function runReportAudit(){
       body.append(tr);
     }
     status.textContent="Read-only audit complete: "+checks.length+" camera checks inspected. No shared records or report totals were changed.";
+     const recovery=(data.recoveryCandidates||[]).filter(c=>String(c.cameraNo||"").toUpperCase()==="OXIC1");
+     const detail=document.getElementById("reportAuditDetails");
+     if(detail){
+       detail.replaceChildren();
+       const heading=document.createElement("p");heading.className="sub";
+       heading.textContent="OXIC1 missing-date recovery clues (read-only): "+recovery.length+" candidate records. Exact image matches are clues only; no dates have been copied.";
+       detail.append(heading);
+       const table=document.createElement("table");table.className="report-table";
+       const thead=document.createElement("thead"),hr=document.createElement("tr");
+       ["Missing-date filename","Path","Record created","Dated filename match","Match type","Exact image bytes","Time gap (seconds)"].forEach(v=>{const th=document.createElement("th");th.textContent=v;hr.append(th)});
+       thead.append(hr);table.append(thead);const tbody=document.createElement("tbody");
+       for(const c of recovery){
+         const matches=c.matches||[];
+         if(!matches.length){const tr=document.createElement("tr");[c.fileName,c.relativePath,c.recordCreatedAt,"No dated filename match","—","—","—"].forEach(v=>{const td=document.createElement("td");td.textContent=v||"—";tr.append(td)});tbody.append(tr);continue}
+         for(const m of matches){const tr=document.createElement("tr");[c.fileName,c.relativePath,c.recordCreatedAt,m.fileName,m.matchType,m.exactImageBytesMatch?"YES":(m.hasStoredImage&&c.hasStoredImage?"NO":"Not available"),m.creationGapSeconds??"—"].forEach(v=>{const td=document.createElement("td");td.textContent=v??"—";tr.append(td)});tbody.append(tr)}
+       }
+       table.append(tbody);detail.append(table);
+     }
     if(!checks.length)status.textContent="Audit completed, but no checks matched the selected year/camera. Try All cameras or another year.";
   }catch(e){status.textContent="Audit failed: "+String(e.message||e)}
   finally{button.disabled=false;button.textContent="Check report count breakdown"}
