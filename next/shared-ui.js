@@ -482,7 +482,7 @@ async function loadShared(kind){
           }
           for(const c of data.checks||[]){
             if(c.reportImages!==c.linkedPossumRecords||c.exactDuplicateCandidates||c.missingCaptureDate||c.dateRuleWouldMove){
-              lines.push(c.cameraNo+" check "+c.checkNo+" ("+c.checkedDate+"): "+c.reportImages+" | "+c.linkedPossumRecords+" | "+c.uniqueFileTimeSignatures+" | "+c.exactDuplicateCandidates+" | "+c.missingCaptureDate+" | "+c.dateRuleWouldMove);
+              lines.push(c.cameraNo+" check "+c.checkNo+" ("+c.checkedDate+"): report "+c.reportImages+" | linked "+c.linkedPossumRecords+" | dated "+(c.datedPossumRecords??"n/a")+" | in-year "+(c.capturedInReportYear??"n/a")+" | other-year "+(c.capturedOutsideReportYear??"n/a")+" | missing-date "+c.missingCaptureDate+" | report-minus-in-year "+(c.reportVsDatedDelta??"n/a")+" | duplicates "+c.exactDuplicateCandidates+" | date-rule moves "+c.dateRuleWouldMove);
               for(const sample of (c.samples||[]).slice(0,2))lines.push("  "+(sample.fileName||"(no filename)")+" · "+(sample.capturedAt||"no capture date")+" · ID "+sample.recordId);
               if(c.missingCaptureDate){
                 lines.push("  Missing-date examples (up to 10; read-only):");
