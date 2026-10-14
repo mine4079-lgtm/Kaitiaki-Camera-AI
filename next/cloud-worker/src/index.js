@@ -466,7 +466,8 @@ async function handleCameraCheckAudit(input, env, origin) {
     Number(a.check_no || 0)-Number(b.check_no || 0));
   const perCheck = new Map(checks.map(c => [String(c.id), {
     id:String(c.id), cameraNo:c.camera_no, checkNo:Number(c.check_no)||0, checkedDate:String(c.checked_date||"").slice(0,10),
-    reportImages:Number(c.total_possum)||0, linkedPossumRecords:0, uniqueFileTimeSignatures:0,
+    reportImages:Number(c.total_possum)||0, reportYear:Number(c.report_year)||Number(String(c.checked_date||"").slice(0,4)),
+    linkedPossumRecords:0, datedPossumRecords:0, capturedInReportYear:0, capturedOutsideReportYear:0, uniqueFileTimeSignatures:0,
     exactDuplicateCandidates:0, missingCaptureDate:0, otherYear:0, noCheckLink:0, dateRuleWouldMove:0,
     samples:[], missingDateSamples:[], signatures:new Map()
   }]));
@@ -576,8 +577,12 @@ async function handleCameraCheckAudit(input, env, origin) {
           fileName:r.file_name||"", relativePath:r.relative_path||"", recordId:r.id,
           createdAt:r.created_at||"", updatedAt:r.updated_at||"", cameraCheckId:r.camera_check_id||""
         });
+      } else {
+        current.datedPossumRecords++;
+        if (Number(captured.slice(0,4)) === current.reportYear) current.capturedInReportYear++;
+        else current.capturedOutsideReportYear++;
+        if (Number(captured.slice(0,4)) !== current.reportYear) current.otherYear++;
       }
-      else if (Number(captured.slice(0,4)) !== (Number(checksById.get(currentId)?.report_year)||Number(String(checksById.get(currentId)?.checked_date||"").slice(0,4)))) current.otherYear++;
       current.signatures.set(sig,(current.signatures.get(sig)||0)+1);
       if (current.samples.length<8) current.samples.push({fileName:r.file_name||"",capturedAt:r.captured_at||"",recordId:r.id,relativePath:r.relative_path||""});
     } else {
@@ -595,8 +600,10 @@ async function handleCameraCheckAudit(input, env, origin) {
   }
   const result = [...perCheck.values()].map(c=>{
     const dup=[...c.signatures.values()].reduce((n,v)=>n+Math.max(0,v-1),0);
-    return {id:c.id,cameraNo:c.cameraNo,checkNo:c.checkNo,checkedDate:c.checkedDate,reportImages:c.reportImages,
-      linkedPossumRecords:c.linkedPossumRecords,uniqueFileTimeSignatures:c.signatures.size,
+    return {id:c.id,cameraNo:c.cameraNo,checkNo:c.checkNo,checkedDate:c.checkedDate,reportYear:c.reportYear,reportImages:c.reportImages,
+      linkedPossumRecords:c.linkedPossumRecords,datedPossumRecords:c.datedPossumRecords,
+      capturedInReportYear:c.capturedInReportYear,capturedOutsideReportYear:c.capturedOutsideReportYear,
+      reportVsDatedDelta:c.reportImages-c.capturedInReportYear,uniqueFileTimeSignatures:c.signatures.size,
       exactDuplicateCandidates:dup,missingCaptureDate:c.missingCaptureDate,otherYear:c.otherYear,
       dateRuleWouldMove:c.dateRuleWouldMove,samples:c.samples,missingDateSamples:c.missingDateSamples};
   });
