@@ -385,7 +385,18 @@ async function handleTeamList(input, env, origin, status) {
     stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? ORDER BY updated_at DESC LIMIT ?").bind(status, limit);
   }
   const result = await stmt.all();
-  return reply({ sharedReady: true, records: result.results || [] }, 200, origin);
+  let records = result.results || [];
+  // Response-only filter: exclude undated OXIC1 Check #1 records from dated sightings reports.
+  // Stored sightings, classifications, image blobs, report totals and audit data are unchanged.
+  if (status === "sighting") {
+    records = records.filter(row => !(
+      String(row.camera_no || "").trim().toUpperCase() === "OXIC1" &&
+      Number(row.check_no) === 1 &&
+      String(row.checked_date || "").slice(0, 10) === "2026-09-30" &&
+      !String(row.captured_at || "").trim()
+    ));
+  }
+  return reply({ sharedReady: true, records }, 200, origin);
 }
 
 async function handleTeamReviewResolve(input, env, origin) {
