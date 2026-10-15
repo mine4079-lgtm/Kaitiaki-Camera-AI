@@ -531,9 +531,30 @@ async function loadShared(kind){
   }
 }
 
+async function readSharedCheckAudit(check){
+  if(!navigator.onLine||!token()||!check?.cameraNo)return null;
+  try{
+    const res=await fetch(endpoint()+"/team/camera-check-audit",{
+      method:"POST",
+      headers:{"content-type":"text/plain;charset=UTF-8"},
+      body:teamBody({cameraNos:[String(check.cameraNo).trim().toUpperCase()]})
+    });
+    const data=await res.json();
+    if(!res.ok||data.sharedReady!==true)return null;
+    return (data.checks||[]).find(c=>
+      String(c.id||"")===String(check.id||"") ||
+      (String(c.cameraNo||"").trim().toUpperCase()===String(check.cameraNo).trim().toUpperCase() &&
+       Number(c.checkNo)===Number(check.checkNo) &&
+       String(c.checkedDate||"").slice(0,10)===String(check.checkedDate||"").slice(0,10))
+    )||null;
+  }catch{return null}
+}
+
 window.KaitiakiOpenCameraCheckGallery=async(check)=>{
   if(!check?.cameraNo)return false;
 
+  // Read-only comparison: the local gallery and shared audit can represent different copies.
+  const sharedAudit=await readSharedCheckAudit(check);
   // On the device that processed the SD card, use the exact saved local records first.
   try{
     const db=await openDB();
@@ -570,8 +591,14 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
         has_image:r.preview instanceof Blob?1:0,
         _localPreview:r.preview instanceof Blob?r.preview:null
       }));
-      const warning=mismatch?"Report count: "+check.totalPossum+" possum images. "+local.length+" saved image links were found for this older check, so some may belong to another SD-card run.":"";
-      openSharedGallery(records,0,"sighting",warning,mismatch?check:null);return mismatch?"mismatch-opened":true;
+      const notes=[];
+      if(mismatch)notes.push("Report count: "+check.totalPossum+" possum images. "+local.length+" saved image links were found for this older check, so some may belong to another SD-card run.");
+      if(sharedAudit){
+        notes.push("Read-only source check — this device: "+local.length+" local possum images; shared team database: "+Number(sharedAudit.linkedPossumRecords||0)+" linked possum records, "+Number(sharedAudit.datedPossumRecords||0)+" with capture dates. The gallery is showing this device's local images. These counts are not merged and no records were changed.");
+      }else{
+        notes.push("Shared database comparison unavailable. The gallery is showing this device's local images only; shared links have not been verified.");
+      }
+      openSharedGallery(records,0,"sighting",notes.join("\\n\\n"),mismatch?check:null);return mismatch?"mismatch-opened":true;
     }
   }catch{}
 
