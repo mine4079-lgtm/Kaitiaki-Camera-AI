@@ -462,6 +462,33 @@ async function runReportAudit(){
   }catch(e){status.textContent="Audit failed: "+String(e.message||e)}
   finally{button.disabled=false;button.textContent="Check report count breakdown"}
 }
+let mtc03RepairPreview=null;
+async function mtc03RepairRequest(mode){
+  const status=$("mtc03RepairStatus"),previewBtn=$("mtc03RepairPreview"),applyBtn=$("mtc03RepairApply");
+  if(!status)return;
+  if(!navigator.onLine){status.textContent="Connect to the internet first.";return}
+  if(!token()){status.textContent="Team access token is missing. Reconnect Team access first.";return}
+  if(mode==="apply"&&!mtc03RepairPreview){status.textContent="Run the preview first.";return}
+  if(mode==="apply"&&!(mtc03RepairPreview.currentTotal===0&&mtc03RepairPreview.linkedPossumRecords===12&&mtc03RepairPreview.datedInReportYear===12&&mtc03RepairPreview.proposedTotal===12)){
+    status.textContent="Preview did not meet all safety checks. Nothing changed.";return
+  }
+  if(mode==="apply"&&!confirm("Apply the MTC03 check #1 report repair? This changes only that report's possum totals. Sightings and image records will not be changed."))return;
+  if(previewBtn)previewBtn.disabled=true;if(applyBtn)applyBtn.disabled=true;
+  status.textContent=mode==="preview"?"Checking MTC03 safely…":"Applying the guarded MTC03 report repair…";
+  try{
+    const res=await fetch(endpoint()+"/team/mtc03-report-repair",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:JSON.stringify({token:token(),mode})});
+    const data=await res.json();if(!res.ok||data.ok!==true)throw Error(data.error||("Worker returned "+res.status));
+    if(mode==="preview"){
+      mtc03RepairPreview=data;
+      status.textContent="Preview only — no changes made. MTC03 check #"+data.checkNo+" ("+data.checkedDate+"): current total "+data.currentTotal+", linked possum records "+data.linkedPossumRecords+", dated in report year "+data.datedInReportYear+", proposed total "+data.proposedTotal+".";
+      if(applyBtn)applyBtn.hidden=!(data.currentTotal===0&&data.linkedPossumRecords===12&&data.datedInReportYear===12&&data.proposedTotal===12);
+    }else{
+      mtc03RepairPreview=null;if(applyBtn)applyBtn.hidden=true;
+      status.textContent="Repair applied to MTC03 check #"+data.checkNo+". New total: "+data.proposedTotal+". Sightings were not changed. Run the report audit again to verify.";
+    }
+  }catch(e){status.textContent="MTC03 repair "+mode+" failed: "+String(e.message||e)+". No change is confirmed."}
+  finally{if(previewBtn)previewBtn.disabled=false;if(applyBtn)applyBtn.disabled=false}
+}
 async function exportReport(){
   const merged=await mergedChecks(),checks=dedupeCameraChecks(merged).checks,year=Number($("reportYear")?.value)||new Date().getFullYear(),camera=$("reportCamera")?.value||"all";
   const data=checks.filter(c=>Number(c.reportYear)===year&&(camera==="all"||String(c.cameraNo||"").trim()===camera)).sort(cameraSort);
@@ -484,7 +511,7 @@ $("startCameraCheck")?.addEventListener("click",startCheck);
 $("cancelCameraCheck")?.addEventListener("click",cancelCheck);
 $("finishCameraCheck")?.addEventListener("click",finishCheck);
 $("refreshReport")?.addEventListener("click",renderReport);
-$("runReportAudit")?.addEventListener("click",runReportAudit);
+$("runReportAudit")?.addEventListener("click",runReportAudit);\n$("mtc03RepairPreview")?.addEventListener("click",()=>mtc03RepairRequest("preview"));\n$("mtc03RepairApply")?.addEventListener("click",()=>mtc03RepairRequest("apply"));
 $("exportCameraReport")?.addEventListener("click",exportReport);
 $("reportYear")?.addEventListener("change",renderReport);
 $("reportCamera")?.addEventListener("change",renderReport);
