@@ -616,8 +616,14 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
     });
     if(!records.length)return false;
     const mismatch=Number(check.totalPossum)!==records.length;
-    const warning=mismatch?"Report count: "+check.totalPossum+" possum images. "+records.length+" shared image links were found for this older check, so some may belong to another SD-card run.":"";
-    openSharedGallery(records,0,"sighting",warning);return mismatch?"mismatch-opened":true;
+    const notes=[];
+    if(mismatch)notes.push("Report count: "+check.totalPossum+" possum images. "+records.length+" dated shared image links were found for this check.");
+    if(sharedAudit){
+      notes.push("Read-only source check — this device: no matching local possum images found for this check; shared team database: "+Number(sharedAudit.linkedPossumRecords||0)+" linked possum records, "+Number(sharedAudit.datedPossumRecords||0)+" with capture dates. This gallery is showing shared team images only. No records were changed.");
+    }else{
+      notes.push("Shared database audit comparison unavailable. This gallery is showing shared team images only; local device records were not matched. No records were changed.");
+    }
+    openSharedGallery(records,0,"sighting",notes.join("\\n\\n"));return mismatch?"mismatch-opened":true;
   }catch{return false}
 };
 
