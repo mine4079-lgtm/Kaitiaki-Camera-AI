@@ -421,12 +421,12 @@ async function runReportAudit(){
        detail.append(heading);
        const table=document.createElement("table");table.className="report-table";
        const thead=document.createElement("thead"),hr=document.createElement("tr");
-       ["Missing-date filename","Path","Record created","Stored image EXIF date","Dated filename match","Match type","Exact image bytes","Time gap (seconds)"].forEach(v=>{const th=document.createElement("th");th.textContent=v;hr.append(th)});
+       ["Missing-date filename","Path","Record created","Last updated","Verified at","Imported by","Device","Image type","Stored image EXIF date","Dated filename match","Match type","Exact image bytes","Time gap (seconds)"].forEach(v=>{const th=document.createElement("th");th.textContent=v;hr.append(th)});
        thead.append(hr);table.append(thead);const tbody=document.createElement("tbody");
        for(const c of recovery){
          const matches=c.matches||[];
-         if(!matches.length){const tr=document.createElement("tr");[c.fileName,c.relativePath,c.recordCreatedAt,c.storedImageExifDate||"No EXIF date","No dated filename match","—","—","—"].forEach(v=>{const td=document.createElement("td");td.textContent=v||"—";tr.append(td)});tbody.append(tr);continue}
-         for(const m of matches){const tr=document.createElement("tr");[c.fileName,c.relativePath,c.recordCreatedAt,c.storedImageExifDate||"No EXIF date",m.fileName,m.matchType,m.exactImageBytesMatch?"YES":(m.hasStoredImage&&c.hasStoredImage?"NO":"Not available"),m.creationGapSeconds??"—"].forEach(v=>{const td=document.createElement("td");td.textContent=v??"—";tr.append(td)});tbody.append(tr)}
+         if(!matches.length){const tr=document.createElement("tr");[c.fileName,c.relativePath,c.recordCreatedAt,c.recordUpdatedAt||"—",c.recordVerifiedAt||"—",c.recordImportedBy||"—",c.recordDeviceName||c.recordDeviceId||"—",c.recordImageType||"—",c.storedImageExifDate||"No EXIF date","No dated filename match","—","—","—"].forEach(v=>{const td=document.createElement("td");td.textContent=v||"—";tr.append(td)});tbody.append(tr);continue}
+         for(const m of matches){const tr=document.createElement("tr");[c.fileName,c.relativePath,c.recordCreatedAt,c.recordUpdatedAt||"—",c.recordVerifiedAt||"—",c.recordImportedBy||"—",c.recordDeviceName||c.recordDeviceId||"—",c.recordImageType||"—",c.storedImageExifDate||"No EXIF date",m.fileName,m.matchType,m.exactImageBytesMatch?"YES":(m.hasStoredImage&&c.hasStoredImage?"NO":"Not available"),m.creationGapSeconds??"—"].forEach(v=>{const td=document.createElement("td");td.textContent=v??"—";tr.append(td)});tbody.append(tr)}
        }
        table.append(tbody);detail.append(table);
        const linked=(data.oxic1LinkedRecordDetails||[]).filter(r=>String(r.cameraNo||"").toUpperCase()==="OXIC1");
