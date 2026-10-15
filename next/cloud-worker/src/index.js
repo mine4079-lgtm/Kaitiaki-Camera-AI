@@ -429,6 +429,54 @@ async function handleTeamImage(input, env, origin) {
   }, 200, origin);
 }
 
+async function handleMtc03ReportRepair(input, env, origin) {
+  if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet" }, 503, origin);
+  // Deliberately limited to the single known report. Preview is read-only; apply
+  // requires an explicit second action and strict validation of the current row.
+  const mode = clean(input?.mode, 20);
+  if (mode !== "preview" && mode !== "apply") return reply({ error: "Choose preview or apply" }, 400, origin);
+  const check = await env.KAITIAKI_DB.prepare(`
+    SELECT id, camera_no, check_no, checked_date, report_year, total_possum, monthly_possum_json
+    FROM camera_checks
+    WHERE UPPER(camera_no)='MTC03' AND check_no=1 AND checked_date='2026-10-01'
+  `).all();
+  const checks = check.results || [];
+  if (checks.length !== 1) return reply({ error: "Safety check failed: expected exactly one MTC03 check #1 dated 2026-10-01", matchingChecks: checks.length }, 409, origin);
+  const c = checks[0];
+  const rows = await env.KAITIAKI_DB.prepare(`
+    SELECT id, ai_prediction, confirmed_label, human_verified, status, captured_at
+    FROM sightings WHERE camera_check_id=? AND UPPER(camera_no)='MTC03'
+  `).bind(c.id).all();
+  const records = rows.results || [];
+  const possums = records.filter(r => r.status !== "ignored" &&
+    (Number(r.human_verified) ? (r.confirmed_label || r.ai_prediction) : r.ai_prediction) === "Possum");
+  const year = Number(c.report_year) || 2026;
+  const monthly = Array(12).fill(0);
+  const dated = [];
+  for (const r of possums) {
+    const d = String(r.captured_at || "").slice(0, 10);
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(d)) continue;
+    const y = Number(d.slice(0,4)), m = Number(d.slice(5,7));
+    if (y === year && m >= 1 && m <= 12) monthly[m-1]++;
+    if (y === year) dated.push(d);
+  }
+  const total = monthly.reduce((a,n)=>a+n,0);
+  const result = { mode, cameraNo:c.camera_no, checkNo:Number(c.check_no), checkedDate:c.checked_date,
+    checkId:c.id, currentTotal:Number(c.total_possum)||0, linkedPossumRecords:possums.length,
+    datedInReportYear:total, proposedMonthlyPossum:monthly, proposedTotal:total };
+  if (mode === "preview") return reply({ ok:true, preview:true, ...result },200,origin);
+  if (Number(c.total_possum)!==0 || total===0 || possums.length!==12 || total!==12) {
+    return reply({ error:"Safety check failed: current total or linked record count changed; nothing updated", ...result },409,origin);
+  }
+  const latest = dated.sort().at(-1) || "";
+  const updated = await env.KAITIAKI_DB.prepare(`
+    UPDATE camera_checks SET total_possum=?, monthly_possum_json=?, latest_possum_date=?, approx_presence='Medium', updated_at=?
+    WHERE id=? AND UPPER(camera_no)='MTC03' AND check_no=1 AND checked_date='2026-10-01' AND total_possum=0
+  `).bind(total,JSON.stringify(monthly),latest,new Date().toISOString(),c.id).run();
+  if (Number(updated?.meta?.changes||0)!==1) return reply({ error:"Report row was not updated; please re-audit" },409,origin);
+  return reply({ ok:true, applied:true, ...result, latestPossumDate:latest },200,origin);
+}
+
 async function handleCameraCheckAudit(input, env, origin) {
   if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
   // Strictly read-only: do not call ensureSchema here because it can alter existing sighting statuses.
@@ -1078,6 +1126,7 @@ export default {
       if (url.pathname === "/team/review-resolve") return handleTeamReviewResolve(parsed.input, env, origin);
       if (url.pathname === "/team/image") return handleTeamImage(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-audit") return handleCameraCheckAudit(parsed.input, env, origin);
+      if (url.pathname === "/team/mtc03-report-repair") return handleMtc03ReportRepair(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-reconcile") return handleCameraCheckReconcile(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-sync") return handleCameraCheckSync(parsed.input, env, origin);
       if (url.pathname === "/team/camera-checks") return handleCameraChecks(parsed.input, env, origin);
