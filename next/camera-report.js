@@ -443,6 +443,13 @@ async function runReportAudit(){
          linkedBody.append(tr);
        }
        linkedTable.append(linkedBody);detail.append(linkedTable);
+       const oxic1Sep30=linked.filter(r=>String(r.cameraNo||"").toUpperCase()==="OXIC1"&&String(r.checkedDate||"").slice(0,10)==="2026-09-30"&&Number(r.checkNo)===1);
+       if(oxic1Sep30.length){
+         const missingDateCount=oxic1Sep30.filter(r=>!String(r.capturedAt||"").trim()).length;
+         const missingDateSummary=document.createElement("p");missingDateSummary.className="sub";
+         missingDateSummary.textContent="OXIC1 Check #1 · 30 Sep 2026: "+missingDateCount+" of "+oxic1Sep30.length+" linked possum records have no reliable capture date. They remain undated and are shown as MISSING above; no dates or report totals have been changed.";
+         detail.append(missingDateSummary);
+       }
        const mtc03=(data.mtc03LinkedRecordDetails||[]).filter(r=>String(r.cameraNo||"").toUpperCase()==="MTC03");
        const mtcHeading=document.createElement("p");mtcHeading.className="sub";
        mtcHeading.textContent="MTC03 linked possum records (read-only): showing "+mtc03.length+" of "+(data.mtc03LinkedRecordCount??mtc03.length)+" records returned. No records changed.";
