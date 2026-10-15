@@ -449,11 +449,11 @@ async function runReportAudit(){
        detail.append(mtcHeading);
        const mtcTable=document.createElement("table");mtcTable.className="report-table";
        const mtcHead=document.createElement("thead"),mtcHr=document.createElement("tr");
-       ["Check #","Check date","Capture date","Filename","AI label","Confirmed label","Human verified","Status","Record ID","Camera-check link"].forEach(v=>{const th=document.createElement("th");th.textContent=v;mtcHr.append(th)});
+       ["Check #","Check date","Capture date","Filename","AI label","Confirmed label","Human verified","Status","Record created","Last updated","Record ID","Camera-check link"].forEach(v=>{const th=document.createElement("th");th.textContent=v;mtcHr.append(th)});
        mtcHead.append(mtcHr);mtcTable.append(mtcHead);const mtcBody=document.createElement("tbody");
        for(const r of mtc03){
          const tr=document.createElement("tr");
-         [r.checkNo==null?"—":"#"+r.checkNo,r.checkedDate||"—",r.capturedAt||"MISSING",r.fileName||"—",r.aiPrediction||"—",r.confirmedLabel||"—",Number(r.humanVerified)?"Yes":"No",r.status||"—",r.recordId||"—",r.cameraCheckId||"—"].forEach(v=>{const td=document.createElement("td");td.textContent=v;tr.append(td)});
+         [r.checkNo==null?"—":"#"+r.checkNo,r.checkedDate||"—",r.capturedAt||"MISSING",r.fileName||"—",r.aiPrediction||"—",r.confirmedLabel||"—",Number(r.humanVerified)?"Yes":"No",r.status||"—",r.createdAt||"—",r.updatedAt||"—",r.recordId||"—",r.cameraCheckId||"—"].forEach(v=>{const td=document.createElement("td");td.textContent=v;tr.append(td)});
          mtcBody.append(tr);
        }
        mtcTable.append(mtcBody);detail.append(mtcTable);
