@@ -477,6 +477,52 @@ async function handleMtc03ReportRepair(input, env, origin) {
   return reply({ ok:true, applied:true, ...result, latestPossumDate:latest },200,origin);
 }
 
+function storedJpegExifDate(input) {
+  try {
+    const b = input instanceof Uint8Array ? input : new Uint8Array(input);
+    if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) return "";
+    let p = 2;
+    while (p + 4 < b.length) {
+      if (b[p] !== 0xff) { p++; continue; }
+      const marker = b[p + 1], len = (b[p + 2] << 8) | b[p + 3];
+      if (!len || len < 2 || p + 2 + len > b.length) break;
+      if (marker === 0xe1 && len >= 10 && String.fromCharCode(...b.slice(p + 4, p + 10)) === "Exif\0\0") {
+        const t = p + 10;
+        const little = b[t] === 0x49 && b[t + 1] === 0x49;
+        if (!(little || (b[t] === 0x4d && b[t + 1] === 0x4d))) return "";
+        const u16 = o => o + 2 <= b.length ? (little ? b[o] | b[o+1] << 8 : b[o] << 8 | b[o+1]) : 0;
+        const u32 = o => o + 4 <= b.length ? (little ? (b[o] | b[o+1]<<8 | b[o+2]<<16 | b[o+3]<<24) >>> 0 : (b[o]<<24 | b[o+1]<<16 | b[o+2]<<8 | b[o+3]) >>> 0) : 0;
+        if (u16(t + 2) !== 42) return "";
+        const find = base => {
+          const n = u16(base);
+          for (let i = 0; i < n && base + 2 + i*12 + 12 <= b.length; i++) {
+            const e = base + 2 + i*12, tag = u16(e);
+            if (tag === 0x9003 || tag === 0x9004 || tag === 0x0132) return e;
+          }
+          return -1;
+        };
+        const ifd0 = t + u32(t + 4);
+        let exifPtr = -1;
+        for (let i=0,n=u16(ifd0); i<n && ifd0+2+i*12+12<=b.length; i++) {
+          const e=ifd0+2+i*12;if(u16(e)===0x8769){exifPtr=e;break}
+        }
+        const bases = exifPtr >= 0 ? [t + u32(exifPtr + 8), ifd0] : [ifd0];
+        for (const base of bases) {
+          const e=find(base); if(e<0) continue;
+          const count=u32(e+4), off=count<=4?e+8:t+u32(e+8);
+          if(off<0||off+Math.min(count,32)>b.length)continue;
+          let value="";for(let i=0;i<Math.min(count,32);i++){if(!b[off+i])break;value+=String.fromCharCode(b[off+i])}
+          const m=/^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(value);
+          if(m){const y=Number(m[1]),mo=Number(m[2]),d=Number(m[3]);if(y>=2000&&mo>=1&&mo<=12&&d>=1&&d<=31)return m[1]+"-"+m[2]+"-"+m[3]+" "+m[4]+":"+m[5]+":"+m[6]}
+        }
+        return "";
+      }
+      p += 2 + len;
+    }
+  } catch {}
+  return "";
+}
+
 async function handleCameraCheckAudit(input, env, origin) {
   if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
   // Strictly read-only: do not call ensureSchema here because it can alter existing sighting statuses.
@@ -599,11 +645,14 @@ async function handleCameraCheckAudit(input, env, origin) {
       const digest = await crypto.subtle.digest("SHA-256", bytes);
       const hex = [...new Uint8Array(digest)].map(v=>v.toString(16).padStart(2,"0")).join("");
       imageHashes.set(String(imageRow.id), hex);
+      const exifDate = storedJpegExifDate(bytes);
+      if (exifDate) imageHashes.set(String(imageRow.id)+"|exif", exifDate);
     }
   }
   for (const candidate of recoveryCandidates) {
     const missingHash = imageHashes.get(String(candidate.recordId)) || "";
     candidate.hasStoredImage = Boolean(missingHash);
+    candidate.storedImageExifDate = imageHashes.get(String(candidate.recordId)+"|exif") || "";
     candidate.matches = (candidate.matches||[]).map(match => {
       const candidateHash = imageHashes.get(String(match.recordId)) || "";
       return {...match, hasStoredImage: Boolean(candidateHash),
