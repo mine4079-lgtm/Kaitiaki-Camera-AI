@@ -455,7 +455,7 @@ async function handleMtc03ReportRepair(input, env, origin) {
   const dated = [];
   for (const r of possums) {
     const d = String(r.captured_at || "").slice(0, 10);
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(d)) continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
     const y = Number(d.slice(0,4)), m = Number(d.slice(5,7));
     if (y === year && m >= 1 && m <= 12) monthly[m-1]++;
     if (y === year) dated.push(d);
