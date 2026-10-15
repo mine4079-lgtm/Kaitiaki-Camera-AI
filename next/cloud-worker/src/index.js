@@ -539,7 +539,8 @@ async function handleCameraCheckAudit(input, env, origin) {
     `).bind(...cameraNos).all(),
     env.KAITIAKI_DB.prepare(`
       SELECT id, camera_no, camera_check_id, check_no, checked_date, file_name, relative_path,
-        ai_prediction, confirmed_label, human_verified, status, captured_at, created_at, updated_at
+        ai_prediction, confirmed_label, human_verified, status, captured_at, verified_at, created_at, updated_at,
+        team_name, device_id, device_name, imported_by, reviewer_name, image_type
       FROM sightings
       WHERE UPPER(COALESCE(camera_no,'')) IN (${placeholders})
          OR camera_check_id IN (SELECT id FROM camera_checks WHERE UPPER(camera_no) IN (${placeholders}))
@@ -611,6 +612,8 @@ async function handleCameraCheckAudit(input, env, origin) {
       recordCameraCheckId:row.camera_check_id||"",
       recordCheckLinkValid:perCheck.has(String(row.camera_check_id||"")),
       recordCreatedAt:row.created_at||"", recordUpdatedAt:row.updated_at||"",
+      recordVerifiedAt:row.verified_at||"", recordImportedBy:row.imported_by||"", recordReviewerName:row.reviewer_name||"",
+      recordTeamName:row.team_name||"", recordDeviceName:row.device_name||"", recordDeviceId:row.device_id||"", recordImageType:row.image_type||"",
       matches:unique.slice(0,3).map(m=>({
         recordId:m.id,fileName:m.file_name||"",relativePath:m.relative_path||"",
         matchType: String(m.relative_path||"").trim().toLowerCase()===path && path ? "same filename + exact path" : "same filename only",
@@ -672,8 +675,9 @@ async function handleCameraCheckAudit(input, env, origin) {
       const detailRecord = {
         cameraNo: camera, recordId: r.id, cameraCheckId: currentId,
         checkNo: current.check_no ?? current.checkNo, checkedDate: current.checkedDate,
-        capturedAt: r.captured_at || "", fileName: r.file_name || "",
-        relativePath: r.relative_path || "", status: r.status || "",
+        capturedAt: r.captured_at || "", verifiedAt:r.verified_at||"", fileName: r.file_name || "",
+        relativePath: r.relative_path || "", status: r.status || "", createdAt:r.created_at||"", updatedAt:r.updated_at||"",
+        importedBy:r.imported_by||"", reviewerName:r.reviewer_name||"", teamName:r.team_name||"", deviceName:r.device_name||"", imageType:r.image_type||"",
         aiPrediction: r.ai_prediction || "", confirmedLabel: r.confirmed_label || "",
         humanVerified: Number(r.human_verified) || 0,
         createdAt: r.created_at || "", updatedAt: r.updated_at || ""
