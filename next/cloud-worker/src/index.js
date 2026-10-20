@@ -581,6 +581,7 @@ async function handleCameraCheckAudit(input, env, origin) {
   const oxic1LinkedRecordDetails = [];
   const mtc03LinkedRecordDetails = [];
   const mtc01LinkedRecordDetails = [];
+  const oxic3LinkedRecordDetails = [];
   const signatureCounts = new Map();
   const possumRows = rows.filter(r => {
     const label = Number(r.human_verified) ? (r.confirmed_label || r.ai_prediction) : r.ai_prediction;
@@ -697,6 +698,7 @@ async function handleCameraCheckAudit(input, env, origin) {
       if (camera === "OXIC1" && oxic1LinkedRecordDetails.length < 300) oxic1LinkedRecordDetails.push(detailRecord);
       if (camera === "MTC03" && mtc03LinkedRecordDetails.length < 300) mtc03LinkedRecordDetails.push(detailRecord);
       if (camera === "MTC01" && mtc01LinkedRecordDetails.length < 300) mtc01LinkedRecordDetails.push(detailRecord);
+      if (camera === "OXIC3" && oxic3LinkedRecordDetails.length < 300) oxic3LinkedRecordDetails.push(detailRecord);
       current.linkedPossumRecords++;
       if (!captured) {
         current.missingCaptureDate++;
@@ -738,6 +740,7 @@ async function handleCameraCheckAudit(input, env, origin) {
     oxic1LinkedRecordDetails, oxic1LinkedRecordCount: oxic1LinkedRecordDetails.length,
     mtc03LinkedRecordDetails, mtc03LinkedRecordCount: mtc03LinkedRecordDetails.length,
     mtc01LinkedRecordDetails, mtc01LinkedRecordCount: mtc01LinkedRecordDetails.length,
+    oxic3LinkedRecordDetails, oxic3LinkedRecordCount: oxic3LinkedRecordDetails.length,
     recoveryCandidates, recoveryCandidateCount:recoveryCandidates.length,
     exactDuplicateCandidates:[...signatureCounts.values()].reduce((n,v)=>n+Math.max(0,v-1),0)},200,origin);
 }
