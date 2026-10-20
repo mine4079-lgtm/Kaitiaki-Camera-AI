@@ -407,7 +407,7 @@ async function runReportAudit(){
     const checks=(data.checks||[]).filter(c=>Number(c.reportYear)===year&&(selectedCamera==="all"||String(c.cameraNo||"").trim()===selectedCamera));
     for(const c of checks){
       const tr=document.createElement("tr");
-      const vals=[c.cameraNo,"#"+c.checkNo,c.checkedDate,c.reportYear,c.reportImages,c.linkedPossumRecords,c.datedPossumRecords,c.capturedInReportYear,c.capturedOutsideReportYear,c.missingCaptureDate,c.reportVsDatedDelta];
+      const vals=[c.cameraNo,"#"+c.checkNo,c.checkedDate,c.reportYear,c.reportImages,c.linkedPossumRecords,c.activeSightingRecords,c.resolvedRecords,c.ignoredRecords,c.otherStatusRecords,c.datedPossumRecords,c.capturedInReportYear,c.capturedOutsideReportYear,c.missingCaptureDate,c.reportVsDatedDelta];
       for(const value of vals){const td=document.createElement("td");td.textContent=value??"—";tr.append(td)}
       body.append(tr);
     }
