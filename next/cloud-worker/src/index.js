@@ -686,8 +686,6 @@ async function handleCameraCheckAudit(input, env, origin) {
     else if (current) current.activePossumRecords++;
     const camera = String(r.camera_no || checksById.get(currentId)?.camera_no || "").trim().toUpperCase();
     const captured = String(r.captured_at || "").slice(0,10);
-    const currentId = String(r.camera_check_id || "");
-    const current = perCheck.get(currentId);
     const sig = camera+"|"+String(r.file_name||"").trim().toLowerCase()+"|"+String(r.captured_at||"").trim();
     if (sig !== "|") signatureCounts.set(sig,(signatureCounts.get(sig)||0)+1);
     if (current) {
@@ -698,8 +696,7 @@ async function handleCameraCheckAudit(input, env, origin) {
         relativePath: r.relative_path || "", status: r.status || "", createdAt:r.created_at||"", updatedAt:r.updated_at||"",
         importedBy:r.imported_by||"", reviewerName:r.reviewer_name||"", teamName:r.team_name||"", deviceName:r.device_name||"", imageType:r.image_type||"",
         aiPrediction: r.ai_prediction || "", confirmedLabel: r.confirmed_label || "",
-        humanVerified: Number(r.human_verified) || 0,
-        createdAt: r.created_at || "", updatedAt: r.updated_at || ""
+        humanVerified: Number(r.human_verified) || 0
       };
       if (camera === "OXIC1" && oxic1LinkedRecordDetails.length < 300) oxic1LinkedRecordDetails.push(detailRecord);
       if (camera === "MTC03" && mtc03LinkedRecordDetails.length < 300) mtc03LinkedRecordDetails.push(detailRecord);
