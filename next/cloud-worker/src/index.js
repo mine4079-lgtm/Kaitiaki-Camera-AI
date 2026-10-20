@@ -573,7 +573,7 @@ async function handleCameraCheckAudit(input, env, origin) {
   const perCheck = new Map(checks.map(c => [String(c.id), {
     id:String(c.id), cameraNo:c.camera_no, checkNo:Number(c.check_no)||0, checkedDate:String(c.checked_date||"").slice(0,10),
     reportImages:Number(c.total_possum)||0, reportYear:Number(c.report_year)||Number(String(c.checked_date||"").slice(0,4)),
-    linkedPossumRecords:0, datedPossumRecords:0, capturedInReportYear:0, capturedOutsideReportYear:0, uniqueFileTimeSignatures:0,
+    activePossumRecords:0, resolvedPossumRecords:0, ignoredPossumRecords:0, linkedPossumRecords:0, datedPossumRecords:0, capturedInReportYear:0, capturedOutsideReportYear:0, uniqueFileTimeSignatures:0,
     exactDuplicateCandidates:0, missingCaptureDate:0, otherYear:0, noCheckLink:0, dateRuleWouldMove:0,
     samples:[], missingDateSamples:[], signatures:new Map()
   }]));
@@ -585,7 +585,7 @@ async function handleCameraCheckAudit(input, env, origin) {
   const signatureCounts = new Map();
   const possumRows = rows.filter(r => {
     const label = Number(r.human_verified) ? (r.confirmed_label || r.ai_prediction) : r.ai_prediction;
-    return label === "Possum" && r.status !== "ignored";
+    return label === "Possum";
   });
   // Read-only recovery hints: locate dated records from the same camera with matching
   // relative path or filename. These are suggestions only; no dates are copied.
@@ -678,7 +678,13 @@ async function handleCameraCheckAudit(input, env, origin) {
   }
 
   for (const r of possumRows) {
-    const camera = String(r.camera_no || checksById.get(String(r.camera_check_id||""))?.camera_no || "").trim().toUpperCase();
+    const currentId = String(r.camera_check_id || "");
+    const current = perCheck.get(currentId);
+    const rowStatus = String(r.status || "").trim().toLowerCase();
+    if (current && rowStatus === "ignored") { current.ignoredPossumRecords++; continue; }
+    if (current && rowStatus === "resolved") current.resolvedPossumRecords++;
+    else if (current) current.activePossumRecords++;
+    const camera = String(r.camera_no || checksById.get(currentId)?.camera_no || "").trim().toUpperCase();
     const captured = String(r.captured_at || "").slice(0,10);
     const currentId = String(r.camera_check_id || "");
     const current = perCheck.get(currentId);
@@ -730,7 +736,7 @@ async function handleCameraCheckAudit(input, env, origin) {
   const result = [...perCheck.values()].map(c=>{
     const dup=[...c.signatures.values()].reduce((n,v)=>n+Math.max(0,v-1),0);
     return {id:c.id,cameraNo:c.cameraNo,checkNo:c.checkNo,checkedDate:c.checkedDate,reportYear:c.reportYear,reportImages:c.reportImages,
-      linkedPossumRecords:c.linkedPossumRecords,datedPossumRecords:c.datedPossumRecords,
+      activePossumRecords:c.activePossumRecords,resolvedPossumRecords:c.resolvedPossumRecords,ignoredPossumRecords:c.ignoredPossumRecords,linkedPossumRecords:c.linkedPossumRecords,datedPossumRecords:c.datedPossumRecords,
       capturedInReportYear:c.capturedInReportYear,capturedOutsideReportYear:c.capturedOutsideReportYear,
       reportVsDatedDelta:c.reportImages-c.capturedInReportYear,uniqueFileTimeSignatures:c.signatures.size,
       exactDuplicateCandidates:dup,missingCaptureDate:c.missingCaptureDate,otherYear:c.otherYear,
