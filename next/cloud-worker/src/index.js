@@ -681,8 +681,8 @@ async function handleCameraCheckAudit(input, env, origin) {
     const currentId = String(r.camera_check_id || "");
     const current = perCheck.get(currentId);
     const rowStatus = String(r.status || "").trim().toLowerCase();
-    if (current && rowStatus === "ignored") { current.ignoredPossumRecords++; continue; }
-    if (current && rowStatus === "resolved") current.resolvedPossumRecords++;
+    if (current && rowStatus === "ignored") current.ignoredPossumRecords++;
+    else if (current && rowStatus === "resolved") current.resolvedPossumRecords++;
     else if (current) current.activePossumRecords++;
     const camera = String(r.camera_no || checksById.get(currentId)?.camera_no || "").trim().toUpperCase();
     const captured = String(r.captured_at || "").slice(0,10);
