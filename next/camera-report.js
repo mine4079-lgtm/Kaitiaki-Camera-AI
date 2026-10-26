@@ -492,6 +492,20 @@ async function runReportAudit(){
          oxic3Body.append(tr);
        }
        oxic3Table.append(oxic3Body);detail.append(oxic3Table);
+        const tpac3a=(data.tpac3aLinkedRecordDetails||[]).filter(r=>String(r.cameraNo||"").toUpperCase()==="TPAC3A");
+        const tpac3aHeading=document.createElement("p");tpac3aHeading.className="sub";
+        tpac3aHeading.textContent="TPAC3A linked possum records (read-only): showing "+tpac3a.length+" of "+(data.tpac3aLinkedRecordCount??tpac3a.length)+" records returned. Compare filename and capture date with the saved report. No records changed.";
+        detail.append(tpac3aHeading);
+        const tpac3aTable=document.createElement("table");tpac3aTable.className="report-table";
+        const tpac3aHead=document.createElement("thead"),tpac3aHr=document.createElement("tr");
+        ["Check #","Check date","Capture date","Filename","AI label","Confirmed label","Status","Record created","Last updated","Record ID","Camera-check link"].forEach(v=>{const th=document.createElement("th");th.textContent=v;tpac3aHr.append(th)});
+        tpac3aHead.append(tpac3aHr);tpac3aTable.append(tpac3aHead);const tpac3aBody=document.createElement("tbody");
+        for(const r of tpac3a){
+          const tr=document.createElement("tr");
+          [r.checkNo==null?"—":"#"+r.checkNo,r.checkedDate||"—",r.capturedAt||"MISSING",r.fileName||"—",r.aiPrediction||"—",r.confirmedLabel||"—",r.status||"—",r.createdAt||"—",r.updatedAt||"—",r.recordId||"—",r.cameraCheckId||"—"].forEach(v=>{const td=document.createElement("td");td.textContent=v;tr.append(td)});
+          tpac3aBody.append(tr);
+        }
+        tpac3aTable.append(tpac3aBody);detail.append(tpac3aTable);
      }
     if(!checks.length)status.textContent="Audit completed, but no checks matched the selected year/camera. Try All cameras or another year.";
   }catch(e){status.textContent="Audit failed: "+String(e.message||e)}
