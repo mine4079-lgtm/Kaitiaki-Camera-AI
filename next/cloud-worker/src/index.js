@@ -746,6 +746,7 @@ async function handleCameraCheckAudit(input, env, origin) {
     mtc03LinkedRecordDetails, mtc03LinkedRecordCount: mtc03LinkedRecordDetails.length,
     mtc01LinkedRecordDetails, mtc01LinkedRecordCount: mtc01LinkedRecordDetails.length,
     oxic3LinkedRecordDetails, oxic3LinkedRecordCount: oxic3LinkedRecordDetails.length,
+    tpac3aLinkedRecordDetails, tpac3aLinkedRecordCount: tpac3aLinkedRecordDetails.length,
     recoveryCandidates, recoveryCandidateCount:recoveryCandidates.length,
     exactDuplicateCandidates:[...signatureCounts.values()].reduce((n,v)=>n+Math.max(0,v-1),0)},200,origin);
 }
