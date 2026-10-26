@@ -582,6 +582,7 @@ async function handleCameraCheckAudit(input, env, origin) {
   const mtc03LinkedRecordDetails = [];
   const mtc01LinkedRecordDetails = [];
   const oxic3LinkedRecordDetails = [];
+  const tpac3aLinkedRecordDetails = [];
   const signatureCounts = new Map();
   const possumRows = rows.filter(r => {
     const label = Number(r.human_verified) ? (r.confirmed_label || r.ai_prediction) : r.ai_prediction;
@@ -702,6 +703,7 @@ async function handleCameraCheckAudit(input, env, origin) {
       if (camera === "MTC03" && mtc03LinkedRecordDetails.length < 300) mtc03LinkedRecordDetails.push(detailRecord);
       if (camera === "MTC01" && mtc01LinkedRecordDetails.length < 300) mtc01LinkedRecordDetails.push(detailRecord);
       if (camera === "OXIC3" && oxic3LinkedRecordDetails.length < 300) oxic3LinkedRecordDetails.push(detailRecord);
+      if (camera === "TPAC3A" && tpac3aLinkedRecordDetails.length < 300) tpac3aLinkedRecordDetails.push(detailRecord);
       current.linkedPossumRecords++;
       if (!captured) {
         current.missingCaptureDate++;
