@@ -969,7 +969,7 @@ async function handleCameraCheckSync(input, env, origin) {
   const incomingUpdatedAt = rawIncomingUpdatedAt || now;
   // Do not let an older offline/browser copy overwrite a newer shared report snapshot.
   // This is a last-write guard only; it does not recalculate or repair report totals.
-  const existing = await env.KAITIAI_DB.prepare(
+  const existing = await env.KAITIAKI_DB.prepare(
     "SELECT updated_at FROM camera_checks WHERE id=?"
   ).bind(id).first();
   const existingUpdatedAt = String(existing?.updated_at || "");
