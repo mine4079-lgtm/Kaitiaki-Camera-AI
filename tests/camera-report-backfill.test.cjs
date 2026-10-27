@@ -98,3 +98,11 @@ assert.match(syncSource, /existing && !Number\.isFinite\(incomingTime\)/,
   "existing shared reports must reject missing or invalid incoming timestamps");
 assert.match(syncSource, /skipped\s*:\s*true/,
   "stale report sync should return a visible skipped result");
+
+const finishCheckSource = extractFunction("finishCheck");
+assert.match(finishCheckSource, /const finalCheckedDate=\$\("cameraCheckedDate"\)\.value\|\|c\.checkedDate\|\|today\(\)/,
+  "report year must be based on the final checked date shown in the form");
+assert.match(finishCheckSource, /const validCaptureDate=v=>\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\//,
+  "capture-date reporting must preserve the stored calendar date");
+assert.match(finishCheckSource, /checkedDate:finalCheckedDate/,
+  "saved report date and report year must use the same checked date");
