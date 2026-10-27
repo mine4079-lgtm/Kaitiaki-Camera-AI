@@ -74,7 +74,7 @@ const syncEnd = workerSource.indexOf("\nasync function handleCameraChecks(", syn
 const syncSource = workerSource.slice(syncStart, syncEnd);
 assert.match(syncSource, /SELECT updated_at FROM camera_checks WHERE id=\?/,
   "sync must read the existing shared report timestamp before overwriting it");
-assert.match(syncSource, /Number\.isFinite\(incomingTime\) && incomingTime < existingTime/,
+assert.match(syncSource, /existing && Number\.isFinite\(existingTime\) && incomingTime < existingTime/,
   "older browser snapshots must not overwrite newer shared report snapshots");
 assert.match(syncSource, /existing && !Number\.isFinite\(incomingTime\)/,
   "existing shared reports must reject missing or invalid incoming timestamps");
