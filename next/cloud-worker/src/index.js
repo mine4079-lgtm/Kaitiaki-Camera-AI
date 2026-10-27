@@ -146,10 +146,6 @@ async function ensureSchema(env) {
   await env.KAITIAKI_DB.prepare(
     "CREATE INDEX IF NOT EXISTS idx_sightings_team_status ON sightings(team_name, status, updated_at DESC)"
   ).run();
-  await env.KAITIAKI_DB.prepare(
-    "UPDATE sightings SET status='ignored', needs_extra_review=0 WHERE ai_prediction='Empty image' AND status='review'"
-  ).run();
-
   await env.KAITIAKI_DB.prepare(`
     CREATE TABLE IF NOT EXISTS camera_checks (
       id TEXT PRIMARY KEY,
@@ -346,7 +342,7 @@ async function handleTeamList(input, env, origin, status) {
         captured_at, verified_at, created_at, updated_at
       FROM sightings`;
   const reviewFilter = status === "review"
-    ? ` AND NOT EXISTS (
+    ? ` AND sightings.ai_prediction<>'Empty image' AND NOT EXISTS (
         SELECT 1 FROM sightings AS newer
         WHERE newer.id<>sightings.id
           AND newer.human_verified=1
