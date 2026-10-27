@@ -299,6 +299,7 @@ async function backfillExistingChecks(){
   }
   if(changed)renderReport();
 }
+window.KaitiakiRefreshCameraReportCounts=backfillExistingChecks;
 
 async function syncCheck(check){
   if(!navigator.onLine||!token())return false;
