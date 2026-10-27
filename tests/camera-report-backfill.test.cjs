@@ -40,3 +40,10 @@ const fn = new Function("return (" + extractFunction("backfillExistingChecks") +
   assert.doesNotMatch(source, /backfillExistingChecks\(\);/, "unsafe automatic backfill invocation must remain absent");
   console.log("PASS: manual local-only camera report backfill is safely disabled");
 })().catch(error => { console.error(error); process.exitCode = 1; });
+const mergedStart = source.indexOf("async function mergedChecks(){");
+assert.notEqual(mergedStart, -1, "must find mergedChecks");
+const mergedEnd = source.indexOf("\n}\n", mergedStart) + 2;
+const mergedSource = source.slice(mergedStart, mergedEnd);
+assert.match(mergedSource, /for\s*\(const c of await sharedChecks\(\)\)/, "must merge authoritative shared reports");
+assert.match(mergedSource, /map\.set\(id,c\)/, "shared report must replace local copy regardless of local timestamp");
+assert.doesNotMatch(mergedSource, /updatedAt.*>=.*old\.updatedAt/, "local timestamps must not override the shared report");

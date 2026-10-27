@@ -304,8 +304,15 @@ async function sharedChecks(){
   const data=await res.json();if(!res.ok)throw Error(data.error||"Shared report unavailable");return data.checks||[];
 }
 async function mergedChecks(){
-  const map=new Map(localChecks().map(c=>[c.id,c]));
-  try{for(const c of await sharedChecks()){const old=map.get(c.id);if(!old||String(c.updatedAt||"")>=String(old.updatedAt||""))map.set(c.id,c)}}catch{}
+  // Shared reports are authoritative for any check ID already present in the team database.
+  // Local-only checks remain visible as a fallback when they have not synced yet.
+  const map=new Map(localChecks().map(c=>[String(c.id),c]));
+  try{
+    for(const c of await sharedChecks()){
+      const id=String(c.id);
+      if(id)map.set(id,c);
+    }
+  }catch{}
   return [...map.values()].sort((a,b)=>String(b.checkedDate||"").localeCompare(String(a.checkedDate||""))||String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
 }
 
