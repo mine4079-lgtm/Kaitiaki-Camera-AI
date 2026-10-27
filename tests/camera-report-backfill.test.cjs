@@ -74,6 +74,8 @@ const teamListEnd = workerSource.indexOf("\nasync function handleTeamReviewResol
 const teamListSource = workerSource.slice(teamListStart, teamListEnd);
 assert.doesNotMatch(teamListSource, /UPDATE sightings/,
   "opening shared review lists must not mutate shared records");
+assert.doesNotMatch(workerSource, /UPDATE sightings SET status='ignored'/,
+  "schema initialization must not silently rewrite existing review statuses");
 assert.match(teamListSource, /reviewFilter/,
   "duplicate completed reviews should be filtered in the read query instead");
 
