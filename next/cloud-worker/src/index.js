@@ -362,15 +362,15 @@ async function handleTeamList(input, env, origin, status) {
     : "";
   let stmt;
   if (cameraCheckId) {
-    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND camera_check_id=?` + reviewFilter + ` ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, cameraCheckId, limit);
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND camera_check_id=?" + reviewFilter + " ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, cameraCheckId, limit);
   } else if (team && cameraNo) {
-    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND team_name=? AND camera_no=?` + reviewFilter + ` ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, team, cameraNo, limit);
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND team_name=? AND camera_no=?" + reviewFilter + " ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, team, cameraNo, limit);
   } else if (team) {
-    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND team_name=?` + reviewFilter + ` ORDER BY updated_at DESC LIMIT ?").bind(status, team, limit);
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND team_name=?" + reviewFilter + " ORDER BY updated_at DESC LIMIT ?").bind(status, team, limit);
   } else if (cameraNo) {
-    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND camera_no=?` + reviewFilter + ` ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, cameraNo, limit);
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND camera_no=?" + reviewFilter + " ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, cameraNo, limit);
   } else {
-    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=?` + reviewFilter + ` ORDER BY updated_at DESC LIMIT ?").bind(status, limit);
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=?" + reviewFilter + " ORDER BY updated_at DESC LIMIT ?").bind(status, limit);
   }
   const result = await stmt.all();
   let records = result.results || [];
