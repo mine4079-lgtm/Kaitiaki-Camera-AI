@@ -29,7 +29,7 @@ function extractFunction(name) {
 
 function makeCheck(monthlyPossum, totalPossum) {
   return { id: "tpac3a-check-2", cameraNo: "TPAC3A", checkNo: 2, checkedDate: "2026-10-07",
-    reportYear: 2026, monthlyPossum, totalPossum, approxPresence: "Low", latestPossumDate: "2026-10-01" };
+    reportYear: 2026, monthlyPossum, totalPossum, approxPresence: "High", latestPossumDate: "2026-10-01" };
 }
 function makeRows() {
   const rows = [];
