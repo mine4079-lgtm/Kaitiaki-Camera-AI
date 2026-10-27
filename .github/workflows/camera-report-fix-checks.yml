@@ -24,7 +24,9 @@ jobs:
         run: |
           node --check next/camera-report.js
           node --check next/sw.js
-      - name: Run camera report backfill regression tests\n        run: node tests/camera-report-backfill.test.cjs\n      - name: Check inline JavaScript in index.html
+      - name: Run camera report backfill regression tests
+        run: node tests/camera-report-backfill.test.cjs
+      - name: Check inline JavaScript in index.html
         run: |
           python3 - <<'PY'
           import re
