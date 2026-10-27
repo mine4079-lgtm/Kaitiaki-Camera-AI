@@ -333,34 +333,6 @@ async function handleTeamList(input, env, origin, status) {
   }
   await ensureSchema(env);
 
-  if (status === "review") {
-    await env.KAITIAKI_DB.prepare(`
-      UPDATE sightings AS old
-      SET status='resolved',
-          needs_extra_review=0,
-          updated_at=CASE
-            WHEN old.updated_at IS NULL OR old.updated_at='' THEN datetime('now')
-            ELSE old.updated_at
-          END
-      WHERE old.status='review'
-        AND old.file_name<>''
-        AND old.captured_at<>''
-        AND EXISTS (
-          SELECT 1
-          FROM sightings AS newer
-          WHERE newer.id<>old.id
-            AND newer.human_verified=1
-            AND newer.file_name=old.file_name
-            AND (
-              newer.captured_at=old.captured_at
-              OR (
-                COALESCE(newer.relative_path,'')<>''
-                AND newer.relative_path=old.relative_path
-              )
-            )
-        )
-    `).run();
-  }
   const limit = Math.max(1, Math.min(500, int(input?.limit, 100)));
   const team = clean(input?.team, 120);
   const cameraNo = clean(input?.cameraNo, 80);
@@ -373,17 +345,32 @@ async function handleTeamList(input, env, origin, status) {
         CASE WHEN image_blob IS NULL THEN 0 ELSE 1 END AS has_image,
         captured_at, verified_at, created_at, updated_at
       FROM sightings`;
+  const reviewFilter = status === "review"
+    ? ` AND NOT EXISTS (
+        SELECT 1 FROM sightings AS newer
+        WHERE newer.id<>sightings.id
+          AND newer.human_verified=1
+          AND newer.file_name=sightings.file_name
+          AND (
+            newer.captured_at=sightings.captured_at
+            OR (
+              COALESCE(newer.relative_path,'')<>''
+              AND newer.relative_path=sightings.relative_path
+            )
+          )
+      )`
+    : "";
   let stmt;
   if (cameraCheckId) {
-    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND camera_check_id=? ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, cameraCheckId, limit);
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND camera_check_id=?` + reviewFilter + ` ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, cameraCheckId, limit);
   } else if (team && cameraNo) {
-    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND team_name=? AND camera_no=? ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, team, cameraNo, limit);
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND team_name=? AND camera_no=?` + reviewFilter + ` ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, team, cameraNo, limit);
   } else if (team) {
-    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND team_name=? ORDER BY updated_at DESC LIMIT ?").bind(status, team, limit);
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND team_name=?` + reviewFilter + ` ORDER BY updated_at DESC LIMIT ?").bind(status, team, limit);
   } else if (cameraNo) {
-    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND camera_no=? ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, cameraNo, limit);
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? AND camera_no=?` + reviewFilter + ` ORDER BY captured_at ASC, updated_at ASC LIMIT ?").bind(status, cameraNo, limit);
   } else {
-    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=? ORDER BY updated_at DESC LIMIT ?").bind(status, limit);
+    stmt = env.KAITIAKI_DB.prepare(select + " WHERE status=?` + reviewFilter + ` ORDER BY updated_at DESC LIMIT ?").bind(status, limit);
   }
   const result = await stmt.all();
   let records = result.results || [];
