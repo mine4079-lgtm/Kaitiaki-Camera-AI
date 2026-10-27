@@ -45,8 +45,9 @@ assert.notEqual(mergedStart, -1, "must find mergedChecks");
 const mergedEnd = source.indexOf("\n}\n", mergedStart) + 2;
 const mergedSource = source.slice(mergedStart, mergedEnd);
 assert.match(mergedSource, /for\s*\(const c of await sharedChecks\(\)\)/, "must merge authoritative shared reports");
-assert.match(mergedSource, /map\.set\(id,c\)/, "shared report must replace local copy regardless of local timestamp");
-assert.doesNotMatch(mergedSource, /updatedAt.*>=.*old\.updatedAt/, "local timestamps must not override the shared report");
+assert.match(mergedSource, /map\.set\(id,\{\.\.\.c,_reportSource:"shared"\}\)/, "shared reports must be marked as authoritative");
+assert.match(source, /const oldIsShared=old\._reportSource==="shared";[\s\S]*const newIsShared=c\._reportSource==="shared";[\s\S]*newIsShared&&!oldIsShared/, "duplicate checks must prefer shared rows over local rows regardless of timestamps");
+assert.match(source, /newTime>=oldTime/, "timestamps should still select the latest row when both rows have the same source");
 
 assert.match(source, /"AI label","Confirmed label","Human verified","Status","Record created","Last updated","Imported by","Reviewer","Team","Device"/, "OXIC1 audit must expose classification and provenance metadata");
 assert.match(source, /r\.aiPrediction\|\|"—".*r\.confirmedLabel\|\|"—".*Number\(r\.humanVerified\)/, "OXIC1 audit rows must show AI label, confirmed label, and human verification");
