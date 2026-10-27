@@ -69,7 +69,8 @@ async function teamPayload(request, env) {
   try { input = JSON.parse(await request.text()); }
   catch { return { error: "Invalid team request" }; }
   const role = accessRoleForToken(input?.token, env);
-  if (!role) return { error: "Not authorised" };
+  // The Project Lead credential is read-only and must never authorize /team mutations.
+  if (role !== "team") return { error: "Not authorised" };
   return { input, role };
 }
 
