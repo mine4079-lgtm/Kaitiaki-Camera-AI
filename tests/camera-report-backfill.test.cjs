@@ -37,12 +37,12 @@ function makeRows() {
   for (let i = 0; i < 12; i++) rows.push({ cameraCheckId: "tpac3a-check-2", verified: true, label: "Possum", aiPrediction: "", capturedAt: "2026-10-01T12:00:00Z", status: "sighting" });
   return rows;
 }
-async function runCase(check) {
+async function runCase(check, sharedOnly = false) {
   let saved = check, syncCalls = 0, rendered = 0;
   const rows = makeRows();
-  const fn = new Function("localChecks","openDB","allRows","effectiveLabel","isSkipped","dateOnly","presenceFromCount","saveLocalCheck","syncCheck","renderReport",
+  const fn = new Function("localChecks","sharedChecks","openDB","allRows","effectiveLabel","isSkipped","dateOnly","presenceFromCount","saveLocalCheck","syncCheck","renderReport",
     "return (" + extractFunction("backfillExistingChecks") + ")");
-  const backfill = fn(() => [saved], async () => ({ close() {} }), async () => rows,
+  const backfill = fn(() => sharedOnly ? [] : [saved], async () => sharedOnly ? [saved] : [], async () => ({ close() {} }), async () => rows,
     r => r.verified ? r.label : (r.aiPrediction || ""), r => !!r.aiSkipped || r.aiPrediction === "Empty image",
     v => v ? String(v).slice(0,10) : "", n => n === 0 ? "None" : n <= 9 ? "Low" : n <= 15 ? "Medium" : "High",
     c => { saved = c; }, async () => { syncCalls++; return true; }, () => { rendered++; });
@@ -64,5 +64,10 @@ async function runCase(check) {
   assert.equal(second.saved.monthlyPossum[8], 4, "month-only mismatch should be repaired");
   assert.equal(second.saved.monthlyPossum[9], 12, "month-only mismatch should be repaired");
   assert.equal(second.syncCalls, 1, "month-only mismatch should trigger sync");
-  console.log("PASS: human-confirmed blank-AI records and monthly-only mismatch");
+  const sharedOnly = await runCase(makeCheck(oldMonthly, 10), true);
+  assert.equal(sharedOnly.saved.totalPossum, 16, "shared report check should be backfilled even without a local cached check");
+  assert.equal(sharedOnly.saved.monthlyPossum[8], 4, "shared check should recalculate September");
+  assert.equal(sharedOnly.saved.monthlyPossum[9], 12, "shared check should recalculate October");
+  assert.equal(sharedOnly.syncCalls, 1, "updated shared check should sync once");
+  console.log("PASS: human-confirmed blank-AI records, monthly-only mismatch, and shared-only saved check");
 })().catch(error => { console.error(error); process.exitCode = 1; });
