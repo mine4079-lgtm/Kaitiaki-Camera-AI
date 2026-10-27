@@ -965,6 +965,19 @@ async function handleCameraCheckSync(input, env, origin) {
 
   await ensureSchema(env);
   const now = new Date().toISOString();
+  const incomingUpdatedAt = clean(c.updatedAt, 50) || now;
+  // Do not let an older offline/browser copy overwrite a newer shared report snapshot.
+  // This is a last-write guard only; it does not recalculate or repair report totals.
+  const existing = await env.KAITIAKI_DB.prepare(
+    "SELECT updated_at FROM camera_checks WHERE id=?"
+  ).bind(id).first();
+  const existingUpdatedAt = String(existing?.updated_at || "");
+  if (existingUpdatedAt && existingUpdatedAt > incomingUpdatedAt) {
+    return reply({
+      ok: true, id, sharedReady: true, skipped: true,
+      reason: "A newer shared camera report already exists; stale report sync was ignored."
+    }, 200, origin);
+  }
   const monthly = Array.isArray(c.monthlyPossum) ? c.monthlyPossum.slice(0, 12).map(v => Math.max(0, int(v))) : Array(12).fill(0);
   while (monthly.length < 12) monthly.push(0);
   const species = c.speciesCounts && typeof c.speciesCounts === "object" ? c.speciesCounts : {};
