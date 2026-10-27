@@ -106,3 +106,8 @@ assert.match(finishCheckSource, /const validCaptureDate=v=>\/\^\\d\{4\}-\\d\{2\}
   "capture-date reporting must preserve the stored calendar date");
 assert.match(finishCheckSource, /checkedDate:finalCheckedDate/,
   "saved report date and report year must use the same checked date");
+
+assert.match(htmlSource, /if\(r\.cameraCheckId&&r\.cameraCheckId!==context\.cameraCheckId\)continue;/,
+  "camera check attachment must preserve records already linked to another check");
+assert.doesNotMatch(htmlSource, /if\(!force&&r\.cameraCheckId/,
+  "finish-check fallback must not force-reassign existing camera links");
