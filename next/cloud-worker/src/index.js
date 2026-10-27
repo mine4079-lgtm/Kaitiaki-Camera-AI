@@ -965,14 +965,26 @@ async function handleCameraCheckSync(input, env, origin) {
 
   await ensureSchema(env);
   const now = new Date().toISOString();
-  const incomingUpdatedAt = clean(c.updatedAt, 50) || now;
+  const rawIncomingUpdatedAt = clean(c.updatedAt, 50);
+  const incomingUpdatedAt = rawIncomingUpdatedAt || now;
   // Do not let an older offline/browser copy overwrite a newer shared report snapshot.
   // This is a last-write guard only; it does not recalculate or repair report totals.
-  const existing = await env.KAITIAKI_DB.prepare(
+  const existing = await env.KAITIAI_DB.prepare(
     "SELECT updated_at FROM camera_checks WHERE id=?"
   ).bind(id).first();
   const existingUpdatedAt = String(existing?.updated_at || "");
-  if (existingUpdatedAt && existingUpdatedAt > incomingUpdatedAt) {
+  const incomingTime = Date.parse(rawIncomingUpdatedAt || "");
+  const existingTime = Date.parse(existingUpdatedAt);
+  // Once a shared report exists, require a valid incoming timestamp. Missing or
+  // malformed timestamps must not be replaced with "now", which could let a stale
+  // offline copy appear newer than the authoritative shared row.
+  if (existing && !Number.isFinite(incomingTime)) {
+    return reply({
+      ok: true, id, sharedReady: true, skipped: true,
+      reason: "Shared camera report was preserved because the incoming timestamp is missing or invalid."
+    }, 200, origin);
+  }
+  if (existing && Number.isFinite(existingTime) && incomingTime < existingTime) {
     return reply({
       ok: true, id, sharedReady: true, skipped: true,
       reason: "A newer shared camera report already exists; stale report sync was ignored."
