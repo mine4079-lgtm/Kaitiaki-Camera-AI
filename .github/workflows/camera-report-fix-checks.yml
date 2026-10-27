@@ -7,6 +7,7 @@ on:
       - "next/camera-report.js"
       - "next/index.html"
       - "next/sw.js"
+      - "next/cloud-worker/src/index.js"
       - ".github/workflows/camera-report-fix-checks.yml"
       - "tests/camera-report-backfill.test.cjs"
   workflow_dispatch:
