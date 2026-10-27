@@ -50,3 +50,10 @@ assert.doesNotMatch(mergedSource, /updatedAt.*>=.*old\.updatedAt/, "local timest
 
 assert.match(source, /"AI label","Confirmed label","Human verified","Status","Record created","Last updated","Imported by","Reviewer","Team","Device"/, "OXIC1 audit must expose classification and provenance metadata");
 assert.match(source, /r\.aiPrediction\|\|"—".*r\.confirmedLabel\|\|"—".*Number\(r\.humanVerified\)/, "OXIC1 audit rows must show AI label, confirmed label, and human verification");
+
+const workerSource = fs.readFileSync("next/cloud-worker/src/index.js", "utf8");
+const htmlSource = fs.readFileSync("next/index.html", "utf8");
+assert.match(workerSource, /reportImages:Number\(c\.images_processed\)\|\|0/, "audit image count must use images_processed");
+assert.match(workerSource, /reportTotalPossum:Number\(c\.total_possum\)\|\|0/, "audit must expose saved possum total separately");
+assert.match(workerSource, /reportVsDatedDelta:c\.reportTotalPossum-c\.capturedInReportYear/, "possums delta must compare saved possum total with dated in-year possums");
+assert.match(htmlSource, /<th>Images processed<\\/th><th>Saved possum total<\\/th><th>Linked possum records<\\/th>/, "audit headings must distinguish images, possum total, and linked records");
