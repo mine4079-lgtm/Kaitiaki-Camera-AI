@@ -68,6 +68,15 @@ assert.match(workerSource, /recordsUpdatedAfterReport:c\.recordsUpdatedAfterRepo
 assert.match(workerSource, /humanVerifiedUpdatedAfterReport:c\.humanVerifiedUpdatedAfterReport/, "audit must expose verified records updated after the saved report timestamp");
 assert.match(htmlSource, /Records updated after report saved.*Human-verified updated after report/, "audit must display report-versus-record update timing clues");
 
+const teamListStart = workerSource.indexOf("async function handleTeamList(");
+assert.notEqual(teamListStart, -1, "must find shared review listing handler");
+const teamListEnd = workerSource.indexOf("\nasync function handleTeamReviewResolve(", teamListStart);
+const teamListSource = workerSource.slice(teamListStart, teamListEnd);
+assert.doesNotMatch(teamListSource, /UPDATE sightings/,
+  "opening shared review lists must not mutate shared records");
+assert.match(teamListSource, /reviewFilter/,
+  "duplicate completed reviews should be filtered in the read query instead");
+
 const teamPayloadStart = workerSource.indexOf("async function teamPayload(");
 assert.notEqual(teamPayloadStart, -1, "must find team authorization guard");
 const teamPayloadEnd = workerSource.indexOf("\nasync function rolePayload(", teamPayloadStart);
