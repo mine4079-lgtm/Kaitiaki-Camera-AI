@@ -305,12 +305,12 @@ async function sharedChecks(){
 }
 async function mergedChecks(){
   // Shared reports are authoritative for any check ID already present in the team database.
-  // Local-only checks remain visible as a fallback when they have not synced yet.
-  const map=new Map(localChecks().map(c=>[String(c.id),c]));
+  // Mark the source so duplicate camera/date rows prefer the shared record even when timestamps tie.
+  const map=new Map(localChecks().map(c=>[String(c.id),{...c,_reportSource:"local"}]));
   try{
     for(const c of await sharedChecks()){
       const id=String(c.id);
-      if(id)map.set(id,c);
+      if(id)map.set(id,{...c,_reportSource:"shared"});
     }
   }catch{}
   return [...map.values()].sort((a,b)=>String(b.checkedDate||"").localeCompare(String(a.checkedDate||""))||String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
@@ -337,8 +337,11 @@ function dedupeCameraChecks(checks){
     if(!old){keep.set(key,c);continue}
     const oldTime=String(old.updatedAt||old.createdAt||"");
     const newTime=String(c.updatedAt||c.createdAt||"");
-    if(newTime>oldTime){duplicates.push(old);keep.set(key,c)}
-    else duplicates.push(c);
+    const oldIsShared=old._reportSource==="shared";
+    const newIsShared=c._reportSource==="shared";
+    if((newIsShared&&!oldIsShared)|| (newIsShared===oldIsShared&&newTime>=oldTime)){
+      duplicates.push(old);keep.set(key,c);
+    }else duplicates.push(c);
   }
   return {checks:[...keep.values()],duplicates};
 }
