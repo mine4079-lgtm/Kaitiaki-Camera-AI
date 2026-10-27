@@ -362,13 +362,14 @@ async function handleTeamList(input, env, origin, status) {
         captured_at, verified_at, created_at, updated_at
       FROM sightings`;
   const reviewFilter = status === "review"
-    ? ` AND sightings.ai_prediction<>'Empty image' AND NOT EXISTS (
+    ? ` AND COALESCE(sightings.ai_prediction,'')<>'Empty image' AND NOT EXISTS (
         SELECT 1 FROM sightings AS newer
         WHERE newer.id<>sightings.id
           AND newer.human_verified=1
           AND newer.file_name=sightings.file_name
           AND (
-            newer.captured_at=sightings.captured_at
+            (newer.captured_at IS NOT NULL AND sightings.captured_at IS NOT NULL
+              AND newer.captured_at=sightings.captured_at)
             OR (
               COALESCE(newer.relative_path,'')<>''
               AND newer.relative_path=sightings.relative_path
