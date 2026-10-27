@@ -279,11 +279,11 @@ window.KaitiakiReconcileLocalCameraLinks=reconcileLocalCameraLinks;
 
 async function backfillExistingChecks(){
   const checks=localChecks();if(!checks.length)return;
-  const includeManualOnly=localStorage.getItem("kaitiaki-camera-link-reconciled-v1")==="true";
   let db,rows=[];try{db=await openDB();rows=await allRows(db)}catch{return}finally{db?.close()}
   let changed=false;
   for(const c of checks){
-    const linked=rows.filter(r=>r.cameraCheckId===c.id&&(r.aiPrediction||(includeManualOnly&&r.verified&&r.label)));
+    // Linked records with a human-confirmed label count even when AI prediction is blank.
+    const linked=rows.filter(r=>r.cameraCheckId===c.id&&(r.aiPrediction||(r.verified&&r.label)));
     if(!linked.length)continue;
     const meaningful=linked.filter(r=>!isSkipped(r));
     const possums=meaningful.filter(r=>effectiveLabel(r)==="Possum");
@@ -292,12 +292,14 @@ async function backfillExistingChecks(){
     for(const r of possums){const d=new Date(r.capturedAt||r.lastModified||0);if(!Number.isNaN(d.getTime())){dates.push(d);if(d.getFullYear()===year)monthly[d.getMonth()]++}}
     dates.sort((a,b)=>a-b);const total=monthly.reduce((a,n)=>a+n,0);
     const latest=dates.length?dateOnly(dates.at(-1).toISOString()):"";
-    if(c.latestPossumDate!==latest||c.approxPresence!==presenceFromCount(total)||Number(c.totalPossum)!==total){
+    const monthlyChanged=!Array.isArray(c.monthlyPossum)||monthly.some((n,i)=>Number(c.monthlyPossum[i]||0)!==n);
+    if(c.latestPossumDate!==latest||c.approxPresence!==presenceFromCount(total)||Number(c.totalPossum)!==total||monthlyChanged){
       c.latestPossumDate=latest;c.approxPresence=presenceFromCount(total);c.totalPossum=total;c.monthlyPossum=monthly;c.updatedAt=new Date().toISOString();saveLocalCheck(c);await syncCheck(c);changed=true;
     }
   }
   if(changed)renderReport();
 }
+window.KaitiakiRefreshCameraReportCounts=backfillExistingChecks;
 
 async function syncCheck(check){
   if(!navigator.onLine||!token())return false;

@@ -1,0 +1,44 @@
+name: Camera report fix checks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "next/camera-report.js"
+      - "next/index.html"
+      - "next/sw.js"
+      - ".github/workflows/camera-report-fix-checks.yml"
+  workflow_dispatch:
+
+jobs:
+  javascript-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check camera report and service worker syntax
+        run: |
+          node --check next/camera-report.js
+          node --check next/sw.js
+      - name: Run camera report backfill regression tests
+        run: node tests/camera-report-backfill.test.cjs
+      - name: Check inline JavaScript in index.html
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("next/index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script\b(?![^>]*\bsrc=)[^>]*>(.*?)</script\s*>", html, flags=re.I | re.S)
+          if not scripts:
+              raise SystemExit("No inline scripts found in next/index.html")
+          for i, script in enumerate(scripts, 1):
+              Path(f"/tmp/kaitiaki-inline-{i}.js").write_text(script, encoding="utf-8")
+          print(f"Found {len(scripts)} inline script block(s)")
+          PY
+          for file in /tmp/kaitiaki-inline-*.js; do
+            node --check "$file"
+          done
