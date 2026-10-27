@@ -284,12 +284,13 @@ window.KaitiakiAttachConnectedToCameraCheck=async(context,options={})=>{
   if(!context?.cameraCheckId)return 0;
   const keys=new Set(filesByKey.keys());
   if(!keys.size)return 0;
-  const force=!!options.force;
   const now=new Date().toISOString(),updates=[];
   for(let i=0;i<rows.length;i++){
     const r=rows[i];
     if(!keys.has(r.key))continue;
-    if(!force&&r.cameraCheckId&&r.cameraCheckId!==context.cameraCheckId)continue;
+    // Starting/finishing a check must not silently steal records from another check.
+    // Cross-check link corrections belong in the explicit reconciliation workflow.
+    if(r.cameraCheckId&&r.cameraCheckId!==context.cameraCheckId)continue;
     const next={...r,
       cameraCheckId:context.cameraCheckId,
       cameraNo:context.cameraNo||r.cameraNo||"",
