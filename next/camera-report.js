@@ -324,7 +324,7 @@ async function sharedChecks(){
 }
 async function mergedChecks(){
   const map=new Map(localChecks().map(c=>[c.id,c]));
-  try{for(const c of await sharedChecks()){const old=map.get(c.id);if(!old||String(c.updatedAt||"")>String(old.updatedAt||""))map.set(c.id,c)}}catch{}
+  try{for(const c of await sharedChecks()){const old=map.get(c.id);if(!old||String(c.updatedAt||"")>=String(old.updatedAt||""))map.set(c.id,c)}}catch{}
   return [...map.values()].sort((a,b)=>String(b.checkedDate||"").localeCompare(String(a.checkedDate||""))||String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
 }
 
