@@ -279,36 +279,15 @@ async function reconcileLocalCameraLinks(cameraNames=[]){
 }
 window.KaitiakiReconcileLocalCameraLinks=reconcileLocalCameraLinks;
 
+// Deliberately disable the legacy local-only count repair.
+// This browser may have only a subset of the team's shared sightings, so it
+// cannot safely recalculate and overwrite a shared camera report. A future
+// repair must reconcile against the authoritative shared records first.
 async function backfillExistingChecks(){
-  // Include shared camera checks too: a browser may have the linked sightings locally
-  // while its local report cache does not contain the corresponding saved check.
-  const checkMap=new Map(localChecks().map(c=>[String(c.id),c]));
-  try{
-    for(const c of await sharedChecks()){
-      const old=checkMap.get(String(c.id));
-      if(!old||String(c.updatedAt||"")>String(old.updatedAt||""))checkMap.set(String(c.id),c);
-    }
-  }catch{}
-  const checks=[...checkMap.values()];if(!checks.length)return;
-  let db,rows=[];try{db=await openDB();rows=await allRows(db)}catch{return}finally{db?.close()}
-  let changed=false;
-  for(const c of checks){
-    // Linked records with a human-confirmed label count even when AI prediction is blank.
-    const linked=rows.filter(r=>r.cameraCheckId===c.id&&(r.aiPrediction||(r.verified&&r.label)));
-    if(!linked.length)continue;
-    const meaningful=linked.filter(r=>!isSkipped(r));
-    const possums=meaningful.filter(r=>effectiveLabel(r)==="Possum");
-    const year=Number(c.reportYear||String(c.checkedDate||today()).slice(0,4))||new Date().getFullYear();
-    const monthly=Array(12).fill(0),dates=[];
-    for(const r of possums){const d=new Date(r.capturedAt||r.lastModified||0);if(!Number.isNaN(d.getTime())){dates.push(d);if(d.getFullYear()===year)monthly[d.getMonth()]++}}
-    dates.sort((a,b)=>a-b);const total=monthly.reduce((a,n)=>a+n,0);
-    const latest=dates.length?dateOnly(dates.at(-1).toISOString()):"";
-    const monthlyChanged=!Array.isArray(c.monthlyPossum)||monthly.some((n,i)=>Number(c.monthlyPossum[i]||0)!==n);
-    if(c.latestPossumDate!==latest||c.approxPresence!==presenceFromCount(total)||Number(c.totalPossum)!==total||monthlyChanged){
-      c.latestPossumDate=latest;c.approxPresence=presenceFromCount(total);c.totalPossum=total;c.monthlyPossum=monthly;c.updatedAt=new Date().toISOString();saveLocalCheck(c);await syncCheck(c);changed=true;
-    }
-  }
-  if(changed)renderReport();
+  return {
+    changed:false,
+    reason:"Report count refresh is disabled because this device may not hold all shared sightings. Saved report totals were left unchanged."
+  };
 }
 window.KaitiakiRefreshCameraReportCounts=backfillExistingChecks;
 
