@@ -272,7 +272,9 @@ async function reconcileLocalCameraLinks(cameraNames=[]){
     for(const r of updates)await window.KaitiakiSharedSyncMetadataIfChanged?.(r);
   }
   localStorage.setItem("kaitiaki-camera-link-reconciled-v1","true");
-  await backfillExistingChecks();
+  // Do not automatically backfill saved shared totals from a partial local image cache.
+  // A browser may have only a subset of the team's shared sightings; recalculating here
+  // can overwrite a complete shared report with a lower local-only count.
   return {moved:updates.length,ambiguousCameras:ambiguous.size};
 }
 window.KaitiakiReconcileLocalCameraLinks=reconcileLocalCameraLinks;
@@ -605,5 +607,5 @@ $("exportCameraReport")?.addEventListener("click",exportReport);
 $("reportYear")?.addEventListener("change",renderReport);
 $("reportCamera")?.addEventListener("change",renderReport);
 window.KaitiakiLoadCameraReport=renderReport;
-fillCameraList();renderCurrent();initYears();if($("cameraCheckedDate")&&!$("cameraCheckedDate").value)$("cameraCheckedDate").value=today();backfillExistingChecks();
+fillCameraList();renderCurrent();initYears();if($("cameraCheckedDate")&&!$("cameraCheckedDate").value)$("cameraCheckedDate").value=today();
 })();
