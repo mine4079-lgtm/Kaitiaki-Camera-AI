@@ -190,7 +190,7 @@ async function finishCheck(){
     const finalCheckedDate=$("cameraCheckedDate").value||c.checkedDate||today();
     const year=Number(finalCheckedDate.slice(0,4))||new Date().getFullYear();
     const captureValue=r=>r.capturedAt||(r.lastModified?new Date(r.lastModified).toISOString():"");
-    const validCaptureDate=v=>/^\\d{4}-\\d{2}-\\d{2}/.test(String(v||""));
+    const validCaptureDate=v=>/^\d{4}-\d{2}-\d{2}/.test(String(v||""));
     const monthly=Array(12).fill(0);
     const possums=meaningful.filter(r=>effectiveLabel(r)==="Possum");
     for(const r of possums){
@@ -215,8 +215,8 @@ async function finishCheck(){
       checkNo:Math.max(1,Number($("cameraCheckNo").value)||c.checkNo||1),checkedDate:finalCheckedDate,
       servicedBy:c.servicedBy||t.staffName||"",classifiedBy:t.staffName||c.servicedBy||"",
       classifiedDate:dateOnly(checkedTimes.at(-1)||now),
-      firstImageDate:dates.length?dateOnly(dates[0].toISOString()):"",
-      lastImageDate:dates.length?dateOnly(dates.at(-1).toISOString()):"",
+      firstImageDate:dates.length?dateOnly(dates[0]):"",
+      lastImageDate:dates.length?dateOnly(dates.at(-1)):"",
       approxPresence:presence,latestPossumDate,reportYear:year,monthlyPossum:monthly,totalPossum:totalForYear,
       speciesCounts:species,imagesProcessed:processed.length,meaningfulCount:meaningful.length,
       skippedCount:processed.filter(isSkipped).length,humanCount:species.Human||0,unsureCount:species.Unsure||0,
