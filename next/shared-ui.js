@@ -452,8 +452,9 @@ async function loadShared(kind){
         if(integrityMismatches.length)integrityNote=" Warning: "+integrityMismatches.length+" camera checks have a possum-count mismatch. Details are listed below.";
       }
     }
-    status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown."+(kind==="sighting"&&reportYear?" Matched to "+reportYear+" finished camera checks.":"")+integrityNote;
-    if(kind==="sighting"&&integrityMismatches.length){
+    const canSeeIntegrity=localStorage.getItem("kaitiaki-access-role")==="project_lead";
+    status.textContent=records.length+" shared "+(kind==="sighting"?"sighting":"review")+" record"+(records.length===1?"":"s")+" shown."+(kind==="sighting"&&reportYear?" Matched to "+reportYear+" finished camera checks.":"")+(canSeeIntegrity?integrityNote:"");
+    if(kind==="sighting"&&canSeeIntegrity&&integrityMismatches.length){
       const panel=document.createElement("section");panel.className="integrity-mismatch-list";
       panel.style.cssText="display:block;width:100%;max-width:100%;box-sizing:border-box;overflow-x:auto;margin:12px 0 18px;padding:14px;border:1px solid #e6c98a;border-radius:12px;background:#fff8e8;color:#24332f";
       const heading=document.createElement("strong");heading.textContent="Camera checks to investigate";panel.append(heading);
