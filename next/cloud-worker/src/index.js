@@ -989,10 +989,10 @@ async function handleCameraCheckSync(input, env, origin) {
       reason: "Shared camera report was preserved because the incoming timestamp is missing or invalid."
     }, 200, origin);
   }
-  if (existing && Number.isFinite(existingTime) && incomingTime < existingTime) {
+  if (existing && Number.isFinite(existingTime) && incomingTime <= existingTime) {
     return reply({
       ok: true, id, sharedReady: true, skipped: true,
-      reason: "A newer shared camera report already exists; stale report sync was ignored."
+      reason: "A newer or equally recent shared camera report already exists; stale report sync was ignored."
     }, 200, origin);
   }
   const monthly = Array.isArray(c.monthlyPossum) ? c.monthlyPossum.slice(0, 12).map(v => Math.max(0, int(v))) : Array(12).fill(0);
