@@ -62,3 +62,7 @@ assert.match(workerSource, /humanVerifiedPossumRecords:c\.humanVerifiedPossumRec
 assert.match(workerSource, /aiOnlyPossumRecords:c\.aiOnlyPossumRecords/, "audit must expose AI-only possum record count");
 assert.match(workerSource, /confirmedLabelPossumRecords:c\.confirmedLabelPossumRecords/, "audit must expose records confirmed as Possum");
 assert.match(htmlSource, /Human-verified possums.*AI-only possum records.*Confirmed label = Possum.*Missing confirmed label/, "audit table must display verification and label breakdown");
+
+assert.match(workerSource, /recordsUpdatedAfterReport:c\.recordsUpdatedAfterReport/, "audit must expose records updated after the saved report timestamp");
+assert.match(workerSource, /humanVerifiedUpdatedAfterReport:c\.humanVerifiedUpdatedAfterReport/, "audit must expose verified records updated after the saved report timestamp");
+assert.match(htmlSource, /Records updated after report saved.*Human-verified updated after report/, "audit must display report-versus-record update timing clues");
