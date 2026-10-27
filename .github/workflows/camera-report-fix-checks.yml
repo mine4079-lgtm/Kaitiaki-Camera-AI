@@ -8,6 +8,7 @@ on:
       - "next/index.html"
       - "next/sw.js"
       - ".github/workflows/camera-report-fix-checks.yml"
+      - "tests/camera-report-backfill.test.cjs"
   workflow_dispatch:
 
 jobs:

@@ -278,7 +278,16 @@ async function reconcileLocalCameraLinks(cameraNames=[]){
 window.KaitiakiReconcileLocalCameraLinks=reconcileLocalCameraLinks;
 
 async function backfillExistingChecks(){
-  const checks=localChecks();if(!checks.length)return;
+  // Include shared camera checks too: a browser may have the linked sightings locally
+  // while its local report cache does not contain the corresponding saved check.
+  const checkMap=new Map(localChecks().map(c=>[String(c.id),c]));
+  try{
+    for(const c of await sharedChecks()){
+      const old=checkMap.get(String(c.id));
+      if(!old||String(c.updatedAt||"")>String(old.updatedAt||""))checkMap.set(String(c.id),c);
+    }
+  }catch{}
+  const checks=[...checkMap.values()];if(!checks.length)return;
   let db,rows=[];try{db=await openDB();rows=await allRows(db)}catch{return}finally{db?.close()}
   let changed=false;
   for(const c of checks){
@@ -569,5 +578,5 @@ $("exportCameraReport")?.addEventListener("click",exportReport);
 $("reportYear")?.addEventListener("change",renderReport);
 $("reportCamera")?.addEventListener("change",renderReport);
 window.KaitiakiLoadCameraReport=renderReport;
-fillCameraList();renderCurrent();initYears();if($("cameraCheckedDate")&&!$("cameraCheckedDate").value)$("cameraCheckedDate").value=today();
+fillCameraList();renderCurrent();initYears();if($("cameraCheckedDate")&&!$("cameraCheckedDate").value)$("cameraCheckedDate").value=today();backfillExistingChecks();
 })();
