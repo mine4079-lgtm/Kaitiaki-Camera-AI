@@ -67,3 +67,14 @@ assert.match(htmlSource, /Human-verified possums.*AI-only possum records.*Confir
 assert.match(workerSource, /recordsUpdatedAfterReport:c\.recordsUpdatedAfterReport/, "audit must expose records updated after the saved report timestamp");
 assert.match(workerSource, /humanVerifiedUpdatedAfterReport:c\.humanVerifiedUpdatedAfterReport/, "audit must expose verified records updated after the saved report timestamp");
 assert.match(htmlSource, /Records updated after report saved.*Human-verified updated after report/, "audit must display report-versus-record update timing clues");
+
+const syncStart = workerSource.indexOf("async function handleCameraCheckSync(");
+assert.notEqual(syncStart, -1, "must find shared camera report sync handler");
+const syncEnd = workerSource.indexOf("\nasync function handleCameraChecks(", syncStart);
+const syncSource = workerSource.slice(syncStart, syncEnd);
+assert.match(syncSource, /SELECT updated_at FROM camera_checks WHERE id=\?/,
+  "sync must read the existing shared report timestamp before overwriting it");
+assert.match(syncSource, /existingUpdatedAt>incomingUpdatedAt/,
+  "older browser snapshots must not overwrite newer shared report snapshots");
+assert.match(syncSource, /skipped:true/,
+  "stale report sync should return a visible skipped result");
