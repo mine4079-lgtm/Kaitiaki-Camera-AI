@@ -79,6 +79,19 @@ assert.match(teamSyncSource, /existing && !Number\.isFinite\(incomingTime\)/,
 assert.match(teamSyncSource, /incomingTime <= existingTime/,
   "older or equal offline sightings must not overwrite shared records");
 
+const teamListStart = workerSource.indexOf("async function handleTeamList(");
+assert.notEqual(teamListStart, -1, "must find shared review-list handler");
+const teamListEnd = workerSource.indexOf("\nasync function ", teamListStart + 10);
+const teamListSource = workerSource.slice(teamListStart, teamListEnd);
+assert.doesNotMatch(teamListSource, /UPDATE\s+sightings/i,
+  "opening the shared review list must not mutate stored sightings");
+assert.match(teamListSource, /const reviewFilter = status === "review"/,
+  "duplicate review filtering must happen in the SELECT query");
+assert.match(teamListSource, /ai_prediction<>'Empty image'/,
+  "empty-image records must be excluded from review results without updating their status");
+assert.doesNotMatch(workerSource, /UPDATE sightings SET status='ignored', needs_extra_review=0 WHERE ai_prediction='Empty image'/,
+  "schema setup must not silently change stored review decisions");
+
 const teamPayloadStart = workerSource.indexOf("async function teamPayload(");
 assert.notEqual(teamPayloadStart, -1, "must find team authorization guard");
 const teamPayloadEnd = workerSource.indexOf("\nasync function rolePayload(", teamPayloadStart);
