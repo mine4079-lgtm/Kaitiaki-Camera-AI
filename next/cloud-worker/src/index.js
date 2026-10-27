@@ -1240,7 +1240,8 @@ export default {
       if (url.pathname === "/team/review-resolve") return handleTeamReviewResolve(parsed.input, env, origin);
       if (url.pathname === "/team/image") return handleTeamImage(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-audit") return handleCameraCheckAudit(parsed.input, env, origin);
-      if (url.pathname === "/team/mtc03-report-repair") return handleMtc03ReportRepair(parsed.input, env, origin);\n      if (url.pathname === "/team/tpac3a-check2-report-repair") return handleTpac3aCheck2Repair(parsed.input, env, origin);
+      if (url.pathname === "/team/mtc03-report-repair") return handleMtc03ReportRepair(parsed.input, env, origin);
+      if (url.pathname === "/team/tpac3a-check2-report-repair") return handleTpac3aCheck2Repair(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-reconcile") return handleCameraCheckReconcile(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-sync") return handleCameraCheckSync(parsed.input, env, origin);
       if (url.pathname === "/team/camera-checks") return handleCameraChecks(parsed.input, env, origin);
