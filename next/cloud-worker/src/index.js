@@ -582,7 +582,7 @@ async function handleCameraCheckAudit(input, env, origin) {
   const placeholders = cameraNos.map(() => "?").join(",");
   const [checkResult, rowResult] = await Promise.all([
     env.KAITIAKI_DB.prepare(`
-      SELECT id, camera_no, check_no, checked_date, report_year, total_possum
+      SELECT id, camera_no, check_no, checked_date, report_year, total_possum, created_at, updated_at
       FROM camera_checks WHERE UPPER(camera_no) IN (${placeholders})
       ORDER BY camera_no, checked_date, check_no
     `).bind(...cameraNos).all(),
@@ -611,6 +611,7 @@ async function handleCameraCheckAudit(input, env, origin) {
   const perCheck = new Map(checks.map(c => [String(c.id), {
     id:String(c.id), cameraNo:c.camera_no, checkNo:Number(c.check_no)||0, checkedDate:String(c.checked_date||"").slice(0,10),
     reportImages:Number(c.total_possum)||0, reportYear:Number(c.report_year)||Number(String(c.checked_date||"").slice(0,4)),
+    reportCreatedAt:c.created_at||"", reportUpdatedAt:c.updated_at||"",
     activePossumRecords:0, resolvedPossumRecords:0, ignoredPossumRecords:0, linkedPossumRecords:0, datedPossumRecords:0, capturedInReportYear:0, capturedOutsideReportYear:0, uniqueFileTimeSignatures:0,
     exactDuplicateCandidates:0, missingCaptureDate:0, otherYear:0, noCheckLink:0, dateRuleWouldMove:0,
     samples:[], missingDateSamples:[], signatures:new Map()
@@ -772,7 +773,7 @@ async function handleCameraCheckAudit(input, env, origin) {
   }
   const result = [...perCheck.values()].map(c=>{
     const dup=[...c.signatures.values()].reduce((n,v)=>n+Math.max(0,v-1),0);
-    return {id:c.id,cameraNo:c.cameraNo,checkNo:c.checkNo,checkedDate:c.checkedDate,reportYear:c.reportYear,reportImages:c.reportImages,
+    return {id:c.id,cameraNo:c.cameraNo,checkNo:c.checkNo,checkedDate:c.checkedDate,reportYear:c.reportYear,reportImages:c.reportImages,reportCreatedAt:c.reportCreatedAt,reportUpdatedAt:c.reportUpdatedAt,
       activePossumRecords:c.activePossumRecords,resolvedPossumRecords:c.resolvedPossumRecords,ignoredPossumRecords:c.ignoredPossumRecords,linkedPossumRecords:c.linkedPossumRecords,datedPossumRecords:c.datedPossumRecords,
       capturedInReportYear:c.capturedInReportYear,capturedOutsideReportYear:c.capturedOutsideReportYear,
       reportVsDatedDelta:c.reportImages-c.capturedInReportYear,uniqueFileTimeSignatures:c.signatures.size,
