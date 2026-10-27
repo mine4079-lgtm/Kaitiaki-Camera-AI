@@ -523,6 +523,33 @@ async function runReportAudit(){
   finally{button.disabled=false;button.textContent="Check report count breakdown"}
 }
 let mtc03RepairPreview=null;
+let tpac3aRepairPreview=null;
+async function tpac3aRepairRequest(mode){
+  const status=$("tpac3aRepairStatus"),previewBtn=$("tpac3aRepairPreview"),applyBtn=$("tpac3aRepairApply");
+  if(!status)return;
+  if(!navigator.onLine){status.textContent="Connect to the internet first.";return}
+  if(!token()){status.textContent="Team access token is missing. Reconnect Team access first.";return}
+  if(mode==="apply"&&(!tpac3aRepairPreview||tpac3aRepairPreview.currentTotal!==10||tpac3aRepairPreview.linkedPossumRecords!==16||tpac3aRepairPreview.datedInReportYear!==16||tpac3aRepairPreview.proposedTotal!==16||tpac3aRepairPreview.proposedMonthlyPossum?.[8]!==4||tpac3aRepairPreview.proposedMonthlyPossum?.[9]!==12)){status.textContent="Preview did not meet all safety checks. Nothing changed.";return}
+  if(mode==="apply"&&!confirm("Apply the TPAC3A Check #2 report repair? This updates only the saved report totals. Sightings and image records will not be changed."))return;
+  if(previewBtn)previewBtn.disabled=true;if(applyBtn)applyBtn.disabled=true;
+  status.textContent=mode==="preview"?"Previewing TPAC3A Check #2 safely…":"Applying guarded TPAC3A report repair…";
+  try{
+    const res=await fetch(endpoint()+"/team/tpac3a-check2-report-repair",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:JSON.stringify({token:token(),mode})});
+    const data=await res.json();if(!res.ok||data.ok!==true)throw Error(data.error||("Worker returned "+res.status));
+    if(mode==="preview"){
+      tpac3aRepairPreview=data;
+      status.textContent="Preview only — no changes made. TPAC3A Check #"+data.checkNo+" ("+data.checkedDate+"): saved total "+data.currentTotal+", linked Possums "+data.linkedPossumRecords+", dated in report year "+data.datedInReportYear+", proposed total "+data.proposedTotal+"; September "+data.proposedMonthlyPossum[8]+", October "+data.proposedMonthlyPossum[9]+".";
+      if(applyBtn)applyBtn.hidden=!(data.currentTotal===10&&data.linkedPossumRecords===16&&data.datedInReportYear===16&&data.proposedTotal===16&&data.proposedMonthlyPossum?.[8]===4&&data.proposedMonthlyPossum?.[9]===12);
+    }else{
+      tpac3aRepairPreview=null;if(applyBtn)applyBtn.hidden=true;
+      status.textContent="Report repair applied to TPAC3A Check #"+data.checkNo+". New total "+data.proposedTotal+"; September "+data.proposedMonthlyPossum[8]+", October "+data.proposedMonthlyPossum[9]+". Sightings were not changed. Run the audit again to verify.";
+    }
+  }catch(e){status.textContent="TPAC3A repair "+mode+" failed: "+String(e.message||e)+". No change is confirmed."}
+  finally{if(previewBtn)previewBtn.disabled=false;if(applyBtn)applyBtn.disabled=false}
+}
+$("tpac3aRepairPreview")?.addEventListener("click",()=>tpac3aRepairRequest("preview"));
+$("tpac3aRepairApply")?.addEventListener("click",()=>tpac3aRepairRequest("apply"));
+
 async function mtc03RepairRequest(mode){
   const status=$("mtc03RepairStatus"),previewBtn=$("mtc03RepairPreview"),applyBtn=$("mtc03RepairApply");
   if(!status)return;

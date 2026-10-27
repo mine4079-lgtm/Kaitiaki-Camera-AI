@@ -440,6 +440,44 @@ async function handleTeamImage(input, env, origin) {
   }, 200, origin);
 }
 
+async function handleTpac3aCheck2Repair(input, env, origin) {
+  if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet" }, 503, origin);
+  const mode = clean(input?.mode, 20);
+  if (mode !== "preview" && mode !== "apply") return reply({ error: "Choose preview or apply" }, 400, origin);
+  const checks = await env.KAITIAKI_DB.prepare(`
+    SELECT id,camera_no,check_no,checked_date,report_year,total_possum,monthly_possum_json
+    FROM camera_checks WHERE UPPER(camera_no)='TPAC3A' AND check_no=2 AND checked_date='2026-10-07'
+  `).all();
+  if ((checks.results||[]).length !== 1) return reply({error:"Safety check failed: expected exactly one TPAC3A check #2 dated 2026-10-07",matchingChecks:(checks.results||[]).length},409,origin);
+  const c=checks.results[0];
+  const q=await env.KAITIAKI_DB.prepare(`
+    SELECT id,ai_prediction,confirmed_label,human_verified,status,captured_at
+    FROM sightings WHERE camera_check_id=? AND UPPER(camera_no)='TPAC3A'
+  `).bind(c.id).all();
+  const records=q.results||[];
+  const possums=records.filter(r=>r.status!=="ignored"&&(Number(r.human_verified)?(r.confirmed_label||r.ai_prediction):r.ai_prediction)==="Possum");
+  const year=Number(c.report_year)||2026, monthly=Array(12).fill(0), dates=[];
+  for(const r of possums){
+    const d=String(r.captured_at||"").slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d))continue;
+    const y=Number(d.slice(0,4)),m=Number(d.slice(5,7));
+    if(y===year&&m>=1&&m<=12){monthly[m-1]++;dates.push(d)}
+  }
+  const total=monthly.reduce((a,n)=>a+n,0);
+  const result={mode,cameraNo:c.camera_no,checkNo:Number(c.check_no),checkedDate:c.checked_date,checkId:c.id,currentTotal:Number(c.total_possum)||0,linkedPossumRecords:possums.length,datedInReportYear:total,proposedMonthlyPossum:monthly,proposedTotal:total};
+  if(mode==="preview")return reply({ok:true,preview:true,...result},200,origin);
+  if(Number(c.total_possum)!==10||possums.length!==16||total!==16||monthly[8]!==4||monthly[9]!==12){
+    return reply({error:"Safety check failed: expected saved total 10 and exactly 16 dated linked Possums (September 4, October 12); nothing updated",...result},409,origin);
+  }
+  const latest=dates.sort().at(-1)||"";
+  const updated=await env.KAITIAKI_DB.prepare(`
+    UPDATE camera_checks SET total_possum=?,monthly_possum_json=?,latest_possum_date=?,approx_presence='High',updated_at=?
+    WHERE id=? AND UPPER(camera_no)='TPAC3A' AND check_no=2 AND checked_date='2026-10-07' AND total_possum=10
+  `).bind(total,JSON.stringify(monthly),latest,new Date().toISOString(),c.id).run();
+  if(Number(updated?.meta?.changes||0)!==1)return reply({error:"Report row was not updated; please re-audit"},409,origin);
+  return reply({ok:true,applied:true,...result,latestPossumDate:latest},200,origin);
+}
+
 async function handleMtc03ReportRepair(input, env, origin) {
   if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet" }, 503, origin);
   // Deliberately limited to the single known report. Preview is read-only; apply
@@ -1203,6 +1241,7 @@ export default {
       if (url.pathname === "/team/image") return handleTeamImage(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-audit") return handleCameraCheckAudit(parsed.input, env, origin);
       if (url.pathname === "/team/mtc03-report-repair") return handleMtc03ReportRepair(parsed.input, env, origin);
+      if (url.pathname === "/team/tpac3a-check2-report-repair") return handleTpac3aCheck2Repair(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-reconcile") return handleCameraCheckReconcile(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-sync") return handleCameraCheckSync(parsed.input, env, origin);
       if (url.pathname === "/team/camera-checks") return handleCameraChecks(parsed.input, env, origin);
