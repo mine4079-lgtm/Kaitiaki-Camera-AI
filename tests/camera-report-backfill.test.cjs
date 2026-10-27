@@ -47,3 +47,6 @@ const mergedSource = source.slice(mergedStart, mergedEnd);
 assert.match(mergedSource, /for\s*\(const c of await sharedChecks\(\)\)/, "must merge authoritative shared reports");
 assert.match(mergedSource, /map\.set\(id,c\)/, "shared report must replace local copy regardless of local timestamp");
 assert.doesNotMatch(mergedSource, /updatedAt.*>=.*old\.updatedAt/, "local timestamps must not override the shared report");
+
+assert.match(source, /"AI label","Confirmed label","Human verified","Status","Record created","Last updated","Imported by","Reviewer","Team","Device"/, "OXIC1 audit must expose classification and provenance metadata");
+assert.match(source, /r\.aiPrediction\|\|"—".*r\.confirmedLabel\|\|"—".*Number\(r\.humanVerified\)/, "OXIC1 audit rows must show AI label, confirmed label, and human verification");
