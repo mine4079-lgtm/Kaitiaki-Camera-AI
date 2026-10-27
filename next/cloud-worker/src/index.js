@@ -249,6 +249,23 @@ async function handleTeamSync(input, env, origin) {
   await ensureSchema(env);
 
   const id = await hashId(sourceId);
+  const rawIncomingUpdatedAt = clean(r.updatedAt, 50);
+  const incomingTime = Date.parse(rawIncomingUpdatedAt || "");
+  const existing = await env.KAITIAKI_DB.prepare(
+    "SELECT updated_at FROM sightings WHERE id=?"
+  ).bind(id).first();
+  const existingTime = Date.parse(String(existing?.updated_at || ""));
+  // Offline devices can retain an older classification or verification state.
+  // Never let an older (or undated) copy overwrite an existing shared sighting.
+  if (existing && !Number.isFinite(incomingTime)) {
+    return reply({ ok:true, id, skipped:true, sharedReady:true,
+      reason:"Shared sighting was preserved because the incoming timestamp is missing or invalid." }, 200, origin);
+  }
+  if (existing && Number.isFinite(existingTime) && incomingTime <= existingTime) {
+    return reply({ ok:true, id, skipped:true, sharedReady:true,
+      reason:"A newer or equally recent shared sighting already exists; stale sync was ignored." }, 200, origin);
+  }
+
   const status = classifySharedStatus(r);
   let imageBytes = null;
   let imageType = null;
