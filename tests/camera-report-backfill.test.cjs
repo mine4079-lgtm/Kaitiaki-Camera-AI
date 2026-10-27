@@ -68,6 +68,17 @@ assert.match(workerSource, /recordsUpdatedAfterReport:c\.recordsUpdatedAfterRepo
 assert.match(workerSource, /humanVerifiedUpdatedAfterReport:c\.humanVerifiedUpdatedAfterReport/, "audit must expose verified records updated after the saved report timestamp");
 assert.match(htmlSource, /Records updated after report saved.*Human-verified updated after report/, "audit must display report-versus-record update timing clues");
 
+const teamSyncStart = workerSource.indexOf("async function handleTeamSync(");
+assert.notEqual(teamSyncStart, -1, "must find shared sighting sync handler");
+const teamSyncEnd = workerSource.indexOf("\nasync function handleTeamList(", teamSyncStart);
+const teamSyncSource = workerSource.slice(teamSyncStart, teamSyncEnd);
+assert.match(teamSyncSource, /SELECT updated_at FROM sightings WHERE id=\?/,
+  "shared sighting sync must read the authoritative timestamp");
+assert.match(teamSyncSource, /existing && !Number\.isFinite\(incomingTime\)/,
+  "shared sighting sync must reject missing timestamps for existing records");
+assert.match(teamSyncSource, /incomingTime <= existingTime/,
+  "older or equal offline sightings must not overwrite shared records");
+
 const teamPayloadStart = workerSource.indexOf("async function teamPayload(");
 assert.notEqual(teamPayloadStart, -1, "must find team authorization guard");
 const teamPayloadEnd = workerSource.indexOf("\nasync function rolePayload(", teamPayloadStart);
