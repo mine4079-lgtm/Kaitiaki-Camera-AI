@@ -56,4 +56,4 @@ const htmlSource = fs.readFileSync("next/index.html", "utf8");
 assert.match(workerSource, /reportImages:Number\(c\.images_processed\)\|\|0/, "audit image count must use images_processed");
 assert.match(workerSource, /reportTotalPossum:Number\(c\.total_possum\)\|\|0/, "audit must expose saved possum total separately");
 assert.match(workerSource, /reportVsDatedDelta:c\.reportTotalPossum-c\.capturedInReportYear/, "possums delta must compare saved possum total with dated in-year possums");
-assert.match(htmlSource, /<th>Images processed<\\/th><th>Saved possum total<\\/th><th>Linked possum records<\\/th>/, "audit headings must distinguish images, possum total, and linked records");
+assert.ok(htmlSource.includes("<th>Images processed</th><th>Saved possum total</th><th>Linked possum records</th>"), "audit headings must distinguish images, possum total, and linked records");
