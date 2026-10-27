@@ -612,7 +612,7 @@ async function handleCameraCheckAudit(input, env, origin) {
     id:String(c.id), cameraNo:c.camera_no, checkNo:Number(c.check_no)||0, checkedDate:String(c.checked_date||"").slice(0,10),
     reportImages:Number(c.images_processed)||0, reportTotalPossum:Number(c.total_possum)||0, reportMeaningfulImages:Number(c.meaningful_count)||0, reportYear:Number(c.report_year)||Number(String(c.checked_date||"").slice(0,4)),
     reportCreatedAt:c.created_at||"", reportUpdatedAt:c.updated_at||"",
-    activePossumRecords:0, resolvedPossumRecords:0, ignoredPossumRecords:0, linkedPossumRecords:0, humanVerifiedPossumRecords:0, aiOnlyPossumRecords:0, confirmedLabelPossumRecords:0, missingConfirmedLabelPossumRecords:0, datedPossumRecords:0, capturedInReportYear:0, capturedOutsideReportYear:0, uniqueFileTimeSignatures:0,
+    activePossumRecords:0, resolvedPossumRecords:0, ignoredPossumRecords:0, linkedPossumRecords:0, humanVerifiedPossumRecords:0, aiOnlyPossumRecords:0, confirmedLabelPossumRecords:0, missingConfirmedLabelPossumRecords:0, recordsUpdatedAfterReport:0, humanVerifiedUpdatedAfterReport:0, confirmedPossumUpdatedAfterReport:0, datedPossumRecords:0, capturedInReportYear:0, capturedOutsideReportYear:0, uniqueFileTimeSignatures:0,
     exactDuplicateCandidates:0, missingCaptureDate:0, otherYear:0, noCheckLink:0, dateRuleWouldMove:0,
     samples:[], missingDateSamples:[], signatures:new Map()
   }]));
@@ -748,6 +748,14 @@ async function handleCameraCheckAudit(input, env, origin) {
       else current.aiOnlyPossumRecords++;
       if (String(r.confirmed_label || "").trim() === "Possum") current.confirmedLabelPossumRecords++;
       else if (!String(r.confirmed_label || "").trim()) current.missingConfirmedLabelPossumRecords++;
+      // Diagnostic only: updated_at is client-supplied metadata, so this is a timing clue, not proof of when a human reviewed a record.
+      const reportCreatedMs = Date.parse(current.reportCreatedAt || "");
+      const recordUpdatedMs = Date.parse(r.updated_at || "");
+      if (Number.isFinite(reportCreatedMs) && Number.isFinite(recordUpdatedMs) && recordUpdatedMs > reportCreatedMs) {
+        current.recordsUpdatedAfterReport++;
+        if (Number(r.human_verified)) current.humanVerifiedUpdatedAfterReport++;
+        if (String(r.confirmed_label || "").trim() === "Possum") current.confirmedPossumUpdatedAfterReport++;
+      }
       if (!captured) {
         current.missingCaptureDate++;
         if (current.missingDateSamples.length < 25) current.missingDateSamples.push({
@@ -778,7 +786,7 @@ async function handleCameraCheckAudit(input, env, origin) {
   const result = [...perCheck.values()].map(c=>{
     const dup=[...c.signatures.values()].reduce((n,v)=>n+Math.max(0,v-1),0);
     return {id:c.id,cameraNo:c.cameraNo,checkNo:c.checkNo,checkedDate:c.checkedDate,reportYear:c.reportYear,reportImages:c.reportImages,reportTotalPossum:c.reportTotalPossum,reportMeaningfulImages:c.reportMeaningfulImages,reportCreatedAt:c.reportCreatedAt,reportUpdatedAt:c.reportUpdatedAt,
-      activePossumRecords:c.activePossumRecords,resolvedPossumRecords:c.resolvedPossumRecords,ignoredPossumRecords:c.ignoredPossumRecords,linkedPossumRecords:c.linkedPossumRecords,humanVerifiedPossumRecords:c.humanVerifiedPossumRecords,aiOnlyPossumRecords:c.aiOnlyPossumRecords,confirmedLabelPossumRecords:c.confirmedLabelPossumRecords,missingConfirmedLabelPossumRecords:c.missingConfirmedLabelPossumRecords,datedPossumRecords:c.datedPossumRecords,
+      activePossumRecords:c.activePossumRecords,resolvedPossumRecords:c.resolvedPossumRecords,ignoredPossumRecords:c.ignoredPossumRecords,linkedPossumRecords:c.linkedPossumRecords,humanVerifiedPossumRecords:c.humanVerifiedPossumRecords,aiOnlyPossumRecords:c.aiOnlyPossumRecords,confirmedLabelPossumRecords:c.confirmedLabelPossumRecords,missingConfirmedLabelPossumRecords:c.missingConfirmedLabelPossumRecords,recordsUpdatedAfterReport:c.recordsUpdatedAfterReport,humanVerifiedUpdatedAfterReport:c.humanVerifiedUpdatedAfterReport,confirmedPossumUpdatedAfterReport:c.confirmedPossumUpdatedAfterReport,datedPossumRecords:c.datedPossumRecords,
       capturedInReportYear:c.capturedInReportYear,capturedOutsideReportYear:c.capturedOutsideReportYear,
       reportVsDatedDelta:c.reportTotalPossum-c.capturedInReportYear,uniqueFileTimeSignatures:c.signatures.size,
       exactDuplicateCandidates:dup,missingCaptureDate:c.missingCaptureDate,otherYear:c.otherYear,
