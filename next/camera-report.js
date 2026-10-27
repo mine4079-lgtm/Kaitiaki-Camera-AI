@@ -187,17 +187,23 @@ async function finishCheck(){
     if(!processed.length){$("cameraCheckStatusText").textContent="Images are imported, but AI identification has not been run yet.";return}
     const meaningful=processed.filter(r=>!isSkipped(r));
     const species={};for(const r of meaningful){const label=effectiveLabel(r);if(label)species[label]=(species[label]||0)+1}
-    const year=Number((c.checkedDate||today()).slice(0,4))||new Date().getFullYear();
+    const finalCheckedDate=$("cameraCheckedDate").value||c.checkedDate||today();
+    const year=Number(finalCheckedDate.slice(0,4))||new Date().getFullYear();
+    const captureValue=r=>r.capturedAt||(r.lastModified?new Date(r.lastModified).toISOString():"");
+    const validCaptureDate=v=>/^\d{4}-\d{2}-\d{2}/.test(String(v||""));
     const monthly=Array(12).fill(0);
     const possums=meaningful.filter(r=>effectiveLabel(r)==="Possum");
     for(const r of possums){
-      const d=new Date(r.capturedAt||r.lastModified||0);
-      if(!Number.isNaN(d.getTime())&&d.getFullYear()===year)monthly[d.getMonth()]++;
+      const captured=captureValue(r),date=dateOnly(captured);
+      if(validCaptureDate(date)&&Number(date.slice(0,4))===year){
+        const month=Number(date.slice(5,7))-1;
+        if(month>=0&&month<12)monthly[month]++;
+      }
     }
-    const dates=linked.map(r=>r.capturedAt).filter(Boolean).map(v=>new Date(v)).filter(d=>!Number.isNaN(d.getTime())).sort((a,b)=>a-b);
+    const dates=linked.map(captureValue).filter(validCaptureDate).sort((a,b)=>new Date(a)-new Date(b));
     const checkedTimes=processed.map(r=>r.aiCheckedAt||r.verifiedAt||r.updatedAt).filter(Boolean).sort();
-    const possumDates=possums.map(r=>new Date(r.capturedAt||r.lastModified||0)).filter(d=>!Number.isNaN(d.getTime())).sort((a,b)=>a-b);
-    const latestPossumDate=possumDates.length?dateOnly(possumDates.at(-1).toISOString()):"";
+    const possumDates=possums.map(captureValue).filter(validCaptureDate).sort((a,b)=>new Date(a)-new Date(b));
+    const latestPossumDate=possumDates.length?dateOnly(possumDates.at(-1)):"";
     let presence="";
     const noteParts=Object.entries(species).filter(([k])=>k!=="Possum").sort((a,b)=>b[1]-a[1]).map(([k,n])=>k+" "+n);
     const t=team(),now=new Date().toISOString();
@@ -206,11 +212,11 @@ async function finishCheck(){
     const report={
       ...c,
       zone:$("cameraZone").value.trim()||c.zone,block:$("cameraBlock").value.trim()||c.block,status:$("cameraStatus").value||c.status,
-      checkNo:Math.max(1,Number($("cameraCheckNo").value)||c.checkNo||1),checkedDate:$("cameraCheckedDate").value||c.checkedDate,
+      checkNo:Math.max(1,Number($("cameraCheckNo").value)||c.checkNo||1),checkedDate:finalCheckedDate,
       servicedBy:c.servicedBy||t.staffName||"",classifiedBy:t.staffName||c.servicedBy||"",
       classifiedDate:dateOnly(checkedTimes.at(-1)||now),
-      firstImageDate:dates.length?dateOnly(dates[0].toISOString()):"",
-      lastImageDate:dates.length?dateOnly(dates.at(-1).toISOString()):"",
+      firstImageDate:dates.length?dateOnly(dates[0]):"",
+      lastImageDate:dates.length?dateOnly(dates.at(-1)):"",
       approxPresence:presence,latestPossumDate,reportYear:year,monthlyPossum:monthly,totalPossum:totalForYear,
       speciesCounts:species,imagesProcessed:processed.length,meaningfulCount:meaningful.length,
       skippedCount:processed.filter(isSkipped).length,humanCount:species.Human||0,unsureCount:species.Unsure||0,
