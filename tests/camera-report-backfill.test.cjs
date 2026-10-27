@@ -57,3 +57,8 @@ assert.match(workerSource, /reportImages:Number\(c\.images_processed\)\|\|0/, "a
 assert.match(workerSource, /reportTotalPossum:Number\(c\.total_possum\)\|\|0/, "audit must expose saved possum total separately");
 assert.match(workerSource, /reportVsDatedDelta:c\.reportTotalPossum-c\.capturedInReportYear/, "possums delta must compare saved possum total with dated in-year possums");
 assert.ok(htmlSource.includes("<th>Images processed</th><th>Saved possum total</th><th>Linked possum records</th>"), "audit headings must distinguish images, possum total, and linked records");
+
+assert.match(workerSource, /humanVerifiedPossumRecords:c\.humanVerifiedPossumRecords/, "audit must expose human-verified possum record count");
+assert.match(workerSource, /aiOnlyPossumRecords:c\.aiOnlyPossumRecords/, "audit must expose AI-only possum record count");
+assert.match(workerSource, /confirmedLabelPossumRecords:c\.confirmedLabelPossumRecords/, "audit must expose records confirmed as Possum");
+assert.match(htmlSource, /Human-verified possums.*AI-only possum records.*Confirmed label = Possum.*Missing confirmed label/, "audit table must display verification and label breakdown");
