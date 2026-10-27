@@ -68,6 +68,13 @@ assert.match(workerSource, /recordsUpdatedAfterReport:c\.recordsUpdatedAfterRepo
 assert.match(workerSource, /humanVerifiedUpdatedAfterReport:c\.humanVerifiedUpdatedAfterReport/, "audit must expose verified records updated after the saved report timestamp");
 assert.match(htmlSource, /Records updated after report saved.*Human-verified updated after report/, "audit must display report-versus-record update timing clues");
 
+const teamPayloadStart = workerSource.indexOf("async function teamPayload(");
+assert.notEqual(teamPayloadStart, -1, "must find team authorization guard");
+const teamPayloadEnd = workerSource.indexOf("\nasync function rolePayload(", teamPayloadStart);
+const teamPayloadSource = workerSource.slice(teamPayloadStart, teamPayloadEnd);
+assert.match(teamPayloadSource, /role !== "team"/,
+  "Project Lead read-only credentials must not authorize team mutation endpoints");
+
 const syncStart = workerSource.indexOf("async function handleCameraCheckSync(");
 assert.notEqual(syncStart, -1, "must find shared camera report sync handler");
 const syncEnd = workerSource.indexOf("\nasync function handleCameraChecks(", syncStart);
