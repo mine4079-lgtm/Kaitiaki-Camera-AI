@@ -87,8 +87,10 @@ assert.doesNotMatch(teamListSource, /UPDATE\s+sightings/i,
   "opening the shared review list must not mutate stored sightings");
 assert.match(teamListSource, /const reviewFilter = status === "review"/,
   "duplicate review filtering must happen in the SELECT query");
-assert.match(teamListSource, /ai_prediction<>'Empty image'/,
-  "empty-image records must be excluded from review results without updating their status");
+assert.match(teamListSource, /COALESCE\(sightings\.ai_prediction,''\)<>'Empty image'/,
+  "empty-image records must be excluded while records with missing AI labels remain visible");
+assert.match(teamListSource, /newer\.captured_at IS NOT NULL AND sightings\.captured_at IS NOT NULL/,
+  "duplicate matching must not treat two missing capture dates as an exact match");
 assert.doesNotMatch(workerSource, /UPDATE sightings SET status='ignored', needs_extra_review=0 WHERE ai_prediction='Empty image'/,
   "schema setup must not silently change stored review decisions");
 
