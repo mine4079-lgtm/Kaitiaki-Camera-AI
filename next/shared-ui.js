@@ -664,7 +664,7 @@ function exportVisibleSightingsCsv(){
 window.KaitiakiLoadSharedSightings=()=>loadShared("sighting");
 // If the Project Lead role is verified after Sightings first loads, refresh the view so admin-only diagnostics appear immediately.
 window.addEventListener("kaitiaki-role-changed",e=>{
-  if(e.detail?.role==="project_lead"&&document.querySelector('[data-tab="sightings"]')?.classList.contains("active"))loadShared("sighting");
+  if(e.detail?.role==="project_lead"&&document.querySelector('[data-tab="sightings"]')?.classList.contains("current"))loadShared("sighting");
 });
 window.KaitiakiLoadSharedReview=()=>loadShared("review");
 $("refreshSightings")?.addEventListener("click",window.KaitiakiLoadSharedSightings);
