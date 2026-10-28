@@ -127,11 +127,15 @@ async function load(){
   if(!navigator.onLine){$("plStatus").textContent="Offline — Project Lead dashboard needs the shared database.";return}
   const t=token();if(!t){$("plStatus").textContent="Connect the Project Lead access token in AI settings first.";return}
   $("plStatus").textContent="Loading Project Lead dashboard…";
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),15000);
   try{
-    const res=await fetch(endpoint()+"/project-lead/dashboard",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:JSON.stringify({token:t,limit:1000})});
+    const res=await fetch(endpoint()+"/project-lead/dashboard",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:JSON.stringify({token:t,limit:1000}),signal:controller.signal});
     const data=await res.json();if(!res.ok||data.role!=="project_lead")throw Error(data.error||"Project Lead access unavailable");
     checks=dedupe(data.checks||[]);fillYears();refillFilters();render();
-  }catch(e){$("plStatus").textContent="Project Lead dashboard unavailable: "+String(e.message||e)}
+  }catch(e){
+    $("plStatus").textContent=e.name==="AbortError"?"Project Lead dashboard timed out after 15 seconds. Sign-in worked, but the dashboard service did not respond.":"Project Lead dashboard unavailable: "+String(e.message||e);
+  }finally{clearTimeout(timeout)}
 }
 function exportCsv(){
   if(!filtered.length){$("plStatus").textContent="No filtered Project Lead data to export.";return}
