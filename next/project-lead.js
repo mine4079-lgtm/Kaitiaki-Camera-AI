@@ -150,14 +150,25 @@ async function connectProjectLead(){
   if(!value){status.textContent="Enter your separate Project Lead token.";return}
   sessionStorage.setItem(PROJECT_LEAD_TOKEN_KEY,value);
   status.textContent="Checking Project Lead access…";
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),12000);
+  const button=$("plConnect");
+  if(button)button.disabled=true;
   try{
-    const res=await fetch(endpoint()+"/session",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:JSON.stringify({token:value})});
+    const res=await fetch(endpoint()+"/session",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:JSON.stringify({token:value}),signal:controller.signal});
     const data=await res.json();
     if(!res.ok||data.role!=="project_lead")throw Error(data.error||"This token is not configured for Project Lead access.");
     window.KaitiakiSetAccessRole("project_lead");
     field.value="";
+    status.textContent="Project Lead connected. Loading dashboard…";
     await load();
-  }catch(e){sessionStorage.removeItem(PROJECT_LEAD_TOKEN_KEY);window.KaitiakiSetAccessRole("team");status.textContent="Project Lead connection failed: "+String(e.message||e)}
+  }catch(e){
+    sessionStorage.removeItem(PROJECT_LEAD_TOKEN_KEY);window.KaitiakiSetAccessRole("team");
+    status.textContent=e.name==="AbortError"?"Project Lead sign-in timed out after 12 seconds. The server did not respond. Please try again later.":"Project Lead connection failed: "+String(e.message||e);
+  }finally{
+    clearTimeout(timeout);
+    if(button)button.disabled=false;
+  }
 }
 $("plConnect")?.addEventListener("click",connectProjectLead);
 $("plRefresh")?.addEventListener("click",load);
