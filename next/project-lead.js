@@ -146,7 +146,7 @@ function exportCsv(){
 }
 window.KaitiakiLoadProjectLead=load;
 async function connectProjectLead(){
-  const field=$("plAccessToken"),status=$("plStatus"),value=String(field?.value||"").trim();
+  const field=$("plAccessToken"),status=$("plConnectStatus")||$("plStatus"),value=String(field?.value||"").trim();
   if(!value){status.textContent="Enter your separate Project Lead token.";return}
   sessionStorage.setItem(PROJECT_LEAD_TOKEN_KEY,value);
   status.textContent="Checking Project Lead access…";
