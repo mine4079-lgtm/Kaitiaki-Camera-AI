@@ -2,13 +2,14 @@
 const $=id=>document.getElementById(id);
 const URL_KEY="kaitiaki-next-cloud-endpoint";
 const TOKEN_KEY="kaitiaki-next-session-token";
+const PROJECT_LEAD_TOKEN_KEY="kaitiaki-next-project-lead-token";
 const PERSIST_TOKEN_KEY="kaitiaki-next-device-token";
 const ROLE_KEY="kaitiaki-access-role";
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 let checks=[],filtered=[];
 
 function endpoint(){return (localStorage.getItem(URL_KEY)||"https://kaitiaki-next-vision.monaghan666.workers.dev").replace(/\/+$/,"")}
-function token(){return localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||""}
+function token(){return sessionStorage.getItem(PROJECT_LEAD_TOKEN_KEY)||localStorage.getItem(PROJECT_LEAD_TOKEN_KEY)||""}
 function role(){return localStorage.getItem(ROLE_KEY)||"team"}
 function esc(s){return String(s??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]))}
 function csv(v){const t=String(v??"");return /[",\n\r]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t}
@@ -144,6 +145,21 @@ function exportCsv(){
   $("plStatus").textContent="Exported "+filtered.length+" filtered camera check"+(filtered.length===1?"":"s")+".";
 }
 window.KaitiakiLoadProjectLead=load;
+async function connectProjectLead(){
+  const field=$("plAccessToken"),status=$("plConnectStatus")||$("plStatus"),value=String(field?.value||"").trim();
+  if(!value){status.textContent="Enter your separate Project Lead token.";return}
+  sessionStorage.setItem(PROJECT_LEAD_TOKEN_KEY,value);
+  status.textContent="Checking Project Lead access…";
+  try{
+    const res=await fetch(endpoint()+"/session",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:JSON.stringify({token:value})});
+    const data=await res.json();
+    if(!res.ok||data.role!=="project_lead")throw Error(data.error||"This token is not configured for Project Lead access.");
+    window.KaitiakiSetAccessRole("project_lead");
+    field.value="";
+    await load();
+  }catch(e){sessionStorage.removeItem(PROJECT_LEAD_TOKEN_KEY);window.KaitiakiSetAccessRole("team");status.textContent="Project Lead connection failed: "+String(e.message||e)}
+}
+$("plConnect")?.addEventListener("click",connectProjectLead);
 $("plRefresh")?.addEventListener("click",load);
 $("plExport")?.addEventListener("click",exportCsv);
 for(const id of ["plYear","plZone","plBlock","plCamera"])$(id)?.addEventListener("change",()=>{if(id==="plYear"){refillFilters()}render()});
