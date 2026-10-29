@@ -5,6 +5,8 @@ const DB_NAME="kaitiaki-next-v1",STORE="image-records";
 const URL_KEY="kaitiaki-next-cloud-endpoint";
 const TOKEN_KEY="kaitiaki-next-session-token";
 const PERSIST_TOKEN_KEY="kaitiaki-next-device-token";
+const PROJECT_LEAD_TOKEN_KEY="kaitiaki-next-project-lead-token";
+const ROLE_KEY="kaitiaki-access-role";
 const DEVICE_ID_KEY="kaitiaki-device-id";
 const PENDING_KEY="kaitiaki-shared-pending";
 const SYNCED_KEY="kaitiaki-shared-synced-v3";
@@ -15,8 +17,16 @@ let selectedSightingsCameras=null,visibleSightingsRecords=[];
 
 function endpoint(){return (localStorage.getItem(URL_KEY)||"https://kaitiaki-next-vision.monaghan666.workers.dev").replace(/\/+$/,"")}
 function token(){return localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||""}
+function readToken(){
+  if(localStorage.getItem(ROLE_KEY)==="project_lead"){
+    const lead=sessionStorage.getItem(PROJECT_LEAD_TOKEN_KEY)||localStorage.getItem(PROJECT_LEAD_TOKEN_KEY)||"";
+    if(lead)return lead;
+  }
+  return token();
+}
 function deviceId(){return localStorage.getItem(DEVICE_ID_KEY)||""}
 function teamBody(extra={}){return JSON.stringify({token:token(),...extra})}
+function readBody(extra={}){return JSON.stringify({token:readToken(),...extra})}
 function candidate(r){
   if(r.aiSkipped||r.aiPrediction==="Empty image")return false;
   if(r.verified)return true;
@@ -105,7 +115,7 @@ setTimeout(()=>{flushPending();catchUpExisting()},1200);
 function clearImages(){for(const u of imageUrls)URL.revokeObjectURL(u);imageUrls=[]}
 async function loadImage(id,img){
   try{
-    const res=await fetch(endpoint()+"/team/image",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({id})});
+    const res=await fetch(endpoint()+"/team/image",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:readBody({id})});
     const data=await res.json();
     if(!res.ok||!data.imageData)throw Error(data.error||"Shared image unavailable");
     img.src=data.imageData;
@@ -173,7 +183,7 @@ async function showGalleryRecord(){
     localGalleryUrl=URL.createObjectURL(r._localPreview);img.src=localGalleryUrl;
   }else if(r.has_image){
     try{
-      const res=await fetch(endpoint()+"/team/image",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({id:r.id})});
+      const res=await fetch(endpoint()+"/team/image",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:readBody({id:r.id})});
       const data=await res.json();if(!res.ok||!data.imageData)throw Error();
       if(galleryRecords[galleryIndex]?.id===r.id)img.src=data.imageData;
     }catch{if(galleryRecords[galleryIndex]?.id===r.id)img.alt="Shared image unavailable"}
@@ -248,7 +258,7 @@ $("sharedRepair")?.addEventListener("click",async()=>{
 async function sharedCameraChecks(){
   if(!navigator.onLine||!token())return [];
   try{
-    const res=await fetch(endpoint()+"/team/camera-checks",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:1000})});
+    const res=await fetch(endpoint()+"/team/camera-checks",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:readBody({limit:1000})});
     const data=await res.json();if(!res.ok)return [];
     return data.checks||[];
   }catch{return []}
@@ -288,7 +298,7 @@ async function knownSharedCameras(records){
   }catch{}
   if(navigator.onLine&&token()){
     try{
-      const res=await fetch(endpoint()+"/team/camera-checks",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:1000})});
+      const res=await fetch(endpoint()+"/team/camera-checks",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:readBody({limit:1000})});
       const data=await res.json();
       if(res.ok)for(const c of data.checks||[])if(c?.cameraNo)names.add(String(c.cameraNo).trim().toUpperCase());
     }catch{}
@@ -345,7 +355,7 @@ async function loadShared(kind){
   try{
     const path=kind==="sighting"?"/team/sightings":"/team/review";
     const url=endpoint()+path;
-    const res=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:kind==="sighting"?500:150})});
+    const res=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:readBody({limit:kind==="sighting"?500:150})});
     const data=await res.json();
     if(!res.ok||data.sharedReady!==true)throw Error(data.error||"Shared database not connected yet");
     root.replaceChildren();
@@ -437,7 +447,7 @@ async function loadShared(kind){
       // Report summaries include all processed Possum predictions, including low-confidence
       // candidates which intentionally remain in Team Review rather than Sightings.
       try{
-        const reviewRes=await fetch(endpoint()+"/team/review",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:500})});
+        const reviewRes=await fetch(endpoint()+"/team/review",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:readBody({limit:500})});
         const reviewData=await reviewRes.json();
         if(reviewRes.ok&&reviewData.sharedReady===true){
           for(const r of reviewData.records||[])addPossumRecord(r);
@@ -468,7 +478,7 @@ async function loadShared(kind){
         if(!cameras.length)return;
         auditButton.disabled=true;auditButton.textContent="Inspecting…";
         try{
-          const res=await fetch(endpoint()+"/team/camera-check-audit",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({cameraNos:cameras})});
+          const res=await fetch(endpoint()+"/team/camera-check-audit",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:readBody({cameraNos:cameras})});
           const data=await res.json();
           if(!res.ok||data.sharedReady!==true)throw Error(data.error||("Worker returned "+res.status));
           const lines=["Read-only audit complete.","Cameras: "+cameras.join(", "),"Shared records inspected: "+data.recordsInspected,
@@ -538,7 +548,7 @@ async function readSharedCheckAudit(check){
     const res=await fetch(endpoint()+"/team/camera-check-audit",{
       method:"POST",
       headers:{"content-type":"text/plain;charset=UTF-8"},
-      body:teamBody({cameraNos:[String(check.cameraNo).trim().toUpperCase()]})
+      body:readBody({cameraNos:[String(check.cameraNo).trim().toUpperCase()]})
     });
     const data=await res.json();
     if(!res.ok||data.sharedReady!==true)return null;
@@ -606,7 +616,7 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
   // Other team devices use the shared D1 copy for the exact camera check.
   if(!navigator.onLine||!token())return false;
   try{
-    const res=await fetch(endpoint()+"/team/sightings",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:teamBody({limit:500,cameraCheckId:check.id,cameraNo:check.cameraNo})});
+    const res=await fetch(endpoint()+"/team/sightings",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:readBody({limit:500,cameraCheckId:check.id,cameraNo:check.cameraNo})});
     const data=await res.json();if(!res.ok||data.sharedReady!==true)throw Error();
     const reportYear=Number(check.reportYear)||new Date().getFullYear();
     const records=(data.records||[]).filter(r=>{
