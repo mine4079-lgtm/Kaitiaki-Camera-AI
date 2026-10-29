@@ -191,6 +191,59 @@ async function runLinkMismatchPreview(){
     status.textContent=e.name==="AbortError"?"Mismatch scan timed out. No changes were made.":"Mismatch scan failed: "+String(e.message||e)+". No changes were made.";
   }finally{clearTimeout(timeout);if(button)button.disabled=false}
 }
+let tpac3aCheck1Diagnostic=null;
+function renderTpac3aCheck1Diagnostic(data){
+  const reports=$("plTpac3aCheck1Reports"),body=$("plTpac3aCheck1Body");
+  reports.replaceChildren();body.replaceChildren();
+  for(const c of (data.reports||[])){
+    const tr=document.createElement("tr");
+    for(const v of [c.checkNo,c.checkedDate,c.savedPossumTotal,c.linkedRecords,c.linkedPossumCandidates,c.imagesProcessed,c.createdAt||"—",c.updatedAt||"—",c.id]){
+      const td=document.createElement("td");td.textContent=String(v??"—");tr.append(td)
+    }
+    reports.append(tr);
+  }
+  const groups=[
+    ["Linked to Check #1",data.check1LinkedRecords||[]],
+    ["Unlinked possum candidate",data.unlinkedPossumCandidates||[]],
+    ["Possum candidate linked elsewhere",data.otherLinkedPossumCandidates||[]],
+    ["Check #1 metadata match",data.check1MetadataCandidates||[]]
+  ];
+  const seen=new Set();let display=[];
+  for(const [group,items] of groups)for(const r of items){
+    const key=String(r.recordId||"")+"|"+group;
+    if(seen.has(key))continue;seen.add(key);display.push({...r,diagnosticGroup:group});
+  }
+  if(!display.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=9;td.textContent="No candidate records returned. Check the report metadata above and scan count.";tr.append(td);body.append(tr)}
+  for(const r of display.slice(0,500)){
+    const tr=document.createElement("tr");
+    const vals=[r.diagnosticGroup,r.fileName||"—",r.capturedAt||"—",r.cameraNo||"—",
+      [r.recordCheckNo===""?"":("record #"+r.recordCheckNo),r.recordCheckedDate].filter(Boolean).join(" · ")||"—",
+      [r.linkedCheckNo===""?"":("linked #"+r.linkedCheckNo),r.linkedCheckedDate].filter(Boolean).join(" · ")||"Unlinked",
+      r.effectiveLabel||"—",r.status||"—",r.recordId||"—"];
+    for(const v of vals){const td=document.createElement("td");td.textContent=String(v);tr.append(td)}
+    body.append(tr);
+  }
+  $("plTpac3aCheck1Status").textContent="Read-only diagnostic: scanned "+Number(data.scannedRecords||0).toLocaleString()+" records; Check #1 linked "+(data.check1LinkedRecords||[]).length+" records ("+Number(data.check1LinkedPossumCandidates||0)+" possum candidates); "+(data.unlinkedPossumCandidates||[]).length+" unlinked possum candidates; "+(data.otherLinkedPossumCandidates||[]).length+" possum candidates linked elsewhere. Showing "+Math.min(display.length,500)+" diagnostic rows. "+(data.possiblyTruncated?"WARNING: query reached its 1,500-row limit; results may be incomplete. ":"")+"No records changed.";
+  tpac3aCheck1Diagnostic=data;
+}
+async function runTpac3aCheck1Diagnostic(){
+  const status=$("plTpac3aCheck1Status"),button=$("plTpac3aCheck1Run");
+  if(role()!=="project_lead"||!token()){status.textContent="Project Lead access is required. Connect your Project Lead token first.";return}
+  if(!navigator.onLine){status.textContent="Offline — connect to the shared database to run this diagnostic.";return}
+  button.disabled=true;status.textContent="Inspecting TPAC3A Check #1 and related records (read-only)…";
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
+  try{
+    const res=await fetch(endpoint()+"/team/tpac3a-check1-diagnostic",{
+      method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},
+      body:JSON.stringify({token:token()}),signal:controller.signal
+    });
+    const data=await res.json();
+    if(!res.ok||!data.ok||data.readOnly!==true)throw Error(data.error||"Diagnostic endpoint unavailable");
+    renderTpac3aCheck1Diagnostic(data);
+  }catch(e){
+    status.textContent=e.name==="AbortError"?"Diagnostic timed out. No changes were made.":"Diagnostic failed: "+String(e.message||e)+". No changes were made.";
+  }finally{clearTimeout(timeout);button.disabled=false}
+}
 function exportLinkMismatchPreview(){
   if(!linkMismatchPreview?.length)return;
   const headers=["Issue","Record camera","Linked camera","Linked check no","Linked check date","Filename","Relative path","Capture date","Label","Human verified","Status","Record ID","Camera check ID","Reason"];
@@ -231,6 +284,7 @@ $("plRefresh")?.addEventListener("click",load);
 $("plExport")?.addEventListener("click",exportCsv);
 $("plLinkMismatchRun")?.addEventListener("click",runLinkMismatchPreview);
 $("plLinkMismatchExport")?.addEventListener("click",exportLinkMismatchPreview);
+$("plTpac3aCheck1Run")?.addEventListener("click",runTpac3aCheck1Diagnostic);
 for(const id of ["plYear","plZone","plBlock","plCamera"])$(id)?.addEventListener("change",()=>{if(id==="plYear"){refillFilters()}render()});
 window.addEventListener("kaitiaki-role-changed",e=>applyRole(e.detail?.role||"team"));
 })();
