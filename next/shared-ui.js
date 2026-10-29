@@ -256,7 +256,7 @@ $("sharedRepair")?.addEventListener("click",async()=>{
 });
 
 async function sharedCameraChecks(){
-  if(!navigator.onLine||!token())return [];
+  if(!navigator.onLine||!readToken())return [];
   try{
     const res=await fetch(endpoint()+"/team/camera-checks",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:readBody({limit:1000})});
     const data=await res.json();if(!res.ok)return [];
@@ -296,7 +296,7 @@ async function knownSharedCameras(records){
     const checks=JSON.parse(localStorage.getItem("kaitiaki-camera-checks-v1")||"[]");
     for(const c of checks||[])if(c?.cameraNo)names.add(String(c.cameraNo).trim().toUpperCase());
   }catch{}
-  if(navigator.onLine&&token()){
+  if(navigator.onLine&&readToken()){
     try{
       const res=await fetch(endpoint()+"/team/camera-checks",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:readBody({limit:1000})});
       const data=await res.json();
@@ -344,7 +344,7 @@ async function loadShared(kind){
   if(!root||!status)return;
   clearImages();
   if(!navigator.onLine){status.textContent="Offline — shared records need internet. Your local Review still works.";return}
-  if(!token()){status.textContent="Connect AI once on this device to open shared team records.";return}
+  if(!readToken()){status.textContent="Connect AI or Project Lead access to open shared records.";return}
   if(kind==="review"){
     status.textContent="Updating completed local reviews…";
     await reconcileCompletedLocalReview();
@@ -543,7 +543,7 @@ async function loadShared(kind){
 }
 
 async function readSharedCheckAudit(check){
-  if(!navigator.onLine||!token()||!check?.cameraNo)return null;
+  if(!navigator.onLine||!readToken()||!check?.cameraNo)return null;
   try{
     const res=await fetch(endpoint()+"/team/camera-check-audit",{
       method:"POST",
@@ -614,7 +614,7 @@ window.KaitiakiOpenCameraCheckGallery=async(check)=>{
   }catch{}
 
   // Other team devices use the shared D1 copy for the exact camera check.
-  if(!navigator.onLine||!token())return false;
+  if(!navigator.onLine||!readToken())return false;
   try{
     const res=await fetch(endpoint()+"/team/sightings",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:readBody({limit:500,cameraCheckId:check.id,cameraNo:check.cameraNo})});
     const data=await res.json();if(!res.ok||data.sharedReady!==true)throw Error();
