@@ -586,6 +586,62 @@ function storedJpegExifDate(input) {
   return "";
 }
 
+async function handleCameraCheckLinkMismatchPreview(input, env, origin) {
+  if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
+  // Read-only Project Lead preview. No schema changes, no writes, and no date-based reassignment.
+  const allowedCameras = new Set(["MTC01","MTC02","OXIC1","OXIC3","TPAC3","TPAC3A"]);
+  const cameraNos = [...new Set((Array.isArray(input?.cameraNos) ? input.cameraNos : [...allowedCameras])
+    .map(v => clean(v, 80).toUpperCase()).filter(v => allowedCameras.has(v)))];
+  if (!cameraNos.length) return reply({ error: "Choose at least one supported camera to inspect" }, 400, origin);
+  const marks = cameraNos.map(() => "?").join(",");
+  const result = await env.KAITIAKI_DB.prepare(`
+    SELECT s.id AS record_id, s.camera_no AS record_camera_no, s.camera_check_id,
+      s.check_no AS record_check_no, s.checked_date AS record_checked_date,
+      s.file_name, s.relative_path, s.captured_at, s.ai_prediction, s.confirmed_label,
+      s.human_verified, s.status, s.created_at, s.updated_at,
+      c.camera_no AS linked_camera_no, c.check_no AS linked_check_no,
+      c.checked_date AS linked_checked_date, c.id AS linked_check_exists
+    FROM sightings s
+    LEFT JOIN camera_checks c ON c.id = s.camera_check_id
+    WHERE UPPER(COALESCE(s.camera_no,'')) IN (${marks})
+       OR UPPER(COALESCE(c.camera_no,'')) IN (${marks})
+    ORDER BY COALESCE(s.camera_no,c.camera_no), s.file_name, s.id
+    LIMIT 5000
+  `).bind(...cameraNos, ...cameraNos).all();
+  const rows = result.results || [];
+  const mismatches = [];
+  const missingLinks = [];
+  for (const r of rows) {
+    const recordCamera = String(r.record_camera_no || "").trim().toUpperCase();
+    const linkedCamera = String(r.linked_camera_no || "").trim().toUpperCase();
+    const inScope = cameraNos.includes(recordCamera) || cameraNos.includes(linkedCamera);
+    if (!inScope) continue;
+    const common = {
+      recordId: String(r.record_id), fileName: r.file_name || "",
+      relativePath: r.relative_path || "", capturedAt: r.captured_at || "",
+      recordCameraNo: recordCamera, recordCheckNo: r.record_check_no ?? null,
+      recordCheckedDate: r.record_checked_date || "", recordCameraCheckId: r.camera_check_id || "",
+      linkedCameraNo: linkedCamera, linkedCheckNo: r.linked_check_no ?? null,
+      linkedCheckedDate: r.linked_checked_date || "", linkedCheckExists: Boolean(r.linked_check_exists),
+      label: Number(r.human_verified) ? (r.confirmed_label || r.ai_prediction || "") : (r.ai_prediction || ""),
+      humanVerified: Boolean(Number(r.human_verified)), status: r.status || "",
+      createdAt: r.created_at || "", updatedAt: r.updated_at || ""
+    };
+    if (r.camera_check_id && !r.linked_check_exists) {
+      missingLinks.push({ ...common, reason: "Linked camera-check ID does not exist" });
+    } else if (recordCamera && linkedCamera && recordCamera !== linkedCamera) {
+      mismatches.push({ ...common, reason: "Record camera differs from linked check camera" });
+    }
+  }
+  return reply({
+    ok: true, readOnly: true, previewOnly: true,
+    note: "No records changed. This preview flags inconsistent links only; it does not infer a replacement check from dates or filenames.",
+    cameras: cameraNos, scannedRecords: rows.length,
+    mismatchCount: mismatches.length, missingCheckLinkCount: missingLinks.length,
+    mismatches, missingLinks
+  }, 200, origin);
+}
+
 async function handleCameraCheckAudit(input, env, origin) {
   if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
   // Strictly read-only: do not call ensureSchema here because it can alter existing sighting statuses.
@@ -1285,6 +1341,7 @@ export default {
         return reply({ error: "Team request too large" }, 413, origin);
       }
       const PROJECT_LEAD_REPAIR_ROUTES = new Set([
+        "/team/camera-check-link-mismatch-preview",
         "/team/mtc03-report-repair",
         "/team/tpac3a-check2-report-repair"
       ]);
@@ -1301,6 +1358,7 @@ export default {
       if (url.pathname === "/team/review-resolve") return handleTeamReviewResolve(parsed.input, env, origin);
       if (url.pathname === "/team/image") return handleTeamImage(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-audit") return handleCameraCheckAudit(parsed.input, env, origin);
+      if (url.pathname === "/team/camera-check-link-mismatch-preview") return handleCameraCheckLinkMismatchPreview(parsed.input, env, origin);
       if (url.pathname === "/team/mtc03-report-repair") return handleMtc03ReportRepair(parsed.input, env, origin);
       if (url.pathname === "/team/tpac3a-check2-report-repair") return handleTpac3aCheck2Repair(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-reconcile") return handleCameraCheckReconcile(parsed.input, env, origin);

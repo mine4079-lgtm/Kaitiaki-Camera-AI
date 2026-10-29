@@ -98,8 +98,12 @@ const teamPayloadStart = workerSource.indexOf("async function teamPayload(");
 assert.notEqual(teamPayloadStart, -1, "must find team authorization guard");
 const teamPayloadEnd = workerSource.indexOf("\nasync function rolePayload(", teamPayloadStart);
 const teamPayloadSource = workerSource.slice(teamPayloadStart, teamPayloadEnd);
-assert.match(teamPayloadSource, /role !== "team"/,
-  "Project Lead read-only credentials must not authorize team mutation endpoints");
+assert.match(teamPayloadSource, /allowedRoles = \["team"\]/,
+  "team endpoints must default to team-only access");
+assert.match(teamPayloadSource, /!role \|\| !allowedRoles\.includes\(role\)/,
+  "each endpoint must enforce its explicit role allow-list");
+assert.match(workerSource, /const PROJECT_LEAD_REPAIR_ROUTES = new Set\(\[[\s\S]*?"\/team\/camera-check-link-mismatch-preview"[\s\S]*?\]\)/,
+  "the link mismatch preview must be listed as a Project Lead-only route");
 
 const syncStart = workerSource.indexOf("async function handleCameraCheckSync(");
 assert.notEqual(syncStart, -1, "must find shared camera report sync handler");

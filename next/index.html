@@ -197,6 +197,13 @@ dialog::backdrop{background:#0c211dcc}
 <div class="panel"><h3>Monthly possum detections</h3><p class="sub">Image detections by capture month, not individual possums.</p><div id="plMonthlyBars" class="month-bars"></div></div>
 <div class="panel"><h3>Species summary</h3><div id="plSpeciesSummary" class="sub">No data loaded yet.</div></div>
 <div class="panel"><h3>Camera summary</h3><p class="sub">Read-only summary of the filtered completed camera checks.</p><div class="report-scroll"><table class="report-table"><thead><tr><th>Camera</th><th>Zone</th><th>Block</th><th>Checks</th><th>Possum images</th><th>Last possum</th><th>Latest check</th><th>Latest issues</th></tr></thead><tbody id="plCameraBody"></tbody></table></div></div>
+<div class="panel" id="plLinkMismatchPanel">
+<h3>Camera-check link mismatch preview</h3>
+<p class="sub">Project Lead only. Read-only scan of six flagged cameras. It identifies records whose camera differs from the camera on the linked check, or whose linked check no longer exists. It does not move records or change totals.</p>
+<div class="actions"><button id="plLinkMismatchRun" class="btn light">Scan for link mismatches</button><button id="plLinkMismatchExport" class="btn light" disabled>Export preview CSV</button></div>
+<p id="plLinkMismatchStatus" class="sub" style="margin:10px 0 0">No scan run yet.</p>
+<div class="report-scroll"><table class="report-table"><thead><tr><th>Issue</th><th>Record camera</th><th>Linked camera</th><th>Check # / date</th><th>Filename</th><th>Capture date</th><th>Label</th><th>Record ID</th><th>Reason</th></tr></thead><tbody id="plLinkMismatchBody"><tr><td colspan="9">Run a scan to inspect current link inconsistencies.</td></tr></tbody></table></div>
+</div>
 </section>
 <p class="footer">Kaitiaki Camera AI · local records · AI uploads only when you press Identify · source photos never edited.<br>© 2026 Thomas Monaghan. All rights reserved.</p>
 </main>
