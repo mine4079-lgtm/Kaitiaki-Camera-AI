@@ -148,6 +148,58 @@ function exportCsv(){
   a.href=url;a.download="kaitiaki-project-lead-"+($("plYear")?.value||"report")+".csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   $("plStatus").textContent="Exported "+filtered.length+" filtered camera check"+(filtered.length===1?"":"s")+".";
 }
+
+let linkMismatchPreview=null;
+const linkMismatchCameras=["MTC01","MTC02","OXIC1","OXIC3","TPAC3","TPAC3A"];
+function renderLinkMismatchPreview(data){
+  const body=$("plLinkMismatchBody"),items=[
+    ...(data.mismatches||[]).map(r=>({...r,issue:"Camera mismatch"})),
+    ...(data.missingLinks||[]).map(r=>({...r,issue:"Missing check"}))
+  ];
+  body.replaceChildren();
+  if(!items.length){
+    const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=9;td.textContent="No inconsistent links found by this check.";tr.append(td);body.append(tr);
+  }else{
+    for(const r of items){
+      const tr=document.createElement("tr");
+      const vals=[r.issue,r.recordCameraNo||"—",r.linkedCameraNo||"—",
+        [r.linkedCheckNo==null?"":("#"+r.linkedCheckNo),r.linkedCheckedDate||""].filter(Boolean).join(" · ")||"—",
+        r.fileName||"—",r.capturedAt||"—",r.label||"—",r.recordId||"—",r.reason||""];
+      for(const v of vals){const td=document.createElement("td");td.textContent=String(v);tr.append(td)}
+      body.append(tr);
+    }
+  }
+  const exportBtn=$("plLinkMismatchExport");if(exportBtn)exportBtn.disabled=!items.length;
+  $("plLinkMismatchStatus").textContent="Read-only preview: scanned "+Number(data.scannedRecords||0).toLocaleString()+" records; "+Number(data.mismatchCount||0)+" camera mismatches; "+Number(data.missingCheckLinkCount||0)+" missing check links. No records changed.";
+  linkMismatchPreview=items;
+}
+async function runLinkMismatchPreview(){
+  const status=$("plLinkMismatchStatus"),button=$("plLinkMismatchRun");
+  if(role()!=="project_lead"||!token()){status.textContent="Project Lead access is required. Connect your Project Lead token first.";return}
+  if(!navigator.onLine){status.textContent="Offline — connect to the shared database to run this preview.";return}
+  if(button)button.disabled=true;status.textContent="Scanning flagged camera links (read-only)…";
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
+  try{
+    const res=await fetch(endpoint()+"/team/camera-check-link-mismatch-preview",{
+      method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},
+      body:JSON.stringify({token:token(),cameraNos:linkMismatchCameras}),signal:controller.signal
+    });
+    const data=await res.json();
+    if(!res.ok||!data.ok||data.readOnly!==true)throw Error(data.error||"Mismatch preview endpoint unavailable");
+    renderLinkMismatchPreview(data);
+  }catch(e){
+    status.textContent=e.name==="AbortError"?"Mismatch scan timed out. No changes were made.":"Mismatch scan failed: "+String(e.message||e)+". No changes were made.";
+  }finally{clearTimeout(timeout);if(button)button.disabled=false}
+}
+function exportLinkMismatchPreview(){
+  if(!linkMismatchPreview?.length)return;
+  const headers=["Issue","Record camera","Linked camera","Linked check no","Linked check date","Filename","Relative path","Capture date","Label","Human verified","Status","Record ID","Camera check ID","Reason"];
+  const lines=[headers.map(csv).join(",")];
+  for(const r of linkMismatchPreview)lines.push([r.issue,r.recordCameraNo,r.linkedCameraNo,r.linkedCheckNo,r.linkedCheckedDate,r.fileName,r.relativePath,r.capturedAt,r.label,r.humanVerified,r.status,r.recordId,r.recordCameraCheckId,r.reason].map(csv).join(","));
+  const blob=new Blob(["\\uFEFF"+lines.join("\\r\\n")],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="kaitiaki-camera-link-mismatch-preview.csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
 window.KaitiakiLoadProjectLead=load;
 async function connectProjectLead(){
   const field=$("plAccessToken"),status=$("plConnectStatus")||$("plStatus"),value=String(field?.value||"").trim();
@@ -177,6 +229,8 @@ async function connectProjectLead(){
 $("plConnect")?.addEventListener("click",connectProjectLead);
 $("plRefresh")?.addEventListener("click",load);
 $("plExport")?.addEventListener("click",exportCsv);
+$("plLinkMismatchRun")?.addEventListener("click",runLinkMismatchPreview);
+$("plLinkMismatchExport")?.addEventListener("click",exportLinkMismatchPreview);
 for(const id of ["plYear","plZone","plBlock","plCamera"])$(id)?.addEventListener("change",()=>{if(id==="plYear"){refillFilters()}render()});
 window.addEventListener("kaitiaki-role-changed",e=>applyRole(e.detail?.role||"team"));
 })();
