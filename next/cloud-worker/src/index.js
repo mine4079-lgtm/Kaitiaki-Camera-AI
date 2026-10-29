@@ -646,6 +646,76 @@ async function handleCameraCheckLinkMismatchPreview(input, env, origin) {
   }, 200, origin);
 }
 
+async function handleTpac3aCheck1Diagnostic(input, env, origin) {
+  if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
+  // Strictly read-only diagnostic: no schema creation, updates, or date-based reassignment.
+  const camera = "TPAC3A";
+  const checkId = "38e5d137-e203-4908-987a-bcdf46567edd";
+  const checksResult = await env.KAITIAKI_DB.prepare(`
+    SELECT id, camera_no, check_no, checked_date, report_year, total_possum, images_processed,
+      meaningful_count, created_at, updated_at
+    FROM camera_checks
+    WHERE UPPER(camera_no)=? AND (id=? OR check_no IN (1,2))
+    ORDER BY checked_date, check_no
+    LIMIT 20
+  `).bind(camera, checkId).all();
+  const checks = checksResult.results || [];
+  const rowsResult = await env.KAITIAKI_DB.prepare(`
+    SELECT s.id, s.camera_no, s.camera_check_id, s.check_no, s.checked_date, s.file_name,
+      s.relative_path, s.captured_at, s.ai_prediction, s.confirmed_label, s.human_verified,
+      s.status, s.created_at, s.updated_at, c.camera_no AS linked_camera_no,
+      c.check_no AS linked_check_no, c.checked_date AS linked_checked_date
+    FROM sightings s
+    LEFT JOIN camera_checks c ON c.id=s.camera_check_id
+    WHERE UPPER(COALESCE(s.camera_no,''))=?
+       OR s.camera_check_id=?
+       OR (UPPER(COALESCE(c.camera_no,''))=?)
+    ORDER BY COALESCE(s.captured_at,s.created_at), s.file_name
+    LIMIT 1500
+  `).bind(camera, checkId, camera).all();
+  const rows = rowsResult.results || [];
+  const getLabel = r => Number(r.human_verified) ? (r.confirmed_label || r.ai_prediction || "") : (r.ai_prediction || "");
+  const isPossum = r => getLabel(r) === "Possum" || String(r.confirmed_label || "") === "Possum";
+  const check1 = checks.find(c => String(c.id) === checkId) || null;
+  const check2 = checks.find(c => Number(c.check_no) === 2 && String(c.checked_date||"").slice(0,10) === "2026-10-07") || null;
+  const linkedCheck1 = rows.filter(r => String(r.camera_check_id||"") === checkId);
+  const linkedCheck2 = check2 ? rows.filter(r => String(r.camera_check_id||"") === String(check2.id)) : [];
+  const noLink = rows.filter(r => !String(r.camera_check_id||"").trim());
+  const otherLinked = rows.filter(r => String(r.camera_check_id||"").trim() && String(r.camera_check_id) !== checkId && (!check2 || String(r.camera_check_id) !== String(check2.id)));
+  const possums = rows.filter(isPossum);
+  const serialise = r => ({
+    recordId:r.id||"", cameraNo:r.camera_no||"", cameraCheckId:r.camera_check_id||"",
+    recordCheckNo:r.check_no??"", recordCheckedDate:r.checked_date||"",
+    linkedCameraNo:r.linked_camera_no||"", linkedCheckNo:r.linked_check_no??"",
+    linkedCheckedDate:r.linked_checked_date||"", fileName:r.file_name||"",
+    relativePath:r.relative_path||"", capturedAt:r.captured_at||"",
+    aiPrediction:r.ai_prediction||"", confirmedLabel:r.confirmed_label||"",
+    humanVerified:Number(r.human_verified)||0, status:r.status||"",
+    createdAt:r.created_at||"", updatedAt:r.updated_at||"",
+    effectiveLabel:getLabel(r), possumCandidate:isPossum(r)
+  });
+  return reply({
+    ok:true, readOnly:true, diagnostic:"TPAC3A Check #1",
+    note:"Read-only only. No records, classifications, links, or report totals were changed.",
+    scannedRecords:rows.length, resultLimit:1500, possiblyTruncated:rows.length>=1500,
+    reports:checks.map(c=>({id:c.id,cameraNo:c.camera_no,checkNo:Number(c.check_no)||0,
+      checkedDate:String(c.checked_date||"").slice(0,10),reportYear:c.report_year||"",
+      savedPossumTotal:Number(c.total_possum)||0,imagesProcessed:Number(c.images_processed)||0,
+      meaningfulCount:Number(c.meaningful_count)||0,createdAt:c.created_at||"",updatedAt:c.updated_at||"",
+      linkedRecords:rows.filter(r=>String(r.camera_check_id||"")===String(c.id)).length,
+      linkedPossumCandidates:rows.filter(r=>String(r.camera_check_id||"")===String(c.id)&&isPossum(r)).length})),
+    check1Id:checkId, check1Found:Boolean(check1),
+    check1LinkedRecords:linkedCheck1.map(serialise),
+    check1LinkedPossumCandidates:linkedCheck1.filter(isPossum).length,
+    check2LinkedRecords:linkedCheck2.map(serialise),
+    unlinkedPossumCandidates:noLink.filter(isPossum).map(serialise),
+    unlinkedRecords:noLink.map(serialise),
+    otherLinkedPossumCandidates:otherLinked.filter(isPossum).map(serialise),
+    check1MetadataCandidates:rows.filter(r => Number(r.check_no)===1 || String(r.checked_date||"").slice(0,10)==="2026-10-27").map(serialise),
+    allPossumCandidates:possums.map(serialise)
+  },200,origin);
+}
+
 async function handleCameraCheckAudit(input, env, origin) {
   if (!sharedConfigured(env)) return reply({ error: "Shared team database is not connected yet", sharedReady: false }, 503, origin);
   // Strictly read-only: do not call ensureSchema here because it can alter existing sighting statuses.
@@ -1347,7 +1417,8 @@ export default {
       const PROJECT_LEAD_REPAIR_ROUTES = new Set([
         "/team/camera-check-link-mismatch-preview",
         "/team/mtc03-report-repair",
-        "/team/tpac3a-check2-report-repair"
+        "/team/tpac3a-check2-report-repair",
+        "/team/tpac3a-check1-diagnostic"
       ]);
       const allowedRoles = PROJECT_LEAD_READ_ROUTES.has(url.pathname)
         ? ["team", "project_lead"]
@@ -1365,6 +1436,7 @@ export default {
       if (url.pathname === "/team/camera-check-link-mismatch-preview") return handleCameraCheckLinkMismatchPreview(parsed.input, env, origin);
       if (url.pathname === "/team/mtc03-report-repair") return handleMtc03ReportRepair(parsed.input, env, origin);
       if (url.pathname === "/team/tpac3a-check2-report-repair") return handleTpac3aCheck2Repair(parsed.input, env, origin);
+      if (url.pathname === "/team/tpac3a-check1-diagnostic") return handleTpac3aCheck1Diagnostic(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-reconcile") return handleCameraCheckReconcile(parsed.input, env, origin);
       if (url.pathname === "/team/camera-check-sync") return handleCameraCheckSync(parsed.input, env, origin);
       if (url.pathname === "/team/camera-checks") return handleCameraChecks(parsed.input, env, origin);
