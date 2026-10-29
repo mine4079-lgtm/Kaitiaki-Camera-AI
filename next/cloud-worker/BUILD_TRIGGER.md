@@ -1,7 +1,7 @@
 # Workers Build Trigger
 
-This file is a harmless commit used to trigger the configured Cloudflare Workers Build after correcting its root directory to `next/cloud-worker`.
+This harmless commit triggers the configured Cloudflare Workers Build after permission changes to `next/cloud-worker/src/index.js`.
 
 It does not change Worker application code, database records, classifications, report counts, or secrets.
 
-Build trigger refresh: 2026-10-27 — deploy audit report timestamp fields.
+Build trigger refresh: 2026-10-29 — deploy Project Lead read-only access to Sightings and Review.
