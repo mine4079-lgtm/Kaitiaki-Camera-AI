@@ -35,12 +35,19 @@ async function checkConnection(){
 }
 $("cloudCheck").onclick=async()=>{
   const ok=await checkConnection();
-  if(ok){
-    // Explicitly choosing Connect AI means return to normal team access.
-    sessionStorage.removeItem("kaitiaki-next-project-lead-token");
-    localStorage.removeItem("kaitiaki-next-project-lead-token");
+  if(!ok)return;
+  try{
+    const key=token(),url=endpoint();
+    const res=await fetch(url+"/session",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:JSON.stringify({token:key}),cache:"no-store"});
+    const data=await res.json();
+    if(!res.ok||data.role!=="team")throw Error("The token entered above is not authorised for normal team access. Check that you used the team AI token, not the Project Lead token.");
+    // Explicitly choosing Connect AI switches the app back to normal team access.
     window.KaitiakiSetAccessRole?.("team");
     const status=$("plConnectStatus");if(status)status.textContent="Project Lead access not connected.";
+    say("Team access verified. Shared Sightings and Review are ready.");
+  }catch(e){
+    $("aiSettings").open=true;
+    say(String(e.message||e));
   }
 };
 for(const id of ["cloudEndpoint","cloudToken"])$(id).oninput=()=>{$("cloudStart").disabled=true;say("AI connection needs checking.")};$("rememberToken").onchange=()=>{if(!$("rememberToken").checked){localStorage.removeItem(PERSIST_TOKEN_KEY);localStorage.removeItem(REMEMBER_KEY)}else localStorage.setItem(REMEMBER_KEY,"yes")};
