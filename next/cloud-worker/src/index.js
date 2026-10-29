@@ -629,6 +629,10 @@ async function handleCameraCheckLinkMismatchPreview(input, env, origin) {
     };
     if (r.camera_check_id && !r.linked_check_exists) {
       missingLinks.push({ ...common, reason: "Linked camera-check ID does not exist" });
+    } else if (!r.camera_check_id && recordCamera) {
+      missingLinks.push({ ...common, reason: "Record has a camera number but no linked camera-check ID" });
+    } else if (r.camera_check_id && !recordCamera && linkedCamera) {
+      mismatches.push({ ...common, reason: "Record camera number is blank; linked check belongs to " + linkedCamera });
     } else if (recordCamera && linkedCamera && recordCamera !== linkedCamera) {
       mismatches.push({ ...common, reason: "Record camera differs from linked check camera" });
     }
