@@ -77,8 +77,8 @@ async function teamPayload(request, env, allowedRoles = ["team"]) {
   try { input = JSON.parse(await request.text()); }
   catch { return { error: "Invalid team request" }; }
   const role = accessRoleForToken(input?.token, env);
-  // Explicit allow-list only: Project Lead may read shared records and audits,
-  // but can never sync, resolve, reconcile, repair, or otherwise mutate team data.
+  // Explicit role allow-list is enforced by the route dispatcher below.
+  // Never grant mutation permissions merely because a request has a valid token.
   if (!role || !allowedRoles.includes(role)) return { error: "Not authorised" };
   return { input, role };
 }
@@ -1284,9 +1284,15 @@ export default {
       if (Number(request.headers.get("content-length") || 0) > MAX_SYNC_BODY) {
         return reply({ error: "Team request too large" }, 413, origin);
       }
+      const PROJECT_LEAD_REPAIR_ROUTES = new Set([
+        "/team/mtc03-report-repair",
+        "/team/tpac3a-check2-report-repair"
+      ]);
       const allowedRoles = PROJECT_LEAD_READ_ROUTES.has(url.pathname)
         ? ["team", "project_lead"]
-        : ["team"];
+        : PROJECT_LEAD_REPAIR_ROUTES.has(url.pathname)
+          ? ["project_lead"]
+          : ["team"];
       const parsed = await teamPayload(request, env, allowedRoles);
       if (parsed.error) return reply({ error: parsed.error }, parsed.error === "Not authorised" ? 401 : 400, origin);
       if (url.pathname === "/team/sync") return handleTeamSync(parsed.input, env, origin);

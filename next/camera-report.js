@@ -11,7 +11,21 @@ const LABELS=["Possum","Rat","Stoat","Mouse","Deer","Pig","Weka","Other wildlife
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function endpoint(){return (localStorage.getItem(URL_KEY)||DEFAULT_URL).replace(/\/+$/,"")}
-function token(){return localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||""}
+function token(){
+  if(localStorage.getItem("kaitiaki-access-role")==="project_lead"){
+    return sessionStorage.getItem("kaitiaki-next-project-lead-token")||localStorage.getItem("kaitiaki-next-project-lead-token")||"";
+  }
+  return localStorage.getItem(PERSIST_TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||"";
+}
+function syncRepairAccess(){
+  const allowed=localStorage.getItem("kaitiaki-access-role")==="project_lead";
+  for(const id of ["mtc03RepairPreview","mtc03RepairApply","tpac3aRepairPreview","tpac3aRepairApply"]){
+    const button=$(id);
+    if(button)button.hidden=!allowed||(id.endsWith("Apply")&&button.dataset.safetyReady!=="true");
+  }
+  for(const id of ["mtc03RepairStatus","tpac3aRepairStatus"]){const status=$(id);if(status)status.hidden=!allowed;}
+}
+window.addEventListener("kaitiaki-role-changed",syncRepairAccess);
 function team(){return {
   teamName:localStorage.getItem(TEAM_KEY)||"",
   staffName:localStorage.getItem(STAFF_KEY)||"",
@@ -536,7 +550,7 @@ async function tpac3aRepairRequest(mode){
     if(mode==="preview"){
       tpac3aRepairPreview=data;
       status.textContent="Preview only — no changes made. TPAC3A Check #"+data.checkNo+" ("+data.checkedDate+"): saved total "+data.currentTotal+", linked Possums "+data.linkedPossumRecords+", dated in report year "+data.datedInReportYear+", proposed total "+data.proposedTotal+"; September "+data.proposedMonthlyPossum[8]+", October "+data.proposedMonthlyPossum[9]+".";
-      if(applyBtn)applyBtn.hidden=!(data.currentTotal===10&&data.linkedPossumRecords===16&&data.datedInReportYear===16&&data.proposedTotal===16&&data.proposedMonthlyPossum?.[8]===4&&data.proposedMonthlyPossum?.[9]===12);
+      if(applyBtn){applyBtn.dataset.safetyReady=String(data.currentTotal===10&&data.linkedPossumRecords===16&&data.datedInReportYear===16&&data.proposedTotal===16&&data.proposedMonthlyPossum?.[8]===4&&data.proposedMonthlyPossum?.[9]===12);syncRepairAccess();}
     }else{
       tpac3aRepairPreview=null;if(applyBtn)applyBtn.hidden=true;
       status.textContent="Report repair applied to TPAC3A Check #"+data.checkNo+". New total "+data.proposedTotal+"; September "+data.proposedMonthlyPossum[8]+", October "+data.proposedMonthlyPossum[9]+". Sightings were not changed. Run the audit again to verify.";
@@ -565,7 +579,7 @@ async function mtc03RepairRequest(mode){
     if(mode==="preview"){
       mtc03RepairPreview=data;
       status.textContent="Preview only — no changes made. MTC03 check #"+data.checkNo+" ("+data.checkedDate+"): current total "+data.currentTotal+", linked possum records "+data.linkedPossumRecords+", dated in report year "+data.datedInReportYear+", proposed total "+data.proposedTotal+".";
-      if(applyBtn)applyBtn.hidden=!(data.currentTotal===0&&data.linkedPossumRecords===12&&data.datedInReportYear===12&&data.proposedTotal===12);
+      if(applyBtn){applyBtn.dataset.safetyReady=String(data.currentTotal===0&&data.linkedPossumRecords===12&&data.datedInReportYear===12&&data.proposedTotal===12);syncRepairAccess();}
     }else{
       mtc03RepairPreview=null;if(applyBtn)applyBtn.hidden=true;
       status.textContent="Repair applied to MTC03 check #"+data.checkNo+". New total: "+data.proposedTotal+". Sightings were not changed. Run the report audit again to verify.";
@@ -602,5 +616,5 @@ $("exportCameraReport")?.addEventListener("click",exportReport);
 $("reportYear")?.addEventListener("change",renderReport);
 $("reportCamera")?.addEventListener("change",renderReport);
 window.KaitiakiLoadCameraReport=renderReport;
-fillCameraList();renderCurrent();initYears();if($("cameraCheckedDate")&&!$("cameraCheckedDate").value)$("cameraCheckedDate").value=today();
+fillCameraList();renderCurrent();initYears();syncRepairAccess();if($("cameraCheckedDate")&&!$("cameraCheckedDate").value)$("cameraCheckedDate").value=today();
 })();
