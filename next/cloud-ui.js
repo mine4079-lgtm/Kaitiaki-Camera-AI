@@ -33,7 +33,16 @@ async function checkConnection(){
     return false;
   }
 }
-$("cloudCheck").onclick=checkConnection;
+$("cloudCheck").onclick=async()=>{
+  const ok=await checkConnection();
+  if(ok){
+    // Explicitly choosing Connect AI means return to normal team access.
+    sessionStorage.removeItem("kaitiaki-next-project-lead-token");
+    localStorage.removeItem("kaitiaki-next-project-lead-token");
+    window.KaitiakiSetAccessRole?.("team");
+    const status=$("plConnectStatus");if(status)status.textContent="Project Lead access not connected.";
+  }
+};
 for(const id of ["cloudEndpoint","cloudToken"])$(id).oninput=()=>{$("cloudStart").disabled=true;say("AI connection needs checking.")};$("rememberToken").onchange=()=>{if(!$("rememberToken").checked){localStorage.removeItem(PERSIST_TOKEN_KEY);localStorage.removeItem(REMEMBER_KEY)}else localStorage.setItem(REMEMBER_KEY,"yes")};
 for(const id of ["photos","folder"])$(id).addEventListener("change",e=>{for(const f of Array.from(e.target.files||[]))files.set(getKey(f),f);say(files.size.toLocaleString()+" images connected. Import them, then Identify unscanned photos.")});
 window.addEventListener("kaitiaki-clear-files",()=>{files.clear();say("Connected folders cleared. Saved results are unchanged.")});
