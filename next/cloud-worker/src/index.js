@@ -64,13 +64,22 @@ function authorised(request, env) {
   return !!accessRoleForToken(token, env);
 }
 
-async function teamPayload(request, env) {
+const PROJECT_LEAD_READ_ROUTES = new Set([
+  "/team/sightings",
+  "/team/review",
+  "/team/image",
+  "/team/camera-checks",
+  "/team/camera-check-audit"
+]);
+
+async function teamPayload(request, env, allowedRoles = ["team"]) {
   let input;
   try { input = JSON.parse(await request.text()); }
   catch { return { error: "Invalid team request" }; }
   const role = accessRoleForToken(input?.token, env);
-  // The Project Lead credential is read-only and must never authorize /team mutations.
-  if (role !== "team") return { error: "Not authorised" };
+  // Explicit allow-list only: Project Lead may read shared records and audits,
+  // but can never sync, resolve, reconcile, repair, or otherwise mutate team data.
+  if (!role || !allowedRoles.includes(role)) return { error: "Not authorised" };
   return { input, role };
 }
 
@@ -1275,7 +1284,10 @@ export default {
       if (Number(request.headers.get("content-length") || 0) > MAX_SYNC_BODY) {
         return reply({ error: "Team request too large" }, 413, origin);
       }
-      const parsed = await teamPayload(request, env);
+      const allowedRoles = PROJECT_LEAD_READ_ROUTES.has(url.pathname)
+        ? ["team", "project_lead"]
+        : ["team"];
+      const parsed = await teamPayload(request, env, allowedRoles);
       if (parsed.error) return reply({ error: parsed.error }, parsed.error === "Not authorised" ? 401 : 400, origin);
       if (url.pathname === "/team/sync") return handleTeamSync(parsed.input, env, origin);
       if (url.pathname === "/team/sightings") return handleTeamList(parsed.input, env, origin, "sighting");
