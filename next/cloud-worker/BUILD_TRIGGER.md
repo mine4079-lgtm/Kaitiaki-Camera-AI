@@ -4,4 +4,4 @@ This harmless commit triggers the configured Cloudflare Workers Build after perm
 
 It does not change Worker application code, database records, classifications, report counts, or secrets.
 
-Build trigger refresh: 2026-10-30 — deploy Project Lead camera-link mismatch preview endpoint.
+Build trigger refresh: 2026-10-30 — rebuild Worker after preview D1 binding fix.
