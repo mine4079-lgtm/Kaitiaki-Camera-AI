@@ -204,6 +204,15 @@ dialog::backdrop{background:#0c211dcc}
 <p id="plLinkMismatchStatus" class="sub" style="margin:10px 0 0">No scan run yet.</p>
 <div class="report-scroll"><table class="report-table"><thead><tr><th>Issue</th><th>Record camera</th><th>Linked camera</th><th>Check # / date</th><th>Filename</th><th>Capture date</th><th>Label</th><th>Record ID</th><th>Reason</th></tr></thead><tbody id="plLinkMismatchBody"><tr><td colspan="9">Run a scan to inspect current link inconsistencies.</td></tr></tbody></table></div>
 </div>
+<div class="panel" id="plTpac3aCheck1Panel">
+<h3>TPAC3A Check #1 diagnostic</h3>
+<p class="sub">Project Lead only. Read-only investigation of Check #1 (27 October 2026), its saved report total, records linked to it, unlinked TPAC3A records, and possum candidates linked to other checks. This does not infer or change links, classifications, or totals.</p>
+<div class="actions"><button id="plTpac3aCheck1Run" class="btn light">Inspect TPAC3A Check #1</button></div>
+<p id="plTpac3aCheck1Status" class="sub" style="margin:10px 0 0">No diagnostic run yet.</p>
+<div class="report-scroll"><table class="report-table"><thead><tr><th>Check #</th><th>Date</th><th>Saved possum total</th><th>Linked records</th><th>Linked possum candidates</th><th>Images processed</th><th>Created</th><th>Updated</th><th>Check ID</th></tr></thead><tbody id="plTpac3aCheck1Reports"><tr><td colspan="9">Run the diagnostic to inspect report totals and timestamps.</td></tr></tbody></table></div>
+<h4>Related records (diagnostic only)</h4>
+<div class="report-scroll"><table class="report-table"><thead><tr><th>Diagnostic group</th><th>Filename</th><th>Capture date</th><th>Record camera</th><th>Record check metadata</th><th>Linked check</th><th>Effective label</th><th>Status</th><th>Record ID</th></tr></thead><tbody id="plTpac3aCheck1Body"><tr><td colspan="9">Run the diagnostic to list relevant records.</td></tr></tbody></table></div>
+</div>
 </section>
 <p class="footer">Kaitiaki Camera AI · local records · AI uploads only when you press Identify · source photos never edited.<br>© 2026 Thomas Monaghan. All rights reserved.</p>
 </main>
@@ -413,7 +422,7 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
   };
 })();
 </script>
-<script src="./project-lead.js?v=3"></script>
+<script src="./project-lead.js?v=4"></script>
 <script src="./camera-report.js?v=26"></script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=81").catch(()=>{}))}</script>
 </body>
