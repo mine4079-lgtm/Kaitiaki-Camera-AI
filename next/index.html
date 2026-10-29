@@ -394,7 +394,7 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 (async()=>{try{db=await openDB();rows=await allItems();const emptyFix=rows.filter(r=>r.aiPrediction==="Empty image"&&(!r.aiSkipped||r.aiNeedsExtraReview));if(emptyFix.length){const now=new Date().toISOString(),fixed=emptyFix.map(r=>({...r,aiSkipped:true,aiSkippedReason:"empty / vegetation-only frame",aiNeedsExtraReview:false,aiQualityReason:"",aiAutoAccepted:false,aiAutoAcceptedAt:"",updatedAt:now}));await storeItems(fixed);const byKey=new Map(fixed.map(r=>[r.key,r]));rows=rows.map(r=>byKey.get(r.key)||r)}rows.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));render();$("status").textContent="Ready. "+rows.length.toLocaleString()+" saved image records available."}catch(err){$("status").textContent="Local storage unavailable: "+String(err.message||err)+". Use a normal, non-private browser tab.";$("start").disabled=true}})();
 })();
 </script>
-<script src="./cloud-ui.js?v=23"></script>
+<script src="./cloud-ui.js?v=24"></script>
 <script src="./shared-ui.js?v=50"></script>
 <script>
 (function(){
@@ -408,6 +408,6 @@ $("export1").onclick=() => exportCSV(false);$("export2").onclick=() => exportCSV
 </script>
 <script src="./project-lead.js?v=3"></script>
 <script src="./camera-report.js?v=26"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=80").catch(()=>{}))}</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=81").catch(()=>{}))}</script>
 </body>
 </html>
