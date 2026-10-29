@@ -196,7 +196,7 @@ function exportLinkMismatchPreview(){
   const headers=["Issue","Record camera","Linked camera","Linked check no","Linked check date","Filename","Relative path","Capture date","Label","Human verified","Status","Record ID","Camera check ID","Reason"];
   const lines=[headers.map(csv).join(",")];
   for(const r of linkMismatchPreview)lines.push([r.issue,r.recordCameraNo,r.linkedCameraNo,r.linkedCheckNo,r.linkedCheckedDate,r.fileName,r.relativePath,r.capturedAt,r.label,r.humanVerified,r.status,r.recordId,r.recordCameraCheckId,r.reason].map(csv).join(","));
-  const blob=new Blob(["\\uFEFF"+lines.join("\\r\\n")],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+  const blob=new Blob(["\uFEFF"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download="kaitiaki-camera-link-mismatch-preview.csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
