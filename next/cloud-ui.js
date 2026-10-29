@@ -39,8 +39,11 @@ $("cloudCheck").onclick=async()=>{
   try{
     const key=token(),url=endpoint();
     const res=await fetch(url+"/session",{method:"POST",headers:{"content-type":"text/plain;charset=UTF-8"},body:JSON.stringify({token:key}),cache:"no-store"});
-    const data=await res.json();
-    if(!res.ok||data.role!=="team")throw Error("The token entered above is not authorised for normal team access. Check that you used the team AI token, not the Project Lead token.");
+    const raw=await res.text();
+    let data={};
+    try{data=raw?JSON.parse(raw):{}}catch{data={error:raw.slice(0,180)||"The server returned a non-JSON response."}}
+    if(!res.ok)throw Error("Team login failed (HTTP "+res.status+"): "+String(data.error||data.message||"Cloudflare rejected the request.").slice(0,180));
+    if(data.role!=="team")throw Error("Cloudflare responded, but the token role was "+String(data.role||"missing/unknown")+". The Worker secret and entered team token may not match.");
     // Explicitly choosing Connect AI switches the app back to normal team access.
     window.KaitiakiSetAccessRole?.("team");
     const status=$("plConnectStatus");if(status)status.textContent="Project Lead access not connected.";
