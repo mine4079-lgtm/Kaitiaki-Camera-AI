@@ -672,9 +672,10 @@ function exportVisibleSightingsCsv(){
   if(status)status.textContent="Exported "+rows.length+" visible sighting"+(rows.length===1?"":"s")+" to CSV.";
 }
 window.KaitiakiLoadSharedSightings=()=>loadShared("sighting");
-// If the Project Lead role is verified after Sightings first loads, refresh the view so admin-only diagnostics appear immediately.
-window.addEventListener("kaitiaki-role-changed",e=>{
-  if(e.detail?.role==="project_lead"&&document.querySelector('[data-tab="sightings"]')?.classList.contains("current"))loadShared("sighting");
+// Refresh Sightings whenever access changes so Project Lead-only diagnostics
+// are removed immediately when returning to normal team access.
+window.addEventListener("kaitiaki-role-changed",()=>{
+  if(document.querySelector('[data-tab="sightings"]')?.classList.contains("current"))loadShared("sighting");
 });
 window.KaitiakiLoadSharedReview=()=>loadShared("review");
 $("refreshSightings")?.addEventListener("click",window.KaitiakiLoadSharedSightings);
