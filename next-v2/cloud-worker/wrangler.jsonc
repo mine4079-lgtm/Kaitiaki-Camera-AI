@@ -1,0 +1,14 @@
+{
+  // V2 TEST ONLY. Never copy the production D1 ID into this file.
+  // This Worker is intentionally separate from kaitiaki-next-vision.
+  "name": "kaitiaki-v2-test-worker",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-30",
+  "d1_databases": [
+    {
+      "binding": "KAITIAKI_DB",
+      "database_name": "kaitiaki-v2-test",
+      "database_id": "66214ba5-08af-41f7-bab1-fe70d1fe2e62"
+    }
+  ]
+}
