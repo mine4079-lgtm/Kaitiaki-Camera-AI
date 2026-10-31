@@ -16,12 +16,13 @@
     "d1_databases": [
       {
         "binding": "KAITIAKI-DB",
-        "database_id": "4f175b10-c7ed-4b8b-a869-22cf8e2b5175"
+        "database_name": "kaitiaki-next-preview",
+        "database_id": "377dced1-552e-4dab-bebe-47efe909ac66"
       },
       {
         "binding": "KAITIAKI_DB",
-        "database_name": "kaitiaki-team-db",
-        "database_id": "4f175b10-c7ed-4b8b-a869-22cf8e2b5175"
+        "database_name": "kaitiaki-next-preview",
+        "database_id": "377dced1-552e-4dab-bebe-47efe909ac66"
       }
     ]
   },
