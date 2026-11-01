@@ -28,3 +28,9 @@ test("team dispatcher does not default listed mutation routes to Team access", (
     /PROJECT_LEAD_MUTATION_ROUTES\.has\(url\.pathname\)\s*\?\s*\["project_lead"\]/
   );
 });
+
+test("camera-check report responses deduplicate complete camera/check/date keys", () => {
+  assert.match(worker, /const uniqueRows = new Map\(\)/);
+  assert.match(worker, /camera \+ "\\|" \+ checkNo \+ "\\|" \+ checkedDate/);
+  assert.match(worker, /if \(!existing \|\| rowTime > existingTime\) uniqueRows\.set\(key, row\)/);
+});
