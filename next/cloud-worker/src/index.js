@@ -1158,7 +1158,23 @@ async function handleCameraChecks(input, env, origin) {
     LIMIT ?
   `).bind(limit).all();
 
-  const checks = (result.results || []).map(row => ({
+  // Hide duplicate camera-check rows without deleting D1 data. For a complete
+  // camera/check/date key, keep the newest snapshot; incomplete rows remain visible.
+  const uniqueRows = new Map();
+  for (const row of result.results || []) {
+    const camera = String(row.camera_no || "").trim().toUpperCase();
+    const checkNo = Number(row.check_no) || 0;
+    const checkedDate = String(row.checked_date || "").slice(0, 10);
+    const key = camera && checkNo && checkedDate
+      ? camera + "|" + checkNo + "|" + checkedDate
+      : String(row.id || "");
+    const existing = uniqueRows.get(key);
+    const rowTime = String(row.updated_at || row.created_at || "");
+    const existingTime = String(existing?.updated_at || existing?.created_at || "");
+    if (!existing || rowTime > existingTime) uniqueRows.set(key, row);
+  }
+
+  const checks = [...uniqueRows.values()].map(row => ({
     id: row.id,
     teamName: row.team_name || "",
     deviceId: row.device_id || "",
