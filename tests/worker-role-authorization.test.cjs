@@ -8,7 +8,7 @@ const worker = fs.readFileSync(workerPath, "utf8");
 
 test("data-fixing routes are explicitly Project Lead-only", () => {
   const routeBlock = worker.match(
-    /const PROJECT_LEAD_MUTATION_ROUTES = new Set\\(\\[(.*?)\\]\\);/s
+    /const PROJECT_LEAD_MUTATION_ROUTES = new Set\(\[(.*?)\]\);/s
   );
   assert.ok(routeBlock, "Project Lead mutation route set should exist");
 
@@ -18,23 +18,23 @@ test("data-fixing routes are explicitly Project Lead-only", () => {
     "/team/review-resolve",
     "/team/camera-check-reconcile"
   ]) {
-    assert.match(routeBlock[1], new RegExp(`"${route.replaceAll("/", "\\/")}"`));
+    assert.match(routeBlock[1], new RegExp(`"${route.replaceAll("/", "\/")}"`));
   }
 });
 
 test("team dispatcher does not default listed mutation routes to Team access", () => {
   assert.match(
     worker,
-    /PROJECT_LEAD_MUTATION_ROUTES\\.has\\(url\\.pathname\\)\\s*\\?\\s*\\["project_lead"\\]/
+    /PROJECT_LEAD_MUTATION_ROUTES\.has\(url\.pathname\)\s*\?\s*\["project_lead"\]/
   );
 });
 
 test("camera-check report uses bounded SQLite window-function deduplication", () => {
-  assert.match(worker, /ROW_NUMBER\\(\\) OVER \\(\\s*PARTITION BY CASE/s);
-  assert.match(worker, /UPPER\\(TRIM\\(camera_no\\)\\)/);
-  assert.match(worker, /SUBSTR\\(TRIM\\(checked_date\\), 1, 10\\)/);
-  assert.match(worker, /ELSE 'incomplete\\|' \\| id/);
-  assert.match(worker, /WHERE row_number = 1[\\s\\S]*LIMIT \\/);
+  assert.match(worker, /ROW_NUMBER\(\) OVER \(\s*PARTITION BY CASE/s);
+  assert.match(worker, /UPPER\(TRIM\(camera_no\)\)/);
+  assert.match(worker, /SUBSTR\(TRIM\(checked_date\), 1, 10\)/);
+  assert.match(worker, /ELSE 'incomplete\|' \| id/);
+  assert.match(worker, /WHERE row_number = 1[\s\S]*LIMIT \/);
 });
 
 function faithfulCameraCheckQuery(rows, limit) {
@@ -51,14 +51,14 @@ function faithfulCameraCheckQuery(rows, limit) {
     const currentOrder = current
       ? [current.updated_at ?? "", current.created_at ?? "", current.id ?? ""]
       : null;
-    if (!current || order.join("\\0") > currentOrder.join("\\0")) ranked.set(key, row);
+    if (!current || order.join("\0") > currentOrder.join("\0")) ranked.set(key, row);
   }
   return [...ranked.values()]
     .sort((a, b) => {
       const av = String(a.checked_date ?? "").trim().slice(0, 10);
       const bv = String(b.checked_date ?? "").trim().slice(0, 10);
       return [bv, b.updated_at ?? "", b.created_at ?? "", b.id ?? ""]
-        .join("\\0").localeCompare([av, a.updated_at ?? "", a.created_at ?? "", a.id ?? ""].join("\\0"));
+        .join("\0").localeCompare([av, a.updated_at ?? "", a.created_at ?? "", a.id ?? ""].join("\0"));
     })
     .slice(0, limit);
 }
