@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
 const workerPath = path.join(__dirname, "..", "next", "cloud-worker", "src", "index.js");
 const worker = fs.readFileSync(workerPath, "utf8");
@@ -29,8 +30,26 @@ test("team dispatcher does not default listed mutation routes to Team access", (
   );
 });
 
-test("camera-check report responses deduplicate complete camera/check/date keys", () => {
-  assert.match(worker, /const uniqueRows = new Map\(\)/);
-  assert.match(worker, /camera \+ "\\|" \+ checkNo \+ "\\|" \+ checkedDate/);
-  assert.match(worker, /if \(!existing \|\| rowTime > existingTime\) uniqueRows\.set\(key, row\)/);
+test("camera-check deduplication keeps newest complete key and preserves incomplete rows", async () => {
+  const { dedupeCameraCheckRows } = await import(
+    pathToFileURL(workerPath).href
+  );
+  const rows = [
+    { id: "old-duplicate", camera_no: " cam-1 ", check_no: 2, checked_date: "2026-10-01", updated_at: "2026-10-01T08:00:00Z" },
+    { id: "unique-after-duplicate", camera_no: "CAM-2", check_no: 1, checked_date: "2026-10-02", updated_at: "2026-10-02T08:00:00Z" },
+    { id: "new-duplicate", camera_no: "CAM-1", check_no: 2, checked_date: "2026-10-01T09:00:00Z", updated_at: "2026-10-01T09:00:00Z" },
+    { id: "incomplete-a", camera_no: "CAM-3", check_no: 0, checked_date: "2026-10-03", updated_at: "2026-10-03T08:00:00Z" },
+    { id: "incomplete-b", camera_no: "CAM-3", check_no: 0, checked_date: "2026-10-03", updated_at: "2026-10-03T09:00:00Z" }
+  ];
+
+  const result = dedupeCameraCheckRows(rows, 3);
+  assert.deepEqual(result.map(row => row.id), [
+    "old-duplicate",
+    "unique-after-duplicate",
+    "new-duplicate"
+  ]);
+  assert.deepEqual(
+    dedupeCameraCheckRows(rows, 10).map(row => row.id),
+    ["old-duplicate", "unique-after-duplicate", "new-duplicate", "incomplete-a", "incomplete-b"]
+  );
 });
