@@ -1141,23 +1141,6 @@ async function handleCameraCheckSync(input, env, origin) {
   return reply({ ok: true, id, sharedReady: true }, 200, origin);
 }
 
-export function dedupeCameraCheckRows(rows, limit) {
-  const uniqueRows = new Map();
-  for (const row of rows || []) {
-    const camera = String(row.camera_no || "").trim().toUpperCase();
-    const checkNo = Number(row.check_no) || 0;
-    const checkedDate = String(row.checked_date || "").slice(0, 10);
-    const key = camera && checkNo && checkedDate
-      ? camera + "|" + checkNo + "|" + checkedDate
-      : String(row.id || "");
-    const existing = uniqueRows.get(key);
-    const rowTime = String(row.updated_at || row.created_at || "");
-    const existingTime = String(existing?.updated_at || existing?.created_at || "");
-    if (!existing || rowTime > existingTime) uniqueRows.set(key, row);
-  }
-  return [...uniqueRows.values()].slice(0, Math.max(1, Number(limit) || 1));
-}
-
 async function handleCameraChecks(input, env, origin) {
   if (!sharedConfigured(env)) {
     return reply({ error: "Shared team database is not connected yet", sharedReady: false, checks: [] }, 503, origin);
@@ -1165,16 +1148,41 @@ async function handleCameraChecks(input, env, origin) {
   await ensureSchema(env);
   const limit = Math.max(1, Math.min(1000, int(input?.limit, 500)));
   const result = await env.KAITIAKI_DB.prepare(`
-    SELECT id, team_name, device_id, device_name, camera_no, zone, block_name, camera_status,
+    WITH ranked AS (
+      SELECT
+        id, team_name, device_id, device_name, camera_no, zone, block_name, camera_status,
+        check_no, checked_date, serviced_by, classified_date, first_image_date, last_image_date, latest_possum_date,
+        approx_presence, classified_by, report_year, monthly_possum_json, species_json,
+        total_possum, images_processed, meaningful_count, skipped_count, human_count, unsure_count,
+        notes, issues_notes, created_at, updated_at,
+        ROW_NUMBER() OVER (
+          PARTITION BY CASE
+            WHEN TRIM(COALESCE(camera_no, '')) <> ''
+              AND COALESCE(check_no, 0) > 0
+              AND TRIM(COALESCE(checked_date, '')) <> ''
+            THEN UPPER(TRIM(camera_no)) || '|' ||
+              CAST(check_no AS INTEGER) || '|' ||
+              SUBSTR(TRIM(checked_date), 1, 10)
+            ELSE 'incomplete|' || id
+          END
+          ORDER BY updated_at DESC, created_at DESC, id DESC
+        ) AS row_number
+      FROM camera_checks
+    )
+    SELECT
+      id, team_name, device_id, device_name, camera_no, zone, block_name, camera_status,
       check_no, checked_date, serviced_by, classified_date, first_image_date, last_image_date, latest_possum_date,
       approx_presence, classified_by, report_year, monthly_possum_json, species_json,
       total_possum, images_processed, meaningful_count, skipped_count, human_count, unsure_count,
       notes, issues_notes, created_at, updated_at
-    FROM camera_checks
-    ORDER BY checked_date DESC, updated_at DESC
-  `).all();
+    FROM ranked
+    WHERE row_number = 1
+    ORDER BY SUBSTR(TRIM(COALESCE(checked_date, '')), 1, 10) DESC,
+      updated_at DESC, created_at DESC, id DESC
+    LIMIT ?
+  `).bind(limit).all();
 
-  const checks = dedupeCameraCheckRows(result.results || [], limit).map(row => ({
+  const checks = (result.results || []).map(row => ({
     id: row.id,
     teamName: row.team_name || "",
     deviceId: row.device_id || "",
