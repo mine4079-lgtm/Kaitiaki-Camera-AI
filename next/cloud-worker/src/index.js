@@ -1141,6 +1141,23 @@ async function handleCameraCheckSync(input, env, origin) {
   return reply({ ok: true, id, sharedReady: true }, 200, origin);
 }
 
+export function dedupeCameraCheckRows(rows, limit) {
+  const uniqueRows = new Map();
+  for (const row of rows || []) {
+    const camera = String(row.camera_no || "").trim().toUpperCase();
+    const checkNo = Number(row.check_no) || 0;
+    const checkedDate = String(row.checked_date || "").slice(0, 10);
+    const key = camera && checkNo && checkedDate
+      ? camera + "|" + checkNo + "|" + checkedDate
+      : String(row.id || "");
+    const existing = uniqueRows.get(key);
+    const rowTime = String(row.updated_at || row.created_at || "");
+    const existingTime = String(existing?.updated_at || existing?.created_at || "");
+    if (!existing || rowTime > existingTime) uniqueRows.set(key, row);
+  }
+  return [...uniqueRows.values()].slice(0, Math.max(1, Number(limit) || 1));
+}
+
 async function handleCameraChecks(input, env, origin) {
   if (!sharedConfigured(env)) {
     return reply({ error: "Shared team database is not connected yet", sharedReady: false, checks: [] }, 503, origin);
@@ -1155,26 +1172,9 @@ async function handleCameraChecks(input, env, origin) {
       notes, issues_notes, created_at, updated_at
     FROM camera_checks
     ORDER BY checked_date DESC, updated_at DESC
-    LIMIT ?
-  `).bind(limit).all();
+  `).all();
 
-  // Hide duplicate camera-check rows without deleting D1 data. For a complete
-  // camera/check/date key, keep the newest snapshot; incomplete rows remain visible.
-  const uniqueRows = new Map();
-  for (const row of result.results || []) {
-    const camera = String(row.camera_no || "").trim().toUpperCase();
-    const checkNo = Number(row.check_no) || 0;
-    const checkedDate = String(row.checked_date || "").slice(0, 10);
-    const key = camera && checkNo && checkedDate
-      ? camera + "|" + checkNo + "|" + checkedDate
-      : String(row.id || "");
-    const existing = uniqueRows.get(key);
-    const rowTime = String(row.updated_at || row.created_at || "");
-    const existingTime = String(existing?.updated_at || existing?.created_at || "");
-    if (!existing || rowTime > existingTime) uniqueRows.set(key, row);
-  }
-
-  const checks = [...uniqueRows.values()].map(row => ({
+  const checks = dedupeCameraCheckRows(result.results || [], limit).map(row => ({
     id: row.id,
     teamName: row.team_name || "",
     deviceId: row.device_id || "",
