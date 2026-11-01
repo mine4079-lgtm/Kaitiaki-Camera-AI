@@ -342,12 +342,16 @@ function cameraSort(a,b){
     || String(b.checkedDate||"").localeCompare(String(a.checkedDate||""))
     || String(b.updatedAt||"").localeCompare(String(a.updatedAt||""));
 }
+function normalizeCheckedDate(value){
+  const date=String(value??"").trim().slice(0,10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date)?date:"";
+}
 function dedupeCameraChecks(checks){
   const keep=new Map(),duplicates=[];
   for(const c of checks){
     const camera=String(c.cameraNo||"").trim().toUpperCase();
     const checkNo=Number(c.checkNo)||0;
-    const date=String(c.checkedDate||"").trim();
+    const date=normalizeCheckedDate(c.checkedDate);
     if(!camera||!checkNo||!date){
       keep.set("id:"+String(c.id||Math.random()),c);
       continue;
