@@ -51,7 +51,7 @@ test("camera-check query executes in SQLite and deduplicates before LIMIT", () =
   // Keep this test coupled to the production query: it executes the exact template
   // extracted from index.js, so SQL changes cannot silently leave the test stale.
   const queryMatch = worker.match(
-    /const result = await env\.KAITIAKI_DB\.prepare(\`([\\s\\S]*?)\`)\.bind\(limit\)\.all\(\);/
+    /const result = await env\\.KAITIAKI_DB\\.prepare\\([\\s\\S]*?\\`([\\s\\S]*?)\\`\\)\\.bind\\(limit\\)\\.all\\(\\);/
   );
   assert.ok(queryMatch, "camera-check production query should remain extractable");
   const query = queryMatch[1];
