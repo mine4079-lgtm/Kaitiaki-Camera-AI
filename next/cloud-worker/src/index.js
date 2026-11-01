@@ -1344,14 +1344,16 @@ export default {
       if (Number(request.headers.get("content-length") || 0) > MAX_SYNC_BODY) {
         return reply({ error: "Team request too large" }, 413, origin);
       }
-      const PROJECT_LEAD_REPAIR_ROUTES = new Set([
+      const PROJECT_LEAD_MUTATION_ROUTES = new Set([
         "/team/camera-check-link-mismatch-preview",
         "/team/mtc03-report-repair",
-        "/team/tpac3a-check2-report-repair"
+        "/team/tpac3a-check2-report-repair",
+        "/team/review-resolve",
+        "/team/camera-check-reconcile"
       ]);
       const allowedRoles = PROJECT_LEAD_READ_ROUTES.has(url.pathname)
         ? ["team", "project_lead"]
-        : PROJECT_LEAD_REPAIR_ROUTES.has(url.pathname)
+        : PROJECT_LEAD_MUTATION_ROUTES.has(url.pathname)
           ? ["project_lead"]
           : ["team"];
       const parsed = await teamPayload(request, env, allowedRoles);
