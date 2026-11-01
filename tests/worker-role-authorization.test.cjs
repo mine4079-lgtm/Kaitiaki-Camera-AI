@@ -40,47 +40,72 @@ test("camera-check report uses bounded SQLite window-function deduplication", ()
   assert.ok(dedupeSql[0].indexOf("WHERE row_number = 1") < dedupeSql[0].indexOf("LIMIT ?"), "LIMIT must follow the row_number filter");
 });
 
-function faithfulCameraCheckQuery(rows, limit) {
-  const ranked = new Map();
-  for (const row of rows) {
-    const camera = String(row.camera_no ?? "").trim().toUpperCase();
-    const checkNo = Number(row.check_no) || 0;
-    const checkedDate = String(row.checked_date ?? "").trim().slice(0, 10);
-    const key = camera && checkNo > 0 && checkedDate
-      ? `${camera}|${Math.trunc(checkNo)}|${checkedDate}`
-      : `incomplete|${row.id}`;
-    const current = ranked.get(key);
-    const order = [row.updated_at ?? "", row.created_at ?? "", row.id ?? ""];
-    const currentOrder = current
-      ? [current.updated_at ?? "", current.created_at ?? "", current.id ?? ""]
-      : null;
-    if (!current || order.join("\0") > currentOrder.join("\0")) ranked.set(key, row);
+test("camera-check query executes in SQLite and deduplicates before LIMIT", () => {
+  let DatabaseSync;
+  try {
+    ({ DatabaseSync } = require("node:sqlite"));
+  } catch (error) {
+    assert.fail(`This integration test requires Node's built-in node:sqlite: ${error.message}`);
   }
-  return [...ranked.values()]
-    .sort((a, b) => {
-      const av = String(a.checked_date ?? "").trim().slice(0, 10);
-      const bv = String(b.checked_date ?? "").trim().slice(0, 10);
-      return [bv, b.updated_at ?? "", b.created_at ?? "", b.id ?? ""]
-        .join("\0").localeCompare([av, a.updated_at ?? "", a.created_at ?? "", a.id ?? ""].join("\0"));
-    })
-    .slice(0, limit);
-}
 
-test("camera-check SQL semantics retain newest normalized duplicates, every incomplete row, and limit after dedupe", () => {
+  // Keep this test coupled to the production query: it executes the exact template
+  // extracted from index.js, so SQL changes cannot silently leave the test stale.
+  const queryMatch = worker.match(
+    /const result = await env\.KAITIAKI_DB\.prepare(\`([\\s\\S]*?)\`)\.bind\(limit\)\.all\(\);/
+  );
+  assert.ok(queryMatch, "camera-check production query should remain extractable");
+  const query = queryMatch[1];
+
+  const db = new DatabaseSync(":memory:");
+  db.exec(`
+    CREATE TABLE camera_checks (
+      id TEXT PRIMARY KEY,
+      team_name TEXT,
+      device_id TEXT,
+      device_name TEXT,
+      camera_no TEXT,
+      zone TEXT,
+      block_name TEXT,
+      camera_status TEXT,
+      check_no INTEGER,
+      checked_date TEXT,
+      serviced_by TEXT,
+      classified_date TEXT,
+      first_image_date TEXT,
+      last_image_date TEXT,
+      latest_possum_date TEXT,
+      approx_presence TEXT,
+      classified_by TEXT,
+      report_year INTEGER,
+      monthly_possum_json TEXT,
+      species_json TEXT,
+      total_possum INTEGER,
+      images_processed INTEGER,
+      meaningful_count INTEGER,
+      skipped_count INTEGER,
+      human_count INTEGER,
+      unsure_count INTEGER,
+      notes TEXT,
+      issues_notes TEXT,
+      created_at TEXT,
+      updated_at TEXT
+    )
+  `);
+
   const rows = [
-    { id: "old", camera_no: " cam-1 ", check_no: 2, checked_date: "2026-10-01T23:59:00Z", updated_at: "2026-10-02T08:00:00Z", created_at: "2026-10-01T08:00:00Z" },
-    { id: "new", camera_no: "CAM-1", check_no: 2, checked_date: "2026-10-01", updated_at: "2026-10-02T09:00:00Z", created_at: "2026-10-01T09:00:00Z" },
-    { id: "unique", camera_no: "CAM-2", check_no: 1, checked_date: "2026-10-03", updated_at: "2026-10-03T08:00:00Z", created_at: "2026-10-03T08:00:00Z" },
-    { id: "incomplete-a", camera_no: "CAM-3", check_no: 0, checked_date: "2026-10-04", updated_at: "2026-10-04T08:00:00Z" },
-    { id: "incomplete-b", camera_no: "CAM-3", check_no: 0, checked_date: "2026-10-04", updated_at: "2026-10-04T09:00:00Z" }
+    ["old", " cam-1 ", 2, "2026-10-01T23:59:00Z", "2026-10-02T08:00:00Z", "2026-10-01T08:00:00Z"],
+    ["new", "CAM-1", 2, "2026-10-01", "2026-10-02T09:00:00Z", "2026-10-01T09:00:00Z"],
+    ["unique", "CAM-2", 1, "2026-10-03", "2026-10-03T08:00:00Z", "2026-10-03T08:00:00Z"],
+    ["incomplete-a", "CAM-3", 0, "2026-10-04", "2026-10-04T08:00:00Z", "2026-10-04T08:00:00Z"],
+    ["incomplete-b", "CAM-3", 0, "2026-10-04", "2026-10-04T09:00:00Z", "2026-10-04T09:00:00Z"]
   ];
+  const insert = db.prepare(
+    "INSERT INTO camera_checks (id, camera_no, check_no, checked_date, updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+  );
+  for (const row of rows) insert.run(...row);
 
-  assert.deepEqual(
-    faithfulCameraCheckQuery(rows, 3).map(row => row.id),
-    ["incomplete-b", "incomplete-a", "unique"]
-  );
-  assert.deepEqual(
-    faithfulCameraCheckQuery(rows, 10).map(row => row.id),
-    ["incomplete-b", "incomplete-a", "unique", "new"]
-  );
+  const run = limit => db.prepare(query).all(limit).map(row => row.id);
+  assert.deepEqual(run(3), ["incomplete-b", "incomplete-a", "unique"]);
+  assert.deepEqual(run(10), ["incomplete-b", "incomplete-a", "unique", "new"]);
+  db.close();
 });
