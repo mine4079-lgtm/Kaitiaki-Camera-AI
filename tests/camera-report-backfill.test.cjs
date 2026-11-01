@@ -102,7 +102,7 @@ assert.match(teamPayloadSource, /allowedRoles = \["team"\]/,
   "team endpoints must default to team-only access");
 assert.match(teamPayloadSource, /!role \|\| !allowedRoles\.includes\(role\)/,
   "each endpoint must enforce its explicit role allow-list");
-assert.match(workerSource, /const PROJECT_LEAD_REPAIR_ROUTES = new Set\(\[[\s\S]*?"\/team\/camera-check-link-mismatch-preview"[\s\S]*?\]\)/,
+assert.match(workerSource, /const PROJECT_LEAD_MUTATION_ROUTES = new Set\(\[[\s\S]*?"\/team\/camera-check-link-mismatch-preview"[\s\S]*?\]\)/,
   "the link mismatch preview must be listed as a Project Lead-only route");
 
 const syncStart = workerSource.indexOf("async function handleCameraCheckSync(");
