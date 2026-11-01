@@ -15,10 +15,14 @@ function esc(s){return String(s??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&
 function csv(v){const t=String(v??"");return /[",\n\r]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t}
 function unique(values){return [...new Set(values.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:"base"}))}
 function latestDate(values){return values.filter(Boolean).sort().at(-1)||""}
+function normalizeCheckedDate(value){
+  const date=String(value??"").trim().slice(0,10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date)?date:"";
+}
 function dedupe(items){
   const keep=new Map();
   for(const c of items||[]){
-    const camera=String(c.cameraNo||"").trim().toUpperCase(),checkNo=Number(c.checkNo)||0,date=String(c.checkedDate||"").trim();
+    const camera=String(c.cameraNo||"").trim().toUpperCase(),checkNo=Number(c.checkNo)||0,date=normalizeCheckedDate(c.checkedDate);
     const key=(camera&&checkNo&&date)?camera+"|"+checkNo+"|"+date:"id:"+String(c.id||Math.random());
     const old=keep.get(key);
     if(!old||String(c.updatedAt||c.createdAt||"")>String(old.updatedAt||old.createdAt||""))keep.set(key,c);
