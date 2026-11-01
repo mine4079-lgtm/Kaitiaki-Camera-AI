@@ -33,7 +33,7 @@ test("camera-check report uses bounded SQLite window-function deduplication", ()
   assert.match(worker, /ROW_NUMBER\(\) OVER \(\s*PARTITION BY CASE/s);
   assert.match(worker, /UPPER\(TRIM\(camera_no\)\)/);
   assert.match(worker, /SUBSTR\(TRIM\(checked_date\), 1, 10\)/);
-  assert.match(worker, /ELSE 'incomplete\|' \| id/);
+  assert.match(worker, /ELSE 'incomplete\|'\s*\|\|\s*id/);
   const dedupeSql = worker.match(/WITH ranked AS \([\s\S]*?LIMIT \?/);
   assert.ok(dedupeSql, "camera-check query should place a parameterized LIMIT in the ranked query");
   assert.match(dedupeSql[0], /WHERE row_number = 1/);
