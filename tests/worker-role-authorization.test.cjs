@@ -45,7 +45,8 @@ test("camera-check deduplication keeps newest complete key and preserves incompl
   const result = dedupeCameraCheckRows(rows, 3);
   assert.deepEqual(result.map(row => row.id), [
     "new-duplicate",
-    "unique-after-duplicate"
+    "unique-after-duplicate",
+    "incomplete-a"
   ]);
   assert.deepEqual(
     dedupeCameraCheckRows(rows, 10).map(row => row.id),
