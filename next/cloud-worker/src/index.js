@@ -64,6 +64,11 @@ function authorised(request, env) {
   return !!accessRoleForToken(token, env);
 }
 
+const PROJECT_LEAD_RECOVERY_ROUTES = new Set([
+  "/recovery/sightings",
+  "/recovery/image"
+]);
+
 const PROJECT_LEAD_READ_ROUTES = new Set([
   "/team/sightings",
   "/team/review",
@@ -426,6 +431,67 @@ async function handleTeamReviewResolve(input, env, origin) {
     resolved += Number(result?.meta?.changes || 0);
   }
   return reply({ ok: true, resolved, sharedReady: true }, 200, origin);
+}
+
+async function handleRecoveryImage(input, env, origin) {
+  if (!sharedConfigured(env)) return reply({ error: "Shared database is not connected yet" }, 503, origin);
+  await ensureSchema(env);
+  const id = clean(input?.id, 100);
+  if (!id) return reply({ error: "Missing image id" }, 400, origin);
+
+  const row = await env.KAITIAKI_DB.prepare(`
+    SELECT image_blob, image_type
+    FROM sightings
+    WHERE id=? AND status='sighting'
+      AND camera_no IS NOT NULL AND TRIM(camera_no)<>''
+      AND image_blob IS NOT NULL
+  `).bind(id).first();
+  if (!row?.image_blob) return reply({ error: "Eligible preview not found" }, 404, origin);
+
+  const bytes = Array.isArray(row.image_blob)
+    ? Uint8Array.from(row.image_blob)
+    : row.image_blob instanceof Uint8Array
+      ? row.image_blob
+      : row.image_blob instanceof ArrayBuffer
+        ? new Uint8Array(row.image_blob)
+        : null;
+  if (!bytes) return reply({ error: "Invalid stored image" }, 500, origin);
+
+  const type = row.image_type || "image/jpeg";
+  return reply({
+    imageData: "data:" + type + ";base64," + bytesToBase64(bytes)
+  }, 200, origin);
+}
+
+async function handleRecoverySightings(input, env, origin) {
+  if (!sharedConfigured(env)) return reply({ error: "Shared database is not connected yet" }, 503, origin);
+  await ensureSchema(env);
+  const limit = Math.max(1, Math.min(100, int(input?.limit, 100)));
+  const offset = Math.max(0, int(input?.offset, 0));
+  const where = "status='sighting' AND camera_no IS NOT NULL AND TRIM(camera_no)<>'' AND image_blob IS NOT NULL";
+  const count = await env.KAITIAKI_DB.prepare(
+    "SELECT COUNT(*) AS total FROM sightings WHERE " + where
+  ).first();
+  const result = await env.KAITIAKI_DB.prepare(`
+    SELECT id, team_name, device_id, device_name, imported_by, reviewer_name,
+      file_name, camera_no, camera_check_id, check_no, checked_date, relative_path,
+      ai_prediction, ai_confidence, ai_second_choice, ai_note, confirmed_label,
+      human_verified, needs_extra_review, status, 1 AS has_image,
+      captured_at, verified_at, created_at, updated_at
+    FROM sightings
+    WHERE ${where}
+    ORDER BY id ASC
+    LIMIT ? OFFSET ?
+  `).bind(limit, offset).all();
+  const records = result.results || [];
+  return reply({
+    sharedReady: true,
+    records,
+    total: Number(count?.total || 0),
+    offset,
+    limit,
+    hasMore: offset + records.length < Number(count?.total || 0)
+  }, 200, origin);
 }
 
 async function handleTeamImage(input, env, origin) {
@@ -1364,7 +1430,7 @@ export default {
       return handleProjectLeadDashboard(parsed.input, env, origin);
     }
 
-    if (request.method === "POST" && url.pathname.startsWith("/team/")) {
+    if (request.method === "POST" && (url.pathname.startsWith("/team/") || url.pathname.startsWith("/recovery/"))) {
       if (Number(request.headers.get("content-length") || 0) > MAX_SYNC_BODY) {
         return reply({ error: "Team request too large" }, 413, origin);
       }
@@ -1375,13 +1441,17 @@ export default {
         "/team/review-resolve",
         "/team/camera-check-reconcile"
       ]);
-      const allowedRoles = PROJECT_LEAD_READ_ROUTES.has(url.pathname)
-        ? ["team", "project_lead"]
+      const allowedRoles = PROJECT_LEAD_RECOVERY_ROUTES.has(url.pathname)
+        ? ["project_lead"]
+        : PROJECT_LEAD_READ_ROUTES.has(url.pathname)
+          ? ["team", "project_lead"]
         : PROJECT_LEAD_MUTATION_ROUTES.has(url.pathname)
           ? ["project_lead"]
           : ["team"];
       const parsed = await teamPayload(request, env, allowedRoles);
       if (parsed.error) return reply({ error: parsed.error }, parsed.error === "Not authorised" ? 401 : 400, origin);
+      if (url.pathname === "/recovery/sightings") return handleRecoverySightings(parsed.input, env, origin);
+      if (url.pathname === "/recovery/image") return handleRecoveryImage(parsed.input, env, origin);
       if (url.pathname === "/team/sync") return handleTeamSync(parsed.input, env, origin);
       if (url.pathname === "/team/sightings") return handleTeamList(parsed.input, env, origin, "sighting");
       if (url.pathname === "/team/review") return handleTeamList(parsed.input, env, origin, "review");
